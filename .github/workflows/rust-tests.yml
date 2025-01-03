@@ -1,14 +1,10 @@
-name: Rust
+name: Rust Test
 
 on:
   push:
     branches:
       - "main"
-    paths:
-      - "rust/om-file-format-c-rs/**"
-  pull_request:
-    paths:
-      - "rust/om-file-format-c-rs/**"
+  pull_request: {}
 
 env:
   CARGO_TERM_COLOR: always
