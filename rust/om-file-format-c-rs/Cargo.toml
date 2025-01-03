@@ -8,8 +8,8 @@ build = "build.rs"
 categories = ["compression", "encoding"]
 description = "Rust bindings for om-file-format C code"
 include = [
-    "../../c/include/**/*.h",
-    "../../c/src/**/*.c",
+    "c/include/**/*.h",
+    "c/src/**/*.c",
     "src/**/*",
     "Cargo.toml",
     "build.rs",

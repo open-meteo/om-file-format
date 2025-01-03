@@ -21,12 +21,6 @@ fn get_build_config() -> BuildConfig {
     }
 }
 
-fn get_submodule_path() -> PathBuf {
-    let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
-    // Navigate up two levels to get the C code we want to compile
-    manifest_dir.join("./c")
-}
-
 fn setup_compiler(build: &mut cc::Build) -> cc::Tool {
     // Check if CC is set in environment
     if let Ok(cc) = env::var("CC") {
@@ -99,16 +93,17 @@ fn generate_bindings(submodule: &str, sysroot: &Option<String>) {
 
 fn main() {
     const LIB_NAME: &str = "omfileformatc";
-    let submodule_path = get_submodule_path();
+    let submodule_path = "c";
 
-    if !submodule_path.exists() {
-        panic!("Could not find submodule at {:?}", submodule_path);
+    // Check if submodule exists
+    if !std::path::Path::new(submodule_path).exists() {
+        panic!("Submodule not found at path: {}", submodule_path);
     }
 
     // Re-run build script if these files change
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed=src/lib.rs");
-    println!("cargo:rerun-if-changed={}", submodule_path.display());
+    println!("cargo:rerun-if-changed={}", submodule_path);
 
     let config = get_build_config();
     let mut build = cc::Build::new();
@@ -117,9 +112,9 @@ fn main() {
     println!("cargo:compiler={:?}", compiler.path());
 
     // Include directories
-    build.include(format!("{}/include", submodule_path.display()));
+    build.include(format!("{}/include", submodule_path));
     // Add all .c files from the submodule's src directory
-    let src_path = format!("{}/src", submodule_path.display());
+    let src_path = format!("{}/src", submodule_path);
     for entry in std::fs::read_dir(&src_path).unwrap() {
         let path = entry.unwrap().path();
         if path.extension().and_then(|e| e.to_str()) == Some("c") {
@@ -141,7 +136,7 @@ fn main() {
     build.warnings(false);
     build.compile(LIB_NAME);
 
-    generate_bindings(submodule_path.to_str().unwrap(), &config.sysroot);
+    generate_bindings(submodule_path, &config.sysroot);
 
     // Link the static library
     println!("cargo:rustc-link-lib=static={}", LIB_NAME);
