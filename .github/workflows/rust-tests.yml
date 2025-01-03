@@ -46,11 +46,11 @@ jobs:
         with:
           command: "build"
           target: ${{ matrix.platform.target }}
-          working-directory: rust/om-file-format-c-rs
+          working-directory: ./rust/om-file-format-c-rs
       - name: Run tests
         uses: houseabsolute/actions-rust-cross@v0
         with:
           command: "test"
           target: ${{ matrix.platform.target }}
           args: "-- --test-threads=1 --nocapture"
-          working-directory: rust/om-file-format-c-rs
+          working-directory: ./rust/om-file-format-c-rs
