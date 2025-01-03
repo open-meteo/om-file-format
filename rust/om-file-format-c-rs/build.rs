@@ -24,7 +24,7 @@ fn get_build_config() -> BuildConfig {
 fn get_submodule_path() -> PathBuf {
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
     // Navigate up two levels to get the C code we want to compile
-    manifest_dir.join("../../c")
+    manifest_dir.join("./c")
 }
 
 fn setup_compiler(build: &mut cc::Build) -> cc::Tool {
