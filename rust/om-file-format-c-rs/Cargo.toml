@@ -1,0 +1,25 @@
+[package]
+name = "om-file-format-c-rs"
+version = "0.0.1"
+edition = "2021"
+
+build = "build.rs"
+
+categories = ["compression", "encoding"]
+description = "Rust bindings for om-file-format C code"
+include = [
+    "../../c/include/**/*.h",
+    "../../c/src/**/*.c",
+    "src/**/*",
+    "Cargo.toml",
+    "build.rs",
+    "README.md",
+]
+license = "GPL-2.0-or-later"
+
+[dependencies]
+libc = "0.2"
+
+[build-dependencies]
+cc = { version = "1.0", features = ["parallel"] }
+bindgen = "0.69.4"
