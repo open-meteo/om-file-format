@@ -1,12 +1,16 @@
 [package]
 name = "om-file-format-c-rs"
-version = "0.0.1"
+version = "0.0.0"
 edition = "2021"
+license = "AGPL-3.0"
+authors = ["Terraputix <terraputix@mailbox.org>"]
+readme = "README.md"
+categories = ["compression", "encoding"]
+keywords = ["meteo", "weather", "file-format", "bindings"]
+description = "Rust bindings for om-file-format C code"
+repository = "https://github.com/open-meteo/om-file-format"
 
 build = "build.rs"
-
-categories = ["compression", "encoding"]
-description = "Rust bindings for om-file-format C code"
 include = [
     "c/include/**/*.h",
     "c/src/**/*.c",
@@ -15,7 +19,6 @@ include = [
     "build.rs",
     "README.md",
 ]
-license = "GPL-2.0-or-later"
 
 [dependencies]
 libc = "0.2"
