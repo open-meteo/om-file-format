@@ -1,0 +1,4 @@
+[workspace]
+members = ["rust/om-file-format-c-rs"]
+
+resolver = "2"
