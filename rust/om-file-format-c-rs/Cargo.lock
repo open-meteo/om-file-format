@@ -190,7 +190,7 @@ dependencies = [
 
 [[package]]
 name = "om-file-format-c-rs"
-version = "0.0.1"
+version = "0.0.0"
 dependencies = [
  "bindgen",
  "cc",
