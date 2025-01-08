@@ -1,5 +1,5 @@
 [package]
-name = "om-file-format-c-rs"
+name = "om-file-format-sys"
 version = "0.0.0"
 edition = "2021"
 license = "AGPL-3.0"
