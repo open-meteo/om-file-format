@@ -1,6 +1,6 @@
 {
     "branches": [
-        "fix-semver-release"
+        "main"
     ],
     "plugins": [
         [
