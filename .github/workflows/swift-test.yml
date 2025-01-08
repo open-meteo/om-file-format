@@ -1,16 +1,16 @@
 # https://github.com/peripheryapp/periphery/blob/master/.github/workflows/test.yml
 
 name: Swift Test
+
 on:
-  push:
-    branches:
-      - main
-  pull_request: {}
+  workflow_call:
+
 env:
   swift_package_resolve: swift package resolve
   swift_build: swift build --build-tests
   swift_test: swift test
   cache_version: 1
+
 jobs:
   macOS:
     strategy:

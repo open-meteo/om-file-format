@@ -1,0 +1,14 @@
+name: Tests
+
+on:
+  push:
+    branches:
+      - main
+  pull_request: {}
+
+jobs:
+  call-swift-tests:
+    uses: ./.github/workflows/swift-test.yml
+
+  call-rust-tests:
+    uses: ./.github/workflows/rust-test.yml
