@@ -1,6 +1,6 @@
 {
     "branches": [
-        "semver-release"
+        "main"
     ],
     "plugins": [
         [
@@ -47,5 +47,6 @@
                 "publishCmd": "publish"
             }
         ],
+        [@semantic-release/github]
     ]
 }
