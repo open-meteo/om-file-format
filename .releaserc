@@ -1,6 +1,6 @@
 {
     "branches": [
-        "main"
+        "semver-release"
     ],
     "plugins": [
         [
@@ -39,7 +39,6 @@
                 }
             }
         ],
-        ["@semantic-release/github"],
         [
             "@semantic-release-cargo/semantic-release-cargo",
             {
