@@ -1,6 +1,6 @@
 {
     "branches": [
-        "om-file-format-rust-bindings"
+        "main"
     ],
     "plugins": [
         [
@@ -39,13 +39,6 @@
                 }
             }
         ],
-        [
-            "@semantic-release-cargo/semantic-release-cargo",
-            {
-                "verifyConditionsCmd": "verify-conditions",
-                "prepareCmd": "prepare ${nextRelease.version}",
-                "publishCmd": "publish"
-            }
-        ],
+        "@semantic-release/github"
     ]
 }
