@@ -1,6 +1,6 @@
 {
     "branches": [
-        "main"
+        "fix-semver-release"
     ],
     "plugins": [
         [
@@ -42,6 +42,7 @@
         [
             "@semantic-release-cargo/semantic-release-cargo",
             {
+                "manifest_path": "rust/om-file-format-sys/Cargo.toml",
                 "verifyConditionsCmd": "verify-conditions",
                 "prepareCmd": "prepare ${nextRelease.version}",
                 "publishCmd": "publish"
