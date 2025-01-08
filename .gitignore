@@ -1,7 +1,6 @@
 .DS_Store
 /.build
 target/
-node_modules/
 /Packages
 xcuserdata/
 DerivedData/
