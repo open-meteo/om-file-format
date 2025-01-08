@@ -1,4 +1,4 @@
 [workspace]
-members = ["rust/om-file-format-c-rs"]
+members = ["rust/om-file-format-sys"]
 
 resolver = "2"
