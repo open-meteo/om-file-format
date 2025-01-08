@@ -39,6 +39,14 @@
                 }
             }
         ],
-        "@semantic-release/github"
+        ["@semantic-release/github"],
+        [
+            "@semantic-release-cargo/semantic-release-cargo",
+            {
+                "verifyConditionsCmd": "verify-conditions",
+                "prepareCmd": "prepare ${nextRelease.version}",
+                "publishCmd": "publish"
+            }
+        ],
     ]
 }
