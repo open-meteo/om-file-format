@@ -9,6 +9,3 @@ passthrough = [
     # "CC_ENABLE_DEBUG_OUTPUT=1",
     "SYSROOT=/usr/aarch64-linux-gnu",
 ]
-
-[build.env]
-volumes = ["_T=./c"]
