@@ -168,12 +168,12 @@ static inline void               stof64(      void *cp, double             x) { 
     defined(__ARM_FEATURE_UNALIGNED) || defined(__aarch64__) || defined(__arm__) ||\
     defined(__ARM_ARCH_4__) || defined(__ARM_ARCH_4T__) || \
     defined(__ARM_ARCH_5__) || defined(__ARM_ARCH_5T__) || defined(__ARM_ARCH_5TE__) || defined(__ARM_ARCH_5TEJ__) || \
-    defined(__ARM_ARCH_6__) || defined(__ARM_ARCH_6J__) || defined(__ARM_ARCH_6K__)  || defined(__ARM_ARCH_6T2__) || defined(__ARM_ARCH_6Z__)   || defined(__ARM_ARCH_6ZK__)
+    defined(__ARM_ARCH_6__) || defined(__ARM_ARCH_6J__) || defined(__ARM_ARCH_6K__)  || defined(__ARM_ARCH_6T2__) || defined(__ARM_ARCH_6Z__)   || defined(__ARM_ARCH_6ZK__) || defined(__wasm__)
 #define ctou16(_cp_) (*(unsigned short *)(_cp_))
 #define ctou32(_cp_) (*(unsigned       *)(_cp_))
 #define ctof32(_cp_) (*(float          *)(_cp_))
 
-    #if defined(__i386__) || defined(__x86_64__) || defined(__powerpc__) || defined(__s390__) || defined(_MSC_VER)
+    #if defined(__i386__) || defined(__x86_64__) || defined(__powerpc__) || defined(__s390__) || defined(_MSC_VER) || defined(__wasm__)
 #define ctou64(_cp_)       (*(uint64_t *)(_cp_))
 #define ctof64(_cp_)       (*(double   *)(_cp_))
     #elif defined(__ARM_FEATURE_UNALIGNED)
@@ -238,8 +238,8 @@ struct _PACKED doubleu   { double             d; };
 #define bzhi64(_u_, _b_)                 _bzhi_u64(_u_, _b_)
       #endif
     #else
-#define bzhi_u64(_u_, _b_)               BZHI64(_u_, _b_) 
-#define bzhi_u32(_u_, _b_)               BZHI32(_u_, _b_) 
+#define bzhi_u64(_u_, _b_)               BZHI64(_u_, _b_)
+#define bzhi_u32(_u_, _b_)               BZHI32(_u_, _b_)
     #endif
 
 #define SIZE_ROUNDUP(_n_, _a_) (((size_t)(_n_) + (size_t)((_a_) - 1)) & ~(size_t)((_a_) - 1))
