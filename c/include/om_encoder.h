@@ -16,7 +16,7 @@ typedef struct {
     const uint64_t *dimensions;
     const uint64_t *chunks;
     uint64_t dimension_count;
-    
+
     /// The callback to decompress data
     om_compress_callback_t compress_callback;
 
@@ -25,17 +25,27 @@ typedef struct {
 
     /// Copy and scale individual values from a chunk into the output array
     om_compress_copy_callback_t compress_copy_callback;
-    
+
     float scale_factor;
-    
+
     /// An offset to convert floats to integers while scaling
     float add_offset;
-    
+
     /// Number of bytes for a single element of the data type
     int8_t bytes_per_element;
-    
+
     /// Number of bytes for a single element in the compressed stream. E.g. Int16 could be used to scale down floats
     int8_t bytes_per_element_compressed;
+
+    /// The data type of the data
+    OmDataType_t data_type;
+
+    /// The compression type of the data
+    OmCompression_t compression;
+
+    /// The size of the element and compressed element in bytes.
+    /// E.g. Int16 could be used to scale down floats
+    OmElementSize_t element_size;
 } OmEncoder_t;
 
 /// Initialise the OmEncoder structure with information about the shape of data

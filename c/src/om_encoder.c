@@ -11,14 +11,24 @@
 #include "fp.h"
 #include "delta2d.h"
 
-
-OmError_t om_encoder_init(OmEncoder_t* encoder, float scale_factor, float add_offset, OmCompression_t compression, OmDataType_t data_type, const uint64_t* dimensions, const uint64_t* chunks, uint64_t dimension_count) {
+OmError_t om_encoder_init(
+    OmEncoder_t* encoder,
+    float scale_factor,
+    float add_offset,
+    OmCompression_t compression,
+    OmDataType_t data_type,
+    const uint64_t* dimensions,
+    const uint64_t* chunks,
+    uint64_t dimension_count
+) {
     encoder->scale_factor = scale_factor;
     encoder->add_offset = add_offset;
     encoder->dimensions = dimensions;
     encoder->chunks = chunks;
     encoder->dimension_count = dimension_count;
-    
+    encoder->data_type = data_type;
+    encoder->compression = compression;
+
     // Set element sizes and copy function
     switch (data_type) {
         case DATA_TYPE_INT8_ARRAY:
@@ -27,14 +37,14 @@ OmError_t om_encoder_init(OmEncoder_t* encoder, float scale_factor, float add_of
             encoder->bytes_per_element_compressed = 1;
             encoder->compress_copy_callback = om_common_copy8;
             break;
-        
+
         case DATA_TYPE_INT16_ARRAY:
         case DATA_TYPE_UINT16_ARRAY:
             encoder->bytes_per_element = 2;
             encoder->bytes_per_element_compressed = 2;
             encoder->compress_copy_callback = om_common_copy16;
             break;
-            
+
         case DATA_TYPE_INT32_ARRAY:
         case DATA_TYPE_UINT32_ARRAY:
         case DATA_TYPE_FLOAT_ARRAY:
@@ -42,7 +52,7 @@ OmError_t om_encoder_init(OmEncoder_t* encoder, float scale_factor, float add_of
             encoder->bytes_per_element_compressed = 4;
             encoder->compress_copy_callback = om_common_copy32;
             break;
-            
+
         case DATA_TYPE_INT64_ARRAY:
         case DATA_TYPE_UINT64_ARRAY:
         case DATA_TYPE_DOUBLE_ARRAY:
@@ -50,11 +60,11 @@ OmError_t om_encoder_init(OmEncoder_t* encoder, float scale_factor, float add_of
             encoder->bytes_per_element_compressed = 8;
             encoder->compress_copy_callback = om_common_copy32;
             break;
-            
+
         default:
             return ERROR_INVALID_DATA_TYPE;
     }
-    
+
     // TODO more compression and datatypes
     switch (compression) {
         case COMPRESSION_PFOR_DELTA2D_INT16:
@@ -67,24 +77,24 @@ OmError_t om_encoder_init(OmEncoder_t* encoder, float scale_factor, float add_of
             encoder->compress_filter_callback = (om_compress_filter_callback_t)delta2d_encode16;
             encoder->compress_callback = (om_compress_callback_t)p4nzenc128v16;
             break;
-            
+
         case COMPRESSION_FPX_XOR2D:
             switch (data_type) {
                 case DATA_TYPE_FLOAT_ARRAY:
                     encoder->compress_callback = om_common_compress_fpxenc32;
                     encoder->compress_filter_callback = (om_compress_filter_callback_t)delta2d_encode_xor;
                     break;
-                    
+
                 case DATA_TYPE_DOUBLE_ARRAY:
                     encoder->compress_callback = om_common_compress_fpxenc64;
                     encoder->compress_filter_callback = (om_compress_filter_callback_t)delta2d_encode_xor_double;
                     break;
-                    
+
                 default:
                     return ERROR_INVALID_DATA_TYPE;
             }
             break;
-            
+
         case COMPRESSION_PFOR_DELTA2D:
             switch (data_type) {
                 case DATA_TYPE_INT8_ARRAY:
@@ -133,7 +143,7 @@ OmError_t om_encoder_init(OmEncoder_t* encoder, float scale_factor, float add_of
                     return ERROR_INVALID_DATA_TYPE;
             }
             break;
-            
+
         case COMPRESSION_PFOR_DELTA2D_INT16_LOGARITHMIC:
             if (data_type != DATA_TYPE_FLOAT_ARRAY) {
                 return ERROR_INVALID_DATA_TYPE;
@@ -144,12 +154,89 @@ OmError_t om_encoder_init(OmEncoder_t* encoder, float scale_factor, float add_of
             encoder->compress_filter_callback = (om_compress_filter_callback_t)delta2d_encode16;
             encoder->compress_callback = (om_compress_callback_t)p4nzenc128v16;
             break;
-            
+
         default:
             return ERROR_INVALID_COMPRESSION_TYPE;
     }
-    
+
     return ERROR_OK;
+}
+
+uint64_t om_encode_compress(
+    const OmDataType_t data_type,
+    const OmCompression_t compression_type,
+    const void* input,
+    uint64_t count,
+    void* output,
+    OmError_t* error
+) {
+    uint64_t result = 0;
+
+    switch (compression_type) {
+        case COMPRESSION_PFOR_DELTA2D_INT16:
+        case COMPRESSION_PFOR_DELTA2D_INT16_LOGARITHMIC:
+            if (data_type == DATA_TYPE_FLOAT_ARRAY) {
+                result = p4nzenc128v16((uint16_t*)input, (size_t)count, (unsigned char*)output);
+            } else {
+                *error = ERROR_INVALID_DATA_TYPE;
+            }
+            break;
+
+        case COMPRESSION_FPX_XOR2D:
+            switch (data_type) {
+                case DATA_TYPE_FLOAT_ARRAY:
+                    result = om_common_compress_fpxenc32((float*)input, (size_t)count, (unsigned char*)output);
+                    break;
+                case DATA_TYPE_DOUBLE_ARRAY:
+                    result = om_common_compress_fpxenc64((double*)input, (size_t)count, (unsigned char*)output);
+                    break;
+                default:
+                    *error = ERROR_INVALID_DATA_TYPE;
+            }
+            break;
+
+        case COMPRESSION_PFOR_DELTA2D:
+            switch (data_type) {
+                case DATA_TYPE_INT8_ARRAY:
+                    result = p4nzenc8((uint8_t*)input, (size_t)count, (unsigned char*)output);
+                    break;
+                case DATA_TYPE_UINT8_ARRAY:
+                    result = p4ndenc8((uint8_t*)input, (size_t)count, (unsigned char*)output);
+                    break;
+                case DATA_TYPE_INT16_ARRAY:
+                    result = p4nzenc128v16((uint16_t*)input, (size_t)count, (unsigned char*)output);
+                    break;
+                case DATA_TYPE_UINT16_ARRAY:
+                    result = p4ndenc128v16((uint16_t*)input, (size_t)count, (unsigned char*)output);
+                    break;
+                case DATA_TYPE_INT32_ARRAY:
+                    result = p4nzenc128v32((uint32_t*)input, (size_t)count, (unsigned char*)output);
+                    break;
+                case DATA_TYPE_UINT32_ARRAY:
+                    result = p4ndenc128v32((uint32_t*)input, (size_t)count, (unsigned char*)output);
+                    break;
+                case DATA_TYPE_INT64_ARRAY:
+                    result = p4nzenc64((uint64_t*)input, (size_t)count, (unsigned char*)output);
+                    break;
+                case DATA_TYPE_UINT64_ARRAY:
+                    result = p4ndenc64((uint64_t*)input, (size_t)count, (unsigned char*)output);
+                    break;
+                case DATA_TYPE_FLOAT_ARRAY:
+                    result = p4nzenc128v32((uint32_t*)input, (size_t)count, (unsigned char*)output);
+                    break;
+                case DATA_TYPE_DOUBLE_ARRAY:
+                    result = p4nzenc64((uint64_t*)input, (size_t)count, (unsigned char*)output);
+                    break;
+                default:
+                    *error = ERROR_INVALID_DATA_TYPE;
+            }
+            break;
+
+        default:
+            *error = ERROR_INVALID_COMPRESSION_TYPE;
+    }
+
+    return result;
 }
 
 uint64_t om_encoder_count_chunks(const OmEncoder_t* encoder) {
@@ -226,14 +313,14 @@ uint64_t om_encoder_compress_chunk(
     uint8_t* out,
     uint8_t* chunkBuffer
 ) {
-    
+
     const uint64_t dimension_count = encoder->dimension_count;
     // The total size of `arrayDimensions`. Only used to check for out of bound reads
     uint64_t arrayTotalCount = 1;
     for (uint64_t i = 0; i < dimension_count; i++) {
         arrayTotalCount *= arrayDimensions[i];
     }
-    
+
     uint64_t rollingMultiply = 1;
     uint64_t rollingMultiplyChunkLength = 1;
     uint64_t rollingMultiplyTargetCube = 1;
@@ -247,7 +334,7 @@ uint64_t om_encoder_compress_chunk(
         const uint64_t i = dimension_count - i_forward - 1;
         const uint64_t dimension = encoder->dimensions[i];
         const uint64_t chunk = encoder->chunks[i];
-        
+
         const uint64_t nChunksInThisDimension = divide_rounded_up(dimension, chunk);
         const uint64_t c0 = (chunkIndex / rollingMultiply) % nChunksInThisDimension;
         const uint64_t c0Offset = (chunkIndexOffsetInThisArray / rollingMultiply) % nChunksInThisDimension;
@@ -300,7 +387,7 @@ uint64_t om_encoder_compress_chunk(
         for (uint64_t i_forward = 0; i_forward < dimension_count; i_forward++) {
             uint64_t i = dimension_count - i_forward - 1;
             const uint64_t chunk = encoder->chunks[i];
-            
+
             const uint64_t qPos = ((readCoordinate / rollingMultiplyTargetCube) % arrayDimensions[i] - arrayOffset[i]) / chunk;
             const uint64_t length0 = min((qPos + 1) * chunk, arrayCount[i]) - qPos * chunk;
             readCoordinate += rollingMultiplyTargetCube;
@@ -323,7 +410,10 @@ uint64_t om_encoder_compress_chunk(
 
             if (i == 0) {
                 (*encoder->compress_filter_callback)(lengthInChunk / lengthLast, lengthLast, chunkBuffer);
-                return (*encoder->compress_callback)(chunkBuffer, lengthInChunk, out);
+                // FIXME: error handling
+                uint64_t compressed_length = om_encode_compress(encoder->data_type, encoder->compression, chunkBuffer, lengthInChunk, out, NULL);
+                return compressed_length;
+                // return (*encoder->compress_callback)(chunkBuffer, lengthInChunk, out);
             }
         }
     }
