@@ -73,7 +73,13 @@ typedef enum {
     COMPRESSION_NONE = 4
 } OmCompression_t;
 
+/// Used by both the encoder and decoder to store the size of elements
+typedef struct {
+    uint64_t bytes_per_element;
+    uint64_t bytes_per_element_compressed;
+} OmElementSize_t;
 
+OmError_t om_get_element_size(OmDataType_t data_type, OmCompression_t compression, OmElementSize_t* size);
 
 /// Divide and round up
 #define divide_rounded_up(dividend,divisor) \
