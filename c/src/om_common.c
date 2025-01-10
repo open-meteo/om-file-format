@@ -10,7 +10,7 @@
 #include "vp4.h"
 #include "fp.h"
 #pragma clang diagnostic ignored "-Wunused-parameter"
-
+#pragma clang diagnostic warning "-Wbad-function-cast"
 
 const char* om_error_string(OmError_t error) {
     switch (error) {
@@ -93,7 +93,8 @@ void om_common_copy_float_to_int16(uint64_t length, float scale_factor, float ad
             ((int16_t *)dst)[i] = INT16_MAX;
         } else {
             float scaled = val * scale_factor + add_offset;
-            ((int16_t *)dst)[i] = (int16_t)fmaxf(INT16_MIN, fminf(INT16_MAX, roundf(scaled)));
+            float clamped = fmaxf(INT16_MIN, fminf(INT16_MAX, roundf(scaled)));
+            ((int16_t *)dst)[i] = (int16_t)clamped;
         }
     }
 }
@@ -105,7 +106,8 @@ void om_common_copy_float_to_int32(uint64_t length, float scale_factor, float ad
             ((int32_t *)dst)[i] = INT32_MAX;
         } else {
             float scaled = val * scale_factor + add_offset;
-            ((int32_t *)dst)[i] = (int32_t)fmaxf((float)INT32_MIN, fminf((float)INT32_MAX, roundf(scaled)));
+            float clamped = fmaxf((float)INT32_MIN, fminf((float)INT32_MAX, roundf(scaled)));
+            ((int32_t *)dst)[i] = (int32_t)clamped;
         }
     }
 }
@@ -117,7 +119,8 @@ void om_common_copy_double_to_int64(uint64_t length, float scale_factor, float a
             ((int64_t *)dst)[i] = INT64_MAX;
         } else {
             double scaled = val * (double)scale_factor + (double)add_offset;
-            ((int64_t *)dst)[i] = (int64_t)fmax((float)INT64_MIN, fmin((float)INT64_MAX, round(scaled)));
+            double clamped = fmax((double)INT64_MIN, fmin((double)INT64_MAX, round(scaled)));
+            ((int64_t *)dst)[i] = (int64_t)clamped;
         }
     }
 }
@@ -129,7 +132,8 @@ void om_common_copy_float_to_int16_log10(uint64_t length, float scale_factor, fl
             ((int16_t *)dst)[i] = INT16_MAX;
         } else {
             float scaled = log10f(1 + val) * scale_factor;
-            ((int16_t *)dst)[i] = (int16_t)fmaxf((float)INT16_MIN, fminf((float)INT16_MAX, roundf(scaled)));
+            float clamped = fmaxf(INT16_MIN, fminf(INT16_MAX, roundf(scaled)));
+            ((int16_t *)dst)[i] = (int16_t)clamped;
         }
     }
 }
