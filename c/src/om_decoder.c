@@ -687,7 +687,14 @@ bool om_decoder_next_data_read(const OmDecoder_t *decoder, OmDecoder_dataRead_t*
 }
 
 // Internal function to decode a single chunk.
-uint64_t _om_decoder_decode_chunk(const OmDecoder_t *decoder, uint64_t chunkIndex, const void *data, void *into, void *chunk_buffer) {
+uint64_t _om_decoder_decode_chunk(
+    const OmDecoder_t *decoder,
+    uint64_t chunkIndex,
+    const void *data,
+    void *into,
+    void *chunk_buffer,
+    OmError_t *error
+) {
     uint64_t rollingMultiply = 1;
     uint64_t rollingMultiplyChunkLength = 1;
     uint64_t rollingMultiplyTargetCube = 1;
@@ -760,18 +767,16 @@ uint64_t _om_decoder_decode_chunk(const OmDecoder_t *decoder, uint64_t chunkInde
 
     const uint64_t lengthInChunk = rollingMultiplyChunkLength;
 
-    OmError_t error = ERROR_OK;
     const uint64_t uncompressedBytes = om_decode_decompress(
         decoder->data_type,
         decoder->compression,
         data,
         lengthInChunk,
         chunk_buffer,
-        &error
+        error
     );
 
-    if (error != ERROR_OK) {
-        printf("Error in om_decode_decompress %d\n", error);
+    if (*error != ERROR_OK) {
         return 0;
     }
 
@@ -780,10 +785,9 @@ uint64_t _om_decoder_decode_chunk(const OmDecoder_t *decoder, uint64_t chunkInde
     }
 
     // Perform 2D decoding
-    om_decode_filter(decoder->data_type, decoder->compression, chunk_buffer, lengthInChunk, lengthLast, &error);
+    om_decode_filter(decoder->data_type, decoder->compression, chunk_buffer, lengthInChunk, lengthLast, error);
 
-    if (error != ERROR_OK) {
-        printf("Error in om_decode_filter %d\n", error);
+    if (*error != ERROR_OK) {
         return 0;
     }
 
@@ -798,8 +802,12 @@ uint64_t _om_decoder_decode_chunk(const OmDecoder_t *decoder, uint64_t chunkInde
             decoder->add_offset,
             &chunk_buffer[d * decoder->bytes_per_element_compressed],
             &into[q * decoder->bytes_per_element],
-            &error
+            error
         );
+
+        if (*error != ERROR_OK) {
+            return 0;
+        }
 
         q += linearReadCount - 1;
         d += linearReadCount - 1;
@@ -866,7 +874,7 @@ uint64_t _om_decoder_decode_chunk(const OmDecoder_t *decoder, uint64_t chunkInde
     return uncompressedBytes;
 }
 
-bool om_decoder_decode_chunks(const OmDecoder_t *decoder, OmRange_t chunk, const void *data, uint64_t data_size, void *into, void *chunkBuffer, OmError_t* error) {
+bool om_decoder_decode_chunks(const OmDecoder_t *decoder, OmRange_t chunk, const void *data, uint64_t data_size, void *into, void *chunkBuffer, OmError_t *error) {
     uint64_t pos = 0;
     // printf("chunkIndex.lowerBound %lu %lu\n",chunk.lowerBound,chunk.upperBound);
     for (uint64_t chunkNum = chunk.lowerBound; chunkNum < chunk.upperBound; ++chunkNum) {
@@ -875,7 +883,10 @@ bool om_decoder_decode_chunks(const OmDecoder_t *decoder, OmRange_t chunk, const
             (*error) = ERROR_DEFLATED_SIZE_MISMATCH;
             return false;
         }
-        uint64_t uncompressedBytes = _om_decoder_decode_chunk(decoder, chunkNum, (const uint8_t *)data + pos, into, chunkBuffer);
+        if (*error != ERROR_OK) {
+            return false;
+        }
+        uint64_t uncompressedBytes = _om_decoder_decode_chunk(decoder, chunkNum, (const uint8_t *)data + pos, into, chunkBuffer, error);
         pos += uncompressedBytes;
     }
     // printf("%lu %lu \n", pos, data_size);
