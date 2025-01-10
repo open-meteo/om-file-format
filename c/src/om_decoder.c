@@ -20,15 +20,25 @@ void om_decoder_init_data_read(OmDecoder_dataRead_t *data_read, const OmDecoder_
     data_read->nextChunk = index_read->chunkIndex;
 }
 
-OmError_t om_decoder_init(OmDecoder_t* decoder, const OmVariable_t* variable, uint64_t dimension_count, const uint64_t* read_offset, const uint64_t* read_count, const uint64_t* cube_offset, const uint64_t* cube_dimensions, uint64_t io_size_merge, uint64_t io_size_max) {
-    
+OmError_t om_decoder_init(
+    OmDecoder_t* decoder,
+    const OmVariable_t* variable,
+    uint64_t dimension_count,
+    const uint64_t* read_offset,
+    const uint64_t* read_count,
+    const uint64_t* cube_offset,
+    const uint64_t* cube_dimensions,
+    uint64_t io_size_merge,
+    uint64_t io_size_max
+) {
+
     float scalefactor, add_offset;
     const uint64_t *dimensions, *chunks;
     //uint64_t dimension_count_file;
     OmDataType_t data_type;
     OmCompression_t compression;
     uint64_t lut_size, lut_start, lut_chunk_length;
-    
+
     switch (_om_variable_memory_layout(variable)) {
         case OM_MEMORY_LAYOUT_LEGACY: {
             const OmHeaderV1_t* metaV1 = (const OmHeaderV1_t*)variable;
@@ -63,19 +73,19 @@ OmError_t om_decoder_init(OmDecoder_t* decoder, const OmVariable_t* variable, ui
         case OM_MEMORY_LAYOUT_SCALAR:
             return ERROR_INVALID_DATA_TYPE;
     }
-    
+
     // Calculate the number of chunks based on dims and chunks
     uint64_t nChunks = 1;
     for (uint64_t i = 0; i < dimension_count; i++) {
         nChunks *= divide_rounded_up(dimensions[i], chunks[i]);
     }
-    
+
     // Correctly calculate number of chunks
     if (lut_chunk_length > 0) {
         const uint64_t nLutChunks = divide_rounded_up(nChunks, LUT_CHUNK_COUNT);
         lut_chunk_length = lut_size / nLutChunks;
     }
-    
+
     decoder->number_of_chunks = nChunks;
     decoder->scale_factor = scalefactor;
     decoder->add_offset = add_offset;
@@ -90,161 +100,290 @@ OmError_t om_decoder_init(OmDecoder_t* decoder, const OmVariable_t* variable, ui
     decoder->lut_start = lut_start;
     decoder->io_size_merge = io_size_merge;
     decoder->io_size_max = io_size_max;
-    
+    decoder->data_type = data_type;
+    decoder->compression = compression;
+
     // Set element sizes and copy function
     switch (data_type) {
         case DATA_TYPE_INT8_ARRAY:
         case DATA_TYPE_UINT8_ARRAY:
             decoder->bytes_per_element = 1;
             decoder->bytes_per_element_compressed = 1;
-            decoder->decompress_copy_callback = om_common_copy8;
             break;
-        
+
         case DATA_TYPE_INT16_ARRAY:
         case DATA_TYPE_UINT16_ARRAY:
             decoder->bytes_per_element = 2;
             decoder->bytes_per_element_compressed = 2;
-            decoder->decompress_copy_callback = om_common_copy16;
             break;
-            
+
         case DATA_TYPE_INT32_ARRAY:
         case DATA_TYPE_UINT32_ARRAY:
         case DATA_TYPE_FLOAT_ARRAY:
             decoder->bytes_per_element = 4;
             decoder->bytes_per_element_compressed = 4;
-            decoder->decompress_copy_callback = om_common_copy32;
             break;
-            
+
         case DATA_TYPE_INT64_ARRAY:
         case DATA_TYPE_UINT64_ARRAY:
         case DATA_TYPE_DOUBLE_ARRAY:
             decoder->bytes_per_element = 8;
             decoder->bytes_per_element_compressed = 8;
-            decoder->decompress_copy_callback = om_common_copy32;
             break;
-            
+
         default:
             return ERROR_INVALID_DATA_TYPE;
     }
-    
+
     // TODO more compression and datatypes
     switch (compression) {
         case COMPRESSION_PFOR_DELTA2D_INT16:
-            if (data_type != DATA_TYPE_FLOAT_ARRAY) {
-                return ERROR_INVALID_DATA_TYPE;
-            }
-            decoder->bytes_per_element = 4;
-            decoder->bytes_per_element_compressed = 2;
-            decoder->decompress_copy_callback = om_common_copy_int16_to_float;
-            decoder->decompress_filter_callback = (om_compress_filter_callback_t)delta2d_decode16;
-            decoder->decompress_callback = (om_compress_callback_t)p4nzdec128v16;
-            break;
-            
-        case COMPRESSION_FPX_XOR2D:
-            switch (data_type) {
-                case DATA_TYPE_FLOAT_ARRAY:
-                    decoder->decompress_callback = om_common_decompress_fpxdec32;
-                    decoder->decompress_filter_callback = (om_compress_filter_callback_t)delta2d_decode_xor;
-                    break;
-                    
-                case DATA_TYPE_DOUBLE_ARRAY:
-                    decoder->decompress_callback = om_common_decompress_fpxdec64;
-                    decoder->decompress_filter_callback = (om_compress_filter_callback_t)delta2d_decode_xor_double;
-                    break;
-                    
-                default:
-                    return ERROR_INVALID_DATA_TYPE;
-            }
-            break;
-            
-        case COMPRESSION_PFOR_DELTA2D:
-            switch (data_type) {
-                case DATA_TYPE_INT8_ARRAY:
-                    decoder->decompress_callback = (om_compress_callback_t)p4nzdec8;
-                    decoder->decompress_filter_callback = (om_compress_filter_callback_t)delta2d_decode8;
-                    break;
-                case DATA_TYPE_UINT8_ARRAY:
-                    decoder->decompress_callback = (om_compress_callback_t)p4nddec8;
-                    decoder->decompress_filter_callback = (om_compress_filter_callback_t)delta2d_decode8;
-                    break;
-                case DATA_TYPE_INT16_ARRAY:
-                    decoder->decompress_callback = (om_compress_callback_t)p4nzdec128v16;
-                    decoder->decompress_filter_callback = (om_compress_filter_callback_t)delta2d_decode16;
-                    break;
-                case DATA_TYPE_UINT16_ARRAY:
-                    decoder->decompress_callback = (om_compress_callback_t)p4nddec128v16;
-                    decoder->decompress_filter_callback = (om_compress_filter_callback_t)delta2d_decode16;
-                    break;
-                case DATA_TYPE_INT32_ARRAY:
-                    decoder->decompress_callback = (om_compress_callback_t)p4nzdec128v32;
-                    decoder->decompress_filter_callback = (om_compress_filter_callback_t)delta2d_decode32;
-                    break;
-                case DATA_TYPE_UINT32_ARRAY:
-                    decoder->decompress_callback = (om_compress_callback_t)p4nddec128v32;
-                    decoder->decompress_filter_callback = (om_compress_filter_callback_t)delta2d_decode32;
-                    break;
-                case DATA_TYPE_INT64_ARRAY:
-                    decoder->decompress_callback = (om_compress_callback_t)p4nzdec64;
-                    decoder->decompress_filter_callback = (om_compress_filter_callback_t)delta2d_decode64;
-                    break;
-                case DATA_TYPE_UINT64_ARRAY:
-                    decoder->decompress_callback = (om_compress_callback_t)p4nddec64;
-                    decoder->decompress_filter_callback = (om_compress_filter_callback_t)delta2d_decode64;
-                    break;
-                case DATA_TYPE_FLOAT_ARRAY:
-                    decoder->decompress_copy_callback = om_common_copy_int32_to_float;
-                    decoder->decompress_filter_callback = (om_compress_filter_callback_t)delta2d_decode32;
-                    decoder->decompress_callback = (om_compress_callback_t)p4nzdec128v32;
-                    break;
-                case DATA_TYPE_DOUBLE_ARRAY:
-                    decoder->decompress_copy_callback = om_common_copy_int64_to_double;
-                    decoder->decompress_filter_callback = (om_compress_filter_callback_t)delta2d_decode64;
-                    decoder->decompress_callback = (om_compress_callback_t)p4nzdec64;
-                    break;
-                default:
-                    return ERROR_INVALID_DATA_TYPE;
-            }
-            break;
-            
         case COMPRESSION_PFOR_DELTA2D_INT16_LOGARITHMIC:
             if (data_type != DATA_TYPE_FLOAT_ARRAY) {
                 return ERROR_INVALID_DATA_TYPE;
             }
             decoder->bytes_per_element = 4;
             decoder->bytes_per_element_compressed = 2;
-            decoder->decompress_copy_callback = om_common_copy_int16_to_float_log10;
-            decoder->decompress_filter_callback = (om_compress_filter_callback_t)delta2d_decode16;
-            decoder->decompress_callback = (om_compress_callback_t)p4nzdec128v16;
             break;
-            
+
+        case COMPRESSION_FPX_XOR2D:
+        case COMPRESSION_PFOR_DELTA2D:
+            break;
+
         default:
             return ERROR_INVALID_COMPRESSION_TYPE;
     }
     return ERROR_OK;
 }
 
+uint64_t om_decode_decompress(
+    const OmDataType_t data_type,
+    const OmCompression_t compression_type,
+    const void* input,
+    uint64_t length_in_chunk,
+    void* output,
+    OmError_t* error
+) {
+    uint64_t result = 0;
+
+    switch (compression_type) {
+        case COMPRESSION_PFOR_DELTA2D_INT16:
+        case COMPRESSION_PFOR_DELTA2D_INT16_LOGARITHMIC:
+            if (data_type == DATA_TYPE_FLOAT_ARRAY) {
+                result = p4nzdec128v16((unsigned char*)input, (size_t)length_in_chunk, (uint16_t*)output);
+            } else {
+                *error = ERROR_INVALID_DATA_TYPE;
+            }
+            break;
+        case COMPRESSION_FPX_XOR2D:
+            switch (data_type) {
+                case DATA_TYPE_FLOAT_ARRAY:
+                    result = om_common_decompress_fpxdec32((unsigned char*)input, (size_t)length_in_chunk, (float*)output);
+                    break;
+                case DATA_TYPE_DOUBLE_ARRAY:
+                    result = om_common_decompress_fpxdec64((unsigned char*)input, (size_t)length_in_chunk, (double*)output);
+                    break;
+                default:
+                    *error = ERROR_INVALID_DATA_TYPE;
+            }
+            break;
+        case COMPRESSION_PFOR_DELTA2D:
+            switch (data_type) {
+                case DATA_TYPE_INT8_ARRAY:
+                    result = p4nzdec8((unsigned char*)input, (size_t)length_in_chunk, (uint8_t*)output);
+                    break;
+                case DATA_TYPE_UINT8_ARRAY:
+                    result = p4nddec8((unsigned char*)input, (size_t)length_in_chunk, (uint8_t*)output);
+                    break;
+                case DATA_TYPE_INT16_ARRAY:
+                    result = p4nzdec128v16((unsigned char*)input, (size_t)length_in_chunk, (uint16_t*)output);
+                    break;
+                case DATA_TYPE_UINT16_ARRAY:
+                    result = p4nddec128v16((unsigned char*)input, (size_t)length_in_chunk, (uint16_t*)output);
+                    break;
+                case DATA_TYPE_INT32_ARRAY:
+                    result = p4nzdec128v32((unsigned char*)input, (size_t)length_in_chunk, (uint32_t*)output);
+                    break;
+                case DATA_TYPE_UINT32_ARRAY:
+                    result = p4nddec128v32((unsigned char*)input, (size_t)length_in_chunk, (uint32_t*)output);
+                    break;
+                case DATA_TYPE_INT64_ARRAY:
+                    result = p4nzdec64((unsigned char*)input, (size_t)length_in_chunk, (uint64_t*)output);
+                    break;
+                case DATA_TYPE_UINT64_ARRAY:
+                    result = p4nddec64((unsigned char*)input, (size_t)length_in_chunk, (uint64_t*)output);
+                    break;
+                case DATA_TYPE_FLOAT_ARRAY:
+                    result = p4nzdec128v32((unsigned char*)input, (size_t)length_in_chunk, (uint32_t*)output);
+                    break;
+                case DATA_TYPE_DOUBLE_ARRAY:
+                    result = p4nzdec64((unsigned char*)input, (size_t)length_in_chunk, (uint64_t*)output);
+                    break;
+                default:
+                    *error = ERROR_INVALID_DATA_TYPE;
+            }
+            break;
+
+        default:
+            *error = ERROR_INVALID_COMPRESSION_TYPE;
+    }
+
+    return result;
+}
+
+void om_decode_filter(
+    const OmDataType_t data_type,
+    const OmCompression_t compression_type,
+    void* data,
+    uint64_t length_in_chunk,
+    uint64_t length_last,
+    OmError_t* error
+) {
+    switch (compression_type) {
+        case COMPRESSION_PFOR_DELTA2D_INT16:
+        case COMPRESSION_PFOR_DELTA2D_INT16_LOGARITHMIC:
+            if (data_type == DATA_TYPE_FLOAT_ARRAY) {
+                delta2d_decode16((size_t)(length_in_chunk / length_last), (size_t)length_last, (int16_t*)data);
+            } else {
+                *error = ERROR_INVALID_DATA_TYPE;
+            }
+            break;
+        case COMPRESSION_FPX_XOR2D:
+            switch (data_type) {
+                case DATA_TYPE_FLOAT_ARRAY:
+                    delta2d_decode_xor((size_t)(length_in_chunk / length_last), (size_t)length_last, (float*)data);
+                    break;
+                case DATA_TYPE_DOUBLE_ARRAY:
+                    delta2d_decode_xor_double((size_t)(length_in_chunk / length_last), (size_t)length_last, (double*)data);
+                    break;
+                default:
+                    *error = ERROR_INVALID_DATA_TYPE;
+            }
+            break;
+        case COMPRESSION_PFOR_DELTA2D:
+            switch (data_type) {
+                case DATA_TYPE_INT8_ARRAY:
+                case DATA_TYPE_UINT8_ARRAY:
+                    delta2d_decode8((size_t)(length_in_chunk / length_last), (size_t)length_last, (int8_t*)data);
+                    break;
+                case DATA_TYPE_INT16_ARRAY:
+                case DATA_TYPE_UINT16_ARRAY:
+                    delta2d_decode16((size_t)(length_in_chunk / length_last), (size_t)length_last, (int16_t*)data);
+                    break;
+                case DATA_TYPE_INT32_ARRAY:
+                case DATA_TYPE_UINT32_ARRAY:
+                case DATA_TYPE_FLOAT_ARRAY:
+                    delta2d_decode32((size_t)(length_in_chunk / length_last), (size_t)length_last, (int32_t*)data);
+                    break;
+                case DATA_TYPE_INT64_ARRAY:
+                case DATA_TYPE_UINT64_ARRAY:
+                case DATA_TYPE_DOUBLE_ARRAY:
+                    delta2d_decode64((size_t)(length_in_chunk / length_last), (size_t)length_last, (int64_t*)data);
+                    break;
+                default:
+                    *error = ERROR_INVALID_DATA_TYPE;
+            }
+            break;
+
+        default:
+            *error = ERROR_INVALID_COMPRESSION_TYPE;
+    }
+}
+
+void om_decode_copy(
+    const OmDataType_t data_type,
+    const OmCompression_t compression_type,
+    uint64_t count,
+    float scale_factor,
+    float add_offset,
+    const void* input,
+    void* output,
+    OmError_t* error
+) {
+    switch (compression_type) {
+        case COMPRESSION_PFOR_DELTA2D_INT16:
+            if (data_type == DATA_TYPE_FLOAT_ARRAY) {
+                om_common_copy_int16_to_float(count, scale_factor, add_offset, input, output);
+            } else {
+                *error = ERROR_INVALID_DATA_TYPE;
+            }
+            break;
+
+        case COMPRESSION_PFOR_DELTA2D_INT16_LOGARITHMIC:
+            if (data_type == DATA_TYPE_FLOAT_ARRAY) {
+                om_common_copy_int16_to_float_log10(count, scale_factor, add_offset, input, output);
+            } else {
+                *error = ERROR_INVALID_DATA_TYPE;
+            }
+            break;
+
+        case COMPRESSION_FPX_XOR2D:
+            switch (data_type) {
+                case DATA_TYPE_FLOAT_ARRAY:
+                    om_common_copy32(count, scale_factor, add_offset, input, output);
+                    break;
+                case DATA_TYPE_DOUBLE_ARRAY:
+                    om_common_copy64(count, scale_factor, add_offset, input, output);
+                    break;
+                default:
+                    *error = ERROR_INVALID_DATA_TYPE;
+            }
+            break;
+        case COMPRESSION_PFOR_DELTA2D:
+            switch (data_type) {
+                case DATA_TYPE_INT8_ARRAY:
+                case DATA_TYPE_UINT8_ARRAY:
+                    om_common_copy8(count, scale_factor, add_offset, input, output);
+                    break;
+                case DATA_TYPE_INT16_ARRAY:
+                case DATA_TYPE_UINT16_ARRAY:
+                    om_common_copy16(count, scale_factor, add_offset, input, output);
+                    break;
+                case DATA_TYPE_INT32_ARRAY:
+                case DATA_TYPE_UINT32_ARRAY:
+                    om_common_copy32(count, scale_factor, add_offset, input, output);
+                    break;
+                case DATA_TYPE_FLOAT_ARRAY:
+                    om_common_copy_int32_to_float(count, scale_factor, add_offset, input, output);
+                    break;
+                case DATA_TYPE_INT64_ARRAY:
+                case DATA_TYPE_UINT64_ARRAY:
+                    om_common_copy32(count, scale_factor, add_offset, input, output);
+                    break;
+                case DATA_TYPE_DOUBLE_ARRAY:
+                    om_common_copy_int64_to_double(count, scale_factor, add_offset, input, output);
+                    break;
+                default:
+                    *error = ERROR_INVALID_DATA_TYPE;
+            }
+            break;
+        default:
+            *error = ERROR_INVALID_COMPRESSION_TYPE;
+    }
+}
+
 void om_decoder_init_index_read(const OmDecoder_t* decoder, OmDecoder_indexRead_t *index_read) {
     uint64_t chunkStart = 0;
     uint64_t chunkEnd = 1;
-    
+
     for (uint64_t i = 0; i < decoder->dimensions_count; i++) {
         const uint64_t dimension = decoder->dimensions[i];
         const uint64_t chunk = decoder->chunks[i];
         const uint64_t read_offset = decoder->read_offset[i];
         const uint64_t read_count = decoder->read_count[i];
         //printf("dimension=%llu chunk=%llu read_offset=%llu read_count=%llu\n", dimension,chunk,read_offset,read_count);
-        
+
         // Calculate lower and upper chunk indices for the current dimension
         const uint64_t chunkInThisDimensionLower = read_offset / chunk;
         const uint64_t chunkInThisDimensionUpper = divide_rounded_up(read_offset + read_count, chunk);
         const uint64_t chunkInThisDimensionCount = chunkInThisDimensionUpper - chunkInThisDimensionLower;
-        
+
         const uint64_t firstChunkInThisDimension = chunkInThisDimensionLower;
         const uint64_t nChunksInThisDimension = divide_rounded_up(dimension, chunk);
-        
+
         // Update chunkStart and chunkEnd
         chunkStart = chunkStart * nChunksInThisDimension + firstChunkInThisDimension;
-        
+
         if (read_count == dimension) {
             // The entire dimension is read
             chunkEnd = chunkEnd * nChunksInThisDimension;
@@ -273,37 +412,37 @@ uint64_t om_decoder_read_buffer_size(const OmDecoder_t* decoder) {
 
 bool _om_decoder_next_chunk_position(const OmDecoder_t *decoder, OmRange_t *chunk_index) {
     uint64_t rollingMultiply = 1;
-    
+
     // Number of consecutive chunks that can be read linearly.
     uint64_t linearReadCount = 1;
     bool linearRead = true;
     const uint64_t dimensions_count = decoder->dimensions_count;
-    
+
     for (uint64_t i_forward = 0; i_forward < dimensions_count; i_forward++) {
         const uint64_t i = dimensions_count - i_forward - 1;
         const uint64_t dimension = decoder->dimensions[i];
         const uint64_t chunk = decoder->chunks[i];
         const uint64_t read_offset = decoder->read_offset[i];
         const uint64_t read_count = decoder->read_count[i];
-        
+
         // Number of chunks in this dimension.
         const uint64_t nChunksInThisDimension = divide_rounded_up(dimension, chunk);
-        
+
         // Calculate chunk range in this dimension.
         const uint64_t chunkInThisDimensionLower = read_offset / chunk;
         const uint64_t chunkInThisDimensionUpper = divide_rounded_up(read_offset + read_count, chunk);
         const uint64_t chunkInThisDimensionCount = chunkInThisDimensionUpper - chunkInThisDimensionLower;
-        
+
         // Move forward by one.
         chunk_index->lowerBound += rollingMultiply;
-        
+
         // Check for linear read conditions.
         if (i == dimensions_count - 1 && dimension != read_count) {
             // If the fast dimension is only partially read.
             linearReadCount = chunkInThisDimensionCount;
             linearRead = false;
         }
-        
+
         if (linearRead && dimension == read_count) {
             // The dimension is read entirely.
             linearReadCount *= nChunksInThisDimension;
@@ -311,28 +450,28 @@ bool _om_decoder_next_chunk_position(const OmDecoder_t *decoder, OmRange_t *chun
             // Dimension is read partly; cannot merge further reads.
             linearRead = false;
         }
-        
+
         // Calculate the chunk index in this dimension.
         uint64_t c0 = (chunk_index->lowerBound / rollingMultiply) % nChunksInThisDimension;
-        
+
         // Check for overflow.
         if (c0 != chunkInThisDimensionUpper && c0 != 0) {
             break; // No overflow in this dimension, break.
         }
-        
+
         // Adjust chunkIndex.lowerBound if there is an overflow.
         chunk_index->lowerBound -= chunkInThisDimensionCount * rollingMultiply;
-        
+
         // Update the rolling multiplier for the next dimension.
         rollingMultiply *= nChunksInThisDimension;
-        
+
         // If we're at the first dimension and have processed all chunks.
         if (i == 0) {
             chunk_index->upperBound = chunk_index->lowerBound;
             return false;
         }
     }
-    
+
     // Update chunkIndex.upperBound based on the number of chunks that can be read linearly.
     chunk_index->upperBound = chunk_index->lowerBound + linearReadCount;
     return true;
@@ -342,27 +481,27 @@ bool om_decoder_next_index_read(const OmDecoder_t* decoder, OmDecoder_indexRead_
     if (index_read->nextChunk.lowerBound >= index_read->nextChunk.upperBound) {
         return false;
     }
-    
+
     index_read->chunkIndex = index_read->nextChunk;
     index_read->indexRange.lowerBound = index_read->nextChunk.lowerBound;
-    
+
     uint64_t chunkIndex = index_read->nextChunk.lowerBound;
-    
+
     const bool isV3LUT = decoder->lut_chunk_length > 1;
     const uint64_t lut_chunk_element_count = isV3LUT ? LUT_CHUNK_COUNT : 1;
     const uint64_t lut_chunk_length = isV3LUT ? decoder->lut_chunk_length : sizeof(uint64_t);
     const uint64_t io_size_max = decoder->io_size_max;
-    
+
     const uint64_t alignOffset = isV3LUT || index_read->indexRange.lowerBound == 0 ? 0 : 1;
     const uint64_t endAlignOffset = isV3LUT ? 1 : 0;
-    
+
     const uint64_t readStart = (index_read->nextChunk.lowerBound - alignOffset) / lut_chunk_element_count * lut_chunk_length;
-    
+
     while (1) {
         const uint64_t maxRead = io_size_max / lut_chunk_length * lut_chunk_element_count;
         const uint64_t nextChunkCount = index_read->nextChunk.upperBound - index_read->nextChunk.lowerBound;
         const uint64_t nextIncrement = max(1, min(maxRead-1, nextChunkCount - 1));
-        
+
         if (index_read->nextChunk.lowerBound + nextIncrement >= index_read->nextChunk.upperBound) {
             if (!_om_decoder_next_chunk_position(decoder, &index_read->nextChunk)) {
                 break;
@@ -370,7 +509,7 @@ bool om_decoder_next_index_read(const OmDecoder_t* decoder, OmDecoder_indexRead_
             const uint64_t readEndNext = (index_read->nextChunk.lowerBound + endAlignOffset) / lut_chunk_element_count * lut_chunk_length;
             const uint64_t readStartNext = readEndNext - lut_chunk_length;
             const uint64_t readEndPrevious = chunkIndex / lut_chunk_element_count * lut_chunk_length;
-            
+
             if (readEndNext - readStart > io_size_max) {
                 break;
             }
@@ -379,7 +518,7 @@ bool om_decoder_next_index_read(const OmDecoder_t* decoder, OmDecoder_indexRead_
             }
         } else {
             const uint64_t readEndNext = (index_read->nextChunk.lowerBound + nextIncrement + endAlignOffset) / lut_chunk_element_count * lut_chunk_length;
-            
+
             if (readEndNext - readStart > io_size_max) {
                 index_read->nextChunk.lowerBound += 1;
                 break;
@@ -388,11 +527,11 @@ bool om_decoder_next_index_read(const OmDecoder_t* decoder, OmDecoder_indexRead_
         }
         chunkIndex = index_read->nextChunk.lowerBound;
     }
-    
+
     const uint64_t readEnd = ((chunkIndex + endAlignOffset) / lut_chunk_element_count + 1) * lut_chunk_length;
     //uint64_t lutTotalSize = divide_rounded_up(decoder->number_of_chunks, decoder->lut_chunk_element_count) * lut_chunk_length;
     //assert(readEnd <= lutTotalSize);
-    
+
     index_read->offset = decoder->lut_start + readStart;
     index_read->count = readEnd - readStart;
     index_read->indexRange.upperBound = chunkIndex + 1;
@@ -403,29 +542,29 @@ bool om_decoder_next_data_read(const OmDecoder_t *decoder, OmDecoder_dataRead_t*
     if (data_read->nextChunk.lowerBound >= data_read->nextChunk.upperBound) {
         return false;
     }
-    
+
     uint64_t chunkIndex = data_read->nextChunk.lowerBound;
     data_read->chunkIndex.lowerBound = chunkIndex;
-    
+
     // Version 1 case
     if (decoder->lut_chunk_length == 0) {
         // index is a flat Int64 array
         const uint64_t* data = (const uint64_t*)index_data;
-        
+
         const bool isOffset0 = (data_read->indexRange.lowerBound == 0);
         const uint64_t startOffset = isOffset0 ? 1 : 0;
-        
-        
+
+
         uint64_t readPos = chunkIndex - data_read->indexRange.lowerBound - startOffset;
         //printf("chunkIndex %llu lowerBound %llu readPos %llu \n", chunkIndex, data_read->indexRange.lowerBound, readPos);
         if (!isOffset0 && (readPos + 1) * sizeof(int64_t) > index_data_size) {
             (*error) = ERROR_OUT_OF_BOUND_READ;
             return false;
         }
-        
+
         const uint64_t startPos = isOffset0 && chunkIndex == 0 ? 0 : data[readPos];
         uint64_t endPos = startPos;
-        
+
         // Loop to the next chunk until the end is reached
         while (true) {
             readPos = data_read->nextChunk.lowerBound - data_read->indexRange.lowerBound - startOffset + 1;
@@ -434,14 +573,14 @@ bool om_decoder_next_data_read(const OmDecoder_t *decoder, OmDecoder_dataRead_t*
                 return false;
             }
             const uint64_t dataEndPos = data[readPos];
-            
+
             // Merge and split IO requests, ensuring at least one IO request is sent
             if (startPos != endPos && (dataEndPos - startPos > decoder->io_size_max || dataEndPos - endPos > decoder->io_size_merge)) {
                 break;
             }
             endPos = dataEndPos;
             chunkIndex = data_read->nextChunk.lowerBound;
-            
+
             if (data_read->nextChunk.lowerBound + 1 >= data_read->nextChunk.upperBound) {
                 if (!_om_decoder_next_chunk_position(decoder, &data_read->nextChunk)) {
                     // No next chunk, finish processing the current one and stop
@@ -450,37 +589,37 @@ bool om_decoder_next_data_read(const OmDecoder_t *decoder, OmDecoder_dataRead_t*
             } else {
                 data_read->nextChunk.lowerBound += 1;
             }
-            
+
             if (data_read->nextChunk.lowerBound >= data_read->indexRange.upperBound) {
                 data_read->nextChunk.lowerBound = 0;
                 data_read->nextChunk.upperBound = 0;
                 break;
             }
         }
-        
+
         // Old files do not compress LUT and data is after LUT
         // V1 header size
         const uint64_t om_header_v1_length = sizeof(OmHeaderV1_t);
         const uint64_t dataStart = om_header_v1_length + decoder->number_of_chunks * sizeof(int64_t);
-        
+
         data_read->offset = startPos + dataStart;
         data_read->count = endPos - startPos;
         data_read->chunkIndex.upperBound = chunkIndex + 1;
         return true;
     }
-    
+
     uint8_t* indexDataPtr = (uint8_t*)index_data;
-    
+
     uint64_t uncompressedLut[LUT_CHUNK_COUNT] = {0};
-    
+
     // Which LUT chunk is currently loaded into `uncompressedLut`
     uint64_t lutChunk = chunkIndex / LUT_CHUNK_COUNT;
-    
+
     const uint64_t lutChunkLength = decoder->lut_chunk_length;
-    
+
     // Offset byte in LUT relative to the index range
     const uint64_t lutOffset = data_read->indexRange.lowerBound / LUT_CHUNK_COUNT * lutChunkLength;
-    
+
     // Uncompress the first LUT index chunk and check the length
     {
         const uint64_t thisLutChunkElementCount = min((lutChunk + 1) * LUT_CHUNK_COUNT, decoder->number_of_chunks+1) - lutChunk * LUT_CHUNK_COUNT;
@@ -489,19 +628,19 @@ bool om_decoder_next_data_read(const OmDecoder_t *decoder, OmDecoder_dataRead_t*
             (*error) = ERROR_OUT_OF_BOUND_READ;
             return false;
         }
-        
+
         // Decompress LUT chunk
         p4nddec64(indexDataPtr + start, thisLutChunkElementCount, uncompressedLut);
     }
-    
+
     // Index data relative to start index
     const uint64_t startPos = uncompressedLut[chunkIndex % LUT_CHUNK_COUNT];
     uint64_t endPos = startPos;
-    
+
     // Loop to the next chunk until the end is reached
     while (true) {
         const uint64_t nextLutChunk = (data_read->nextChunk.lowerBound + 1) / LUT_CHUNK_COUNT;
-        
+
         // Maybe the next LUT chunk needs to be uncompressed
         if (nextLutChunk != lutChunk) {
             const uint64_t nextLutChunkElementCount = min((nextLutChunk + 1) * LUT_CHUNK_COUNT, decoder->number_of_chunks+1) - nextLutChunk * LUT_CHUNK_COUNT;
@@ -510,21 +649,21 @@ bool om_decoder_next_data_read(const OmDecoder_t *decoder, OmDecoder_dataRead_t*
                 (*error) = ERROR_OUT_OF_BOUND_READ;
                 return false;
             }
-            
+
             // Decompress LUT chunk
             p4nddec64(indexDataPtr + start, nextLutChunkElementCount, uncompressedLut);
             lutChunk = nextLutChunk;
         }
-        
+
         const uint64_t dataEndPos = uncompressedLut[(data_read->nextChunk.lowerBound + 1) % LUT_CHUNK_COUNT];
-        
+
         // Merge and split IO requests, ensuring at least one IO request is sent
         if (startPos != endPos && (dataEndPos - startPos > decoder->io_size_max || dataEndPos - endPos > decoder->io_size_merge)) {
             break;
         }
         endPos = dataEndPos;
         chunkIndex = data_read->nextChunk.lowerBound;
-        
+
         if (chunkIndex + 1 >= data_read->nextChunk.upperBound) {
             if (!_om_decoder_next_chunk_position(decoder, &data_read->nextChunk)) {
                 // No next chunk, finish processing the current one and stop
@@ -533,14 +672,14 @@ bool om_decoder_next_data_read(const OmDecoder_t *decoder, OmDecoder_dataRead_t*
         } else {
             data_read->nextChunk.lowerBound += 1;
         }
-        
+
         if (data_read->nextChunk.lowerBound >= data_read->indexRange.upperBound) {
             data_read->nextChunk.lowerBound = 0;
             data_read->nextChunk.upperBound = 0;
             break;
         }
     }
-    
+
     data_read->offset = (uint64_t)startPos;
     data_read->count = (uint64_t)endPos - (uint64_t)startPos;
     data_read->chunkIndex.upperBound = chunkIndex + 1;
@@ -552,18 +691,18 @@ uint64_t _om_decoder_decode_chunk(const OmDecoder_t *decoder, uint64_t chunkInde
     uint64_t rollingMultiply = 1;
     uint64_t rollingMultiplyChunkLength = 1;
     uint64_t rollingMultiplyTargetCube = 1;
-    
+
     int64_t d = 0; // Read coordinate.
     int64_t q = 0; // Write coordinate.
     int64_t linearReadCount = 1;
     bool linearRead = true;
     int64_t lengthLast = 0;
     bool no_data = false;
-    
+
     const uint64_t dimensions_count = decoder->dimensions_count;
-    
+
     //printf("decode dimcount=%d \n", decoder->dims_count );
-    
+
     // Count length in chunk and find first buffer offset position.
     for (uint64_t i_forward = 0; i_forward < dimensions_count; i_forward++) {
         const uint64_t i = dimensions_count - i_forward - 1;
@@ -573,7 +712,7 @@ uint64_t _om_decoder_decode_chunk(const OmDecoder_t *decoder, uint64_t chunkInde
         const uint64_t read_count = decoder->read_count[i];
         const uint64_t cube_offset = decoder->cube_offset[i];
         const uint64_t cube_dimension = decoder->cube_dimensions[i];
-        
+
         const uint64_t nChunksInThisDimension = divide_rounded_up(dimension, chunk);
         const uint64_t c0 = (chunkIndex / rollingMultiply) % nChunksInThisDimension;
         const uint64_t chunkGlobal0Start = c0 * chunk;
@@ -583,28 +722,28 @@ uint64_t _om_decoder_decode_chunk(const OmDecoder_t *decoder, uint64_t chunkInde
         const uint64_t clampedGlobal0End = min(chunkGlobal0End, read_offset + read_count);
         const uint64_t clampedLocal0Start = clampedGlobal0Start - c0 * chunk;
         const uint64_t lengthRead = clampedGlobal0End - clampedGlobal0Start;
-        
+
         if (read_offset + read_count <= chunkGlobal0Start || read_offset >= chunkGlobal0End) {
             no_data = true;
         }
-        
+
         if (i == dimensions_count - 1) {
             lengthLast = length0;
         }
-        
+
         const uint64_t d0 = clampedLocal0Start;
         const uint64_t t0 = chunkGlobal0Start - read_offset + d0;
         const uint64_t q0 = t0 + cube_offset;
-        
+
         d += rollingMultiplyChunkLength * d0;
         q += rollingMultiplyTargetCube * q0;
-        
+
         if (i == dimensions_count - 1 && !(lengthRead == length0 && read_count == length0 && cube_dimension == length0)) {
             // if fast dimension and only partially read
             linearReadCount = lengthRead;
             linearRead = false;
         }
-        
+
         if (linearRead && lengthRead == length0 && read_count == length0 && cube_dimension == length0) {
             // dimension is read entirely
             // and can be copied linearly into the output buffer
@@ -613,30 +752,58 @@ uint64_t _om_decoder_decode_chunk(const OmDecoder_t *decoder, uint64_t chunkInde
             // dimension is read partly, cannot merge further reads
             linearRead = false;
         }
-        
+
         rollingMultiply *= nChunksInThisDimension;
         rollingMultiplyTargetCube *= cube_dimension;
         rollingMultiplyChunkLength *= length0;
     }
-    
+
     const uint64_t lengthInChunk = rollingMultiplyChunkLength;
-    const uint64_t uncompressedBytes = (*decoder->decompress_callback)(data, lengthInChunk, chunk_buffer);
-    
+
+    OmError_t error = ERROR_OK;
+    const uint64_t uncompressedBytes = om_decode_decompress(
+        decoder->data_type,
+        decoder->compression,
+        data,
+        lengthInChunk,
+        chunk_buffer,
+        &error
+    );
+
+    if (error != ERROR_OK) {
+        printf("Error in om_decode_decompress %d\n", error);
+        return 0;
+    }
+
     if (no_data) {
         return uncompressedBytes;
     }
-    
-    /// Perform 2D decoding
-    (*decoder->decompress_filter_callback)(lengthInChunk / lengthLast, lengthLast, chunk_buffer);
-    
+
+    // Perform 2D decoding
+    om_decode_filter(decoder->data_type, decoder->compression, chunk_buffer, lengthInChunk, lengthLast, &error);
+
+    if (error != ERROR_OK) {
+        printf("Error in om_decode_filter %d\n", error);
+        return 0;
+    }
+
     // Copy data from the chunk buffer to the output buffer.
     while (true) {
-        /// Copy values from chunk buffer into output buffer
-        (*decoder->decompress_copy_callback)(linearReadCount, decoder->scale_factor, decoder->add_offset, &chunk_buffer[d * decoder->bytes_per_element_compressed], &into[q * decoder->bytes_per_element]);
-        
+        // Copy values from chunk buffer into output buffer
+        om_decode_copy(
+            decoder->data_type,
+            decoder->compression,
+            linearReadCount,
+            decoder->scale_factor,
+            decoder->add_offset,
+            &chunk_buffer[d * decoder->bytes_per_element_compressed],
+            &into[q * decoder->bytes_per_element],
+            &error
+        );
+
         q += linearReadCount - 1;
         d += linearReadCount - 1;
-        
+
         rollingMultiply = 1;
         rollingMultiplyTargetCube = 1;
         rollingMultiplyChunkLength = 1;
@@ -649,7 +816,7 @@ uint64_t _om_decoder_decode_chunk(const OmDecoder_t *decoder, uint64_t chunkInde
             const uint64_t read_offset = decoder->read_offset[i];
             const uint64_t read_count = decoder->read_count[i];
             const uint64_t cube_dimension = decoder->cube_dimensions[i];
-            
+
             //printf("i=%d q=%d d=%d\n", i,q,d);
             const uint64_t nChunksInThisDimension = divide_rounded_up(dimension, chunk);
             const uint64_t c0 = (chunkIndex / rollingMultiply) % nChunksInThisDimension;
@@ -660,10 +827,10 @@ uint64_t _om_decoder_decode_chunk(const OmDecoder_t *decoder, uint64_t chunkInde
             const uint64_t clampedGlobal0End = min(chunkGlobal0End, read_offset + read_count);
             const uint64_t clampedLocal0End = clampedGlobal0End - chunkGlobal0Start;
             const uint64_t lengthRead = clampedGlobal0End - clampedGlobal0Start;
-            
+
             d += rollingMultiplyChunkLength;
             q += rollingMultiplyTargetCube;
-            
+
             if ((i == dimensions_count - 1) && !(lengthRead == length0 && read_count == length0 && cube_dimension == length0)) {
                 // if fast dimension and only partially read
                 linearReadCount = lengthRead;
@@ -677,35 +844,33 @@ uint64_t _om_decoder_decode_chunk(const OmDecoder_t *decoder, uint64_t chunkInde
                 // dimension is read partly, cannot merge further reads
                 linearRead = false;
             }
-            
+
             const uint64_t d0 = (d / rollingMultiplyChunkLength) % length0;
             if (d0 != clampedLocal0End && d0 != 0) {
                 //printf("break\n");
                 break; // No overflow in this dimension, break
             }
-            
+
             d -= lengthRead * rollingMultiplyChunkLength;
             q -= lengthRead * rollingMultiplyTargetCube;
-            
+
             rollingMultiply *= nChunksInThisDimension;
             rollingMultiplyTargetCube *= cube_dimension;
             rollingMultiplyChunkLength *= length0;
             //printf("next iter\n");
             if (i == 0) {
-                //printf("return\n");
                 return uncompressedBytes; // All chunks have been read. End of iteration
             }
         }
     }
-    
     return uncompressedBytes;
 }
 
 bool om_decoder_decode_chunks(const OmDecoder_t *decoder, OmRange_t chunk, const void *data, uint64_t data_size, void *into, void *chunkBuffer, OmError_t* error) {
     uint64_t pos = 0;
-    //printf("chunkIndex.lowerBound %llu %llu\n",chunk.lowerBound,chunk.upperBound);
+    // printf("chunkIndex.lowerBound %lu %lu\n",chunk.lowerBound,chunk.upperBound);
     for (uint64_t chunkNum = chunk.lowerBound; chunkNum < chunk.upperBound; ++chunkNum) {
-        //printf("chunkIndex %llu pos=%llu dataCount=%llu \n",chunkNum, pos, data_size);
+        // printf("chunkIndex %lu pos=%lu dataCount=%lu \n",chunkNum, pos, data_size);
         if (pos >= data_size) {
             (*error) = ERROR_DEFLATED_SIZE_MISMATCH;
             return false;
@@ -713,8 +878,8 @@ bool om_decoder_decode_chunks(const OmDecoder_t *decoder, OmRange_t chunk, const
         uint64_t uncompressedBytes = _om_decoder_decode_chunk(decoder, chunkNum, (const uint8_t *)data + pos, into, chunkBuffer);
         pos += uncompressedBytes;
     }
-    //printf("%llu %llu \n", pos, data_size);
-    
+    // printf("%lu %lu \n", pos, data_size);
+
     if (pos != data_size) {
         (*error) = ERROR_DEFLATED_SIZE_MISMATCH;
         return false;
