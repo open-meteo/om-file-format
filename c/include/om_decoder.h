@@ -74,17 +74,15 @@ typedef struct {
     /// An offset to convert floats to integers while scaling
     float add_offset;
 
-    /// Number of bytes for a single element of the data type
-    int8_t bytes_per_element;
-
-    /// Number of bytes for a single element in the compressed stream. E.g. Int16 could be used to scale down floats
-    int8_t bytes_per_element_compressed;
-
     /// The data type of the data
     OmDataType_t data_type;
 
     /// The compression type of the data
     OmCompression_t compression;
+
+    /// The size of the element and compressed element in bytes.
+    /// E.g. Int16 could be used to scale down floats
+    OmElementSize_t element_size;
 } OmDecoder_t;
 
 /**

@@ -37,6 +37,7 @@ OmError_t om_decoder_init(
     //uint64_t dimension_count_file;
     OmDataType_t data_type;
     OmCompression_t compression;
+    OmElementSize_t element_size;
     uint64_t lut_size, lut_start, lut_chunk_length;
 
     switch (_om_variable_memory_layout(variable)) {
@@ -103,57 +104,10 @@ OmError_t om_decoder_init(
     decoder->data_type = data_type;
     decoder->compression = compression;
 
-    // Set element sizes and copy function
-    switch (data_type) {
-        case DATA_TYPE_INT8_ARRAY:
-        case DATA_TYPE_UINT8_ARRAY:
-            decoder->bytes_per_element = 1;
-            decoder->bytes_per_element_compressed = 1;
-            break;
-
-        case DATA_TYPE_INT16_ARRAY:
-        case DATA_TYPE_UINT16_ARRAY:
-            decoder->bytes_per_element = 2;
-            decoder->bytes_per_element_compressed = 2;
-            break;
-
-        case DATA_TYPE_INT32_ARRAY:
-        case DATA_TYPE_UINT32_ARRAY:
-        case DATA_TYPE_FLOAT_ARRAY:
-            decoder->bytes_per_element = 4;
-            decoder->bytes_per_element_compressed = 4;
-            break;
-
-        case DATA_TYPE_INT64_ARRAY:
-        case DATA_TYPE_UINT64_ARRAY:
-        case DATA_TYPE_DOUBLE_ARRAY:
-            decoder->bytes_per_element = 8;
-            decoder->bytes_per_element_compressed = 8;
-            break;
-
-        default:
-            return ERROR_INVALID_DATA_TYPE;
-    }
-
-    // TODO more compression and datatypes
-    switch (compression) {
-        case COMPRESSION_PFOR_DELTA2D_INT16:
-        case COMPRESSION_PFOR_DELTA2D_INT16_LOGARITHMIC:
-            if (data_type != DATA_TYPE_FLOAT_ARRAY) {
-                return ERROR_INVALID_DATA_TYPE;
-            }
-            decoder->bytes_per_element = 4;
-            decoder->bytes_per_element_compressed = 2;
-            break;
-
-        case COMPRESSION_FPX_XOR2D:
-        case COMPRESSION_PFOR_DELTA2D:
-            break;
-
-        default:
-            return ERROR_INVALID_COMPRESSION_TYPE;
-    }
-    return ERROR_OK;
+    // Set element sizes based on data type
+    OmError_t error = om_get_element_size(data_type, compression, &element_size);
+    decoder->element_size = element_size;
+    return error;
 }
 
 uint64_t om_decode_decompress(
@@ -407,7 +361,7 @@ uint64_t om_decoder_read_buffer_size(const OmDecoder_t* decoder) {
     for (uint64_t i = 0; i < decoder->dimensions_count; i++) {
         chunkLength *= decoder->chunks[i];
     }
-    return chunkLength * decoder->bytes_per_element;
+    return chunkLength * decoder->element_size.bytes_per_element;
 }
 
 bool _om_decoder_next_chunk_position(const OmDecoder_t *decoder, OmRange_t *chunk_index) {
@@ -800,8 +754,8 @@ uint64_t _om_decoder_decode_chunk(
             linearReadCount,
             decoder->scale_factor,
             decoder->add_offset,
-            &chunk_buffer[d * decoder->bytes_per_element_compressed],
-            &into[q * decoder->bytes_per_element],
+            &chunk_buffer[d * decoder->element_size.bytes_per_element_compressed],
+            &into[q * decoder->element_size.bytes_per_element],
             error
         );
 

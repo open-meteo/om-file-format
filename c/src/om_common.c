@@ -31,6 +31,61 @@ const char* om_error_string(OmError_t error) {
     return "";
 }
 
+OmError_t om_get_element_size(OmDataType_t data_type, OmCompression_t compression, OmElementSize_t* size) {
+    // Set element sizes based on data type
+    switch (data_type) {
+        case DATA_TYPE_INT8_ARRAY:
+        case DATA_TYPE_UINT8_ARRAY:
+            size->bytes_per_element = 1;
+            size->bytes_per_element_compressed = 1;
+            break;
+
+        case DATA_TYPE_INT16_ARRAY:
+        case DATA_TYPE_UINT16_ARRAY:
+            size->bytes_per_element = 2;
+            size->bytes_per_element_compressed = 2;
+            break;
+
+        case DATA_TYPE_INT32_ARRAY:
+        case DATA_TYPE_UINT32_ARRAY:
+        case DATA_TYPE_FLOAT_ARRAY:
+            size->bytes_per_element = 4;
+            size->bytes_per_element_compressed = 4;
+            break;
+
+        case DATA_TYPE_INT64_ARRAY:
+        case DATA_TYPE_UINT64_ARRAY:
+        case DATA_TYPE_DOUBLE_ARRAY:
+            size->bytes_per_element = 8;
+            size->bytes_per_element_compressed = 8;
+            break;
+
+        default:
+            return ERROR_INVALID_DATA_TYPE;
+    }
+
+    // Adjust compressed size based on compression type
+    switch (compression) {
+        case COMPRESSION_PFOR_DELTA2D_INT16:
+        case COMPRESSION_PFOR_DELTA2D_INT16_LOGARITHMIC:
+            if (data_type != DATA_TYPE_FLOAT_ARRAY) {
+                return ERROR_INVALID_DATA_TYPE;
+            }
+            size->bytes_per_element = 4;
+            size->bytes_per_element_compressed = 2;
+            break;
+
+        case COMPRESSION_FPX_XOR2D:
+        case COMPRESSION_PFOR_DELTA2D:
+            break;
+
+        default:
+            return ERROR_INVALID_COMPRESSION_TYPE;
+    }
+
+    return ERROR_OK;
+}
+
 void om_common_copy_float_to_int16(uint64_t length, float scale_factor, float add_offset, const void* src, void* dst) {
     for (uint64_t i = 0; i < length; ++i) {
         float val = ((float *)src)[i];
