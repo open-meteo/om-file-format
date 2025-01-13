@@ -34,9 +34,8 @@ OmError_t om_decoder_init(
 
     float scalefactor, add_offset;
     const uint64_t *dimensions, *chunks;
-    //uint64_t dimension_count_file;
-    OmDataType_t data_type;
-    OmCompression_t compression;
+    uint8_t data_type;
+    uint8_t compression;
     OmElementSize_t element_size;
     uint64_t lut_size, lut_start, lut_chunk_length;
 
@@ -45,16 +44,17 @@ OmError_t om_decoder_init(
             const OmHeaderV1_t* metaV1 = (const OmHeaderV1_t*)variable;
             scalefactor = metaV1->scale_factor;
             add_offset = 0;
-            //dimension_count_file = 2;
             data_type = DATA_TYPE_FLOAT_ARRAY;
-            compression = (OmCompression_t)metaV1->compression_type;
+            compression = metaV1->compression_type;
             if (metaV1->version == 1) {
                 compression = COMPRESSION_PFOR_DELTA2D_INT16;
             }
             lut_chunk_length = 0;
             lut_start = 40; // Right after header
             lut_size = 0; // ignored
+            // dim1 follows dim0 in header, thus this pointer is correct
             dimensions = &metaV1->dim0;
+            // chunk1 follows chunk0 in header, thus this pointer is correct
             chunks = &metaV1->chunk0;
             break;
         }
@@ -111,8 +111,8 @@ OmError_t om_decoder_init(
 }
 
 uint64_t om_decode_decompress(
-    const OmDataType_t data_type,
-    const OmCompression_t compression_type,
+    uint8_t data_type,
+    uint8_t compression_type,
     const void* input,
     uint64_t count,
     void* output,
@@ -186,8 +186,8 @@ uint64_t om_decode_decompress(
 }
 
 void om_decode_filter(
-    const OmDataType_t data_type,
-    const OmCompression_t compression_type,
+    uint8_t data_type,
+    uint8_t compression_type,
     void* data,
     uint64_t length_in_chunk,
     uint64_t length_last,
@@ -245,8 +245,8 @@ void om_decode_filter(
 }
 
 void om_decode_copy(
-    const OmDataType_t data_type,
-    const OmCompression_t compression_type,
+    uint8_t data_type,
+    uint8_t compression_type,
     uint64_t count,
     float scale_factor,
     float add_offset,

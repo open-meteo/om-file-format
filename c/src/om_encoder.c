@@ -15,8 +15,8 @@ OmError_t om_encoder_init(
     OmEncoder_t* encoder,
     float scale_factor,
     float add_offset,
-    OmCompression_t compression,
-    OmDataType_t data_type,
+    uint8_t compression,
+    uint8_t data_type,
     const uint64_t* dimensions,
     const uint64_t* chunks,
     uint64_t dimension_count
@@ -38,8 +38,8 @@ OmError_t om_encoder_init(
 }
 
 uint64_t om_encode_compress(
-    const OmDataType_t data_type,
-    const OmCompression_t compression_type,
+    uint8_t data_type,
+    uint8_t compression_type,
     const void* input,
     uint64_t count,
     void* output,
@@ -115,8 +115,8 @@ uint64_t om_encode_compress(
 }
 
 void om_encode_filter(
-    OmDataType_t data_type,
-    OmCompression_t compression_type,
+    uint8_t data_type,
+    uint8_t compression_type,
     void* data,
     uint64_t length_in_chunk,
     uint64_t length_last,
@@ -176,8 +176,8 @@ void om_encode_filter(
 }
 
 void om_encode_copy(
-    OmDataType_t data_type,
-    OmCompression_t compression_type,
+    uint8_t data_type,
+    uint8_t compression_type,
     uint64_t count,
     float scale_factor,
     float add_offset,
@@ -292,7 +292,7 @@ uint64_t om_encoder_lut_buffer_size(const uint64_t* lookUpTable, uint64_t lookUp
         const uint64_t len = p4ndenc64((uint64_t*)&lookUpTable[rangeStart], rangeEnd - rangeStart, (unsigned char *)buffer);
         if (len > maxLength) maxLength = len;
     }
-    /// Compression function can write 32 integers more
+    // Compression function can write 32 integers more
     return maxLength * nLutChunks + 32 * sizeof(uint64_t);
 }
 

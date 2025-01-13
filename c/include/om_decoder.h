@@ -75,10 +75,10 @@ typedef struct {
     float add_offset;
 
     /// The data type of the data
-    OmDataType_t data_type;
+    uint8_t data_type;
 
     /// The compression type of the data
-    OmCompression_t compression;
+    uint8_t compression;
 
     /// The size of the element and compressed element in bytes.
     /// E.g. Int16 could be used to scale down floats
@@ -104,7 +104,17 @@ typedef struct {
  *
  * @returns Return an om_error_t if the compression or dimension is invalid
  */
-OmError_t om_decoder_init(OmDecoder_t* decoder, const OmVariable_t* variable, uint64_t dimension_count, const uint64_t* read_offset, const uint64_t* read_count, const uint64_t* cube_offset, const uint64_t* cube_dimensions, uint64_t io_size_merge, uint64_t io_size_max);
+OmError_t om_decoder_init(
+    OmDecoder_t* decoder,
+    const OmVariable_t* variable,
+    uint64_t dimension_count,
+    const uint64_t* read_offset,
+    const uint64_t* read_count,
+    const uint64_t* cube_offset,
+    const uint64_t* cube_dimensions,
+    uint64_t io_size_merge,
+    uint64_t io_size_max
+);
 
 //OmError_t OmDecoder_init(OmDecoder_t* decoder, float scalefactor, float add_offset, const OmCompression_t compression, const OmDataType_t data_type, uint64_t dimension_count, const uint64_t* dimensions, const uint64_t* chunks, const uint64_t* read_offset, const uint64_t* read_count, const uint64_t* cube_offset, const uint64_t* cube_dimensions, uint64_t lut_size, uint64_t lut_chunk_element_count, uint64_t lut_start, uint64_t io_size_merge, uint64_t io_size_max);
 

@@ -23,10 +23,10 @@ typedef struct {
     float add_offset;
 
     /// The data type of the data
-    OmDataType_t data_type;
+    uint8_t data_type;
 
     /// The compression type of the data
-    OmCompression_t compression;
+    uint8_t compression;
 
     /// The size of the element and compressed element in bytes.
     /// E.g. Int16 could be used to scale down floats
@@ -35,7 +35,7 @@ typedef struct {
 
 /// Initialise the OmEncoder structure with information about the shape of data
 /// May return an error on invalid compression or data types
-OmError_t om_encoder_init(OmEncoder_t* encoder, float scale_factor, float add_offset, OmCompression_t compression, OmDataType_t data_type, const uint64_t* dimensions, const uint64_t* chunks, uint64_t dimension_count);
+OmError_t om_encoder_init(OmEncoder_t* encoder, float scale_factor, float add_offset, uint8_t compression, uint8_t data_type, const uint64_t* dimensions, const uint64_t* chunks, uint64_t dimension_count);
 
 /// Get the number of chunks that is calculated from dimensions and chunks
 uint64_t om_encoder_count_chunks(const OmEncoder_t* encoder);

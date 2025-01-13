@@ -31,7 +31,7 @@ const char* om_error_string(OmError_t error) {
     return "";
 }
 
-OmError_t om_get_element_size(OmDataType_t data_type, OmCompression_t compression, OmElementSize_t* size) {
+OmError_t om_get_element_size(uint8_t data_type, uint8_t compression, OmElementSize_t* size) {
     // Set element sizes based on data type
     switch (data_type) {
         case DATA_TYPE_INT8_ARRAY:
