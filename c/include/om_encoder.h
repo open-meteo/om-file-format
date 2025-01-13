@@ -28,9 +28,11 @@ typedef struct {
     /// The compression type of the data
     uint8_t compression;
 
-    /// The size of the element and compressed element in bytes.
-    /// E.g. Int16 could be used to scale down floats
-    OmElementSize_t element_size;
+    /// The size of the elements in bytes
+    uint8_t bytes_per_element;
+
+    /// The size of the elements in bytes after compression, e.g. Int16 could be used to scale floats
+    uint8_t bytes_per_element_compressed;
 } OmEncoder_t;
 
 /// Initialise the OmEncoder structure with information about the shape of data

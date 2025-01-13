@@ -21,8 +21,6 @@ OmError_t om_encoder_init(
     const uint64_t* chunks,
     uint64_t dimension_count
 ) {
-    OmElementSize_t element_size;
-
     encoder->scale_factor = scale_factor;
     encoder->add_offset = add_offset;
     encoder->dimensions = dimensions;
@@ -30,10 +28,11 @@ OmError_t om_encoder_init(
     encoder->dimension_count = dimension_count;
     encoder->data_type = data_type;
     encoder->compression = compression;
+    encoder->bytes_per_element = OM_BYTES_PER_ELEMENT[data_type];
 
-    // Set element sizes based on data type
-    OmError_t error = om_get_element_size(data_type, compression, &element_size);
-    encoder->element_size = element_size;
+    uint8_t bytes_per_element_compressed = 0;
+    OmError_t error = om_get_bytes_per_element_compressed(data_type, compression, &bytes_per_element_compressed);
+    encoder->bytes_per_element_compressed = bytes_per_element_compressed;
     return error;
 }
 
@@ -270,7 +269,7 @@ uint64_t om_encoder_chunk_buffer_size(const OmEncoder_t* encoder) {
     for (uint64_t i = 0; i < encoder->dimension_count; i++) {
         chunkLength *= encoder->chunks[i];
     }
-    return chunkLength * encoder->element_size.bytes_per_element_compressed;
+    return chunkLength * encoder->bytes_per_element_compressed;
 }
 
 uint64_t om_encoder_compressed_chunk_buffer_size(const OmEncoder_t* encoder) {
@@ -279,7 +278,7 @@ uint64_t om_encoder_compressed_chunk_buffer_size(const OmEncoder_t* encoder) {
         chunkLength *= encoder->chunks[i];
     }
     // P4NENC256_BOUND. Compressor may write 32 integers more
-    return (chunkLength + 255) /256 + (chunkLength + 32) * encoder->element_size.bytes_per_element_compressed;
+    return (chunkLength + 255) /256 + (chunkLength + 32) * encoder->bytes_per_element_compressed;
 }
 
 uint64_t om_encoder_lut_buffer_size(const uint64_t* lookUpTable, uint64_t lookUpTableCount) {
@@ -386,8 +385,8 @@ uint64_t om_encoder_compress_chunk(
             linearReadCount,
             encoder->scale_factor,
             encoder->add_offset,
-            &array[encoder->element_size.bytes_per_element * readCoordinate],
-            &chunkBuffer[encoder->element_size.bytes_per_element_compressed * writeCoordinate],
+            &array[encoder->bytes_per_element * readCoordinate],
+            &chunkBuffer[encoder->bytes_per_element_compressed * writeCoordinate],
             NULL
         );
 

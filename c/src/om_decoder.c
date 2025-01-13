@@ -36,7 +36,6 @@ OmError_t om_decoder_init(
     const uint64_t *dimensions, *chunks;
     uint8_t data_type;
     uint8_t compression;
-    OmElementSize_t element_size;
     uint64_t lut_size, lut_start, lut_chunk_length;
 
     switch (_om_variable_memory_layout(variable)) {
@@ -103,10 +102,11 @@ OmError_t om_decoder_init(
     decoder->io_size_max = io_size_max;
     decoder->data_type = data_type;
     decoder->compression = compression;
+    decoder->bytes_per_element = OM_BYTES_PER_ELEMENT[data_type];
 
-    // Set element sizes based on data type
-    OmError_t error = om_get_element_size(data_type, compression, &element_size);
-    decoder->element_size = element_size;
+    uint8_t bytes_per_element_compressed = 0;
+    OmError_t error = om_get_bytes_per_element_compressed(data_type, compression, &bytes_per_element_compressed);
+    decoder->bytes_per_element_compressed = bytes_per_element_compressed;
     return error;
 }
 
@@ -361,7 +361,7 @@ uint64_t om_decoder_read_buffer_size(const OmDecoder_t* decoder) {
     for (uint64_t i = 0; i < decoder->dimensions_count; i++) {
         chunkLength *= decoder->chunks[i];
     }
-    return chunkLength * decoder->element_size.bytes_per_element;
+    return chunkLength * decoder->bytes_per_element;
 }
 
 bool _om_decoder_next_chunk_position(const OmDecoder_t *decoder, OmRange_t *chunk_index) {
@@ -754,8 +754,8 @@ uint64_t _om_decoder_decode_chunk(
             linearReadCount,
             decoder->scale_factor,
             decoder->add_offset,
-            &chunk_buffer[d * decoder->element_size.bytes_per_element_compressed],
-            &into[q * decoder->element_size.bytes_per_element],
+            &chunk_buffer[d * decoder->bytes_per_element_compressed],
+            &into[q * decoder->bytes_per_element],
             error
         );
 

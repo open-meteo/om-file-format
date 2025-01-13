@@ -26,44 +26,11 @@ const char* om_error_string(OmError_t error) {
             return "Not an OM file";
         case ERROR_DEFLATED_SIZE_MISMATCH:
             return "Corrupted data: Deflated size does not match";
-            break;
     }
     return "";
 }
 
-OmError_t om_get_element_size(uint8_t data_type, uint8_t compression, OmElementSize_t* size) {
-    // Set element sizes based on data type
-    switch (data_type) {
-        case DATA_TYPE_INT8_ARRAY:
-        case DATA_TYPE_UINT8_ARRAY:
-            size->bytes_per_element = 1;
-            size->bytes_per_element_compressed = 1;
-            break;
-
-        case DATA_TYPE_INT16_ARRAY:
-        case DATA_TYPE_UINT16_ARRAY:
-            size->bytes_per_element = 2;
-            size->bytes_per_element_compressed = 2;
-            break;
-
-        case DATA_TYPE_INT32_ARRAY:
-        case DATA_TYPE_UINT32_ARRAY:
-        case DATA_TYPE_FLOAT_ARRAY:
-            size->bytes_per_element = 4;
-            size->bytes_per_element_compressed = 4;
-            break;
-
-        case DATA_TYPE_INT64_ARRAY:
-        case DATA_TYPE_UINT64_ARRAY:
-        case DATA_TYPE_DOUBLE_ARRAY:
-            size->bytes_per_element = 8;
-            size->bytes_per_element_compressed = 8;
-            break;
-
-        default:
-            return ERROR_INVALID_DATA_TYPE;
-    }
-
+OmError_t om_get_bytes_per_element_compressed(uint8_t data_type, uint8_t compression, uint8_t* bytes_per_element_compressed) {
     // Adjust compressed size based on compression type
     switch (compression) {
         case COMPRESSION_PFOR_DELTA2D_INT16:
@@ -71,18 +38,17 @@ OmError_t om_get_element_size(uint8_t data_type, uint8_t compression, OmElementS
             if (data_type != DATA_TYPE_FLOAT_ARRAY) {
                 return ERROR_INVALID_DATA_TYPE;
             }
-            size->bytes_per_element = 4;
-            size->bytes_per_element_compressed = 2;
+            *bytes_per_element_compressed = 2;
             break;
 
         case COMPRESSION_FPX_XOR2D:
         case COMPRESSION_PFOR_DELTA2D:
+            *bytes_per_element_compressed = OM_BYTES_PER_ELEMENT[data_type];
             break;
 
         default:
             return ERROR_INVALID_COMPRESSION_TYPE;
     }
-
     return ERROR_OK;
 }
 

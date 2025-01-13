@@ -73,13 +73,35 @@ typedef enum {
     COMPRESSION_NONE = 4
 } OmCompression_t;
 
-/// Used by both the encoder and decoder to store the size of elements
-typedef struct {
-    uint64_t bytes_per_element;
-    uint64_t bytes_per_element_compressed;
-} OmElementSize_t;
+// Lookup table for base element sizes by data type
+static const uint8_t OM_BYTES_PER_ELEMENT[23] = {
+    [DATA_TYPE_NONE] =          0,
+    [DATA_TYPE_INT8] =          1,
+    [DATA_TYPE_UINT8] =         1,
+    [DATA_TYPE_INT16] =         2,
+    [DATA_TYPE_UINT16] =        2,
+    [DATA_TYPE_INT32] =         4,
+    [DATA_TYPE_UINT32] =        4,
+    [DATA_TYPE_INT64] =         8,
+    [DATA_TYPE_UINT64] =        8,
+    [DATA_TYPE_FLOAT] =         4,
+    [DATA_TYPE_DOUBLE] =        8,
+    [DATA_TYPE_STRING] =        0,
+    [DATA_TYPE_INT8_ARRAY] =    1,
+    [DATA_TYPE_UINT8_ARRAY] =   1,
+    [DATA_TYPE_INT16_ARRAY] =   2,
+    [DATA_TYPE_UINT16_ARRAY] =  2,
+    [DATA_TYPE_INT32_ARRAY] =   4,
+    [DATA_TYPE_UINT32_ARRAY] =  4,
+    [DATA_TYPE_INT64_ARRAY] =   8,
+    [DATA_TYPE_UINT64_ARRAY] =  8,
+    [DATA_TYPE_FLOAT_ARRAY] =   4,
+    [DATA_TYPE_DOUBLE_ARRAY] =  8,
+    [DATA_TYPE_STRING_ARRAY] =  0
+};
 
-OmError_t om_get_element_size(uint8_t data_type, uint8_t compression, OmElementSize_t* size);
+/// Get the number of bytes per element after compression
+OmError_t om_get_bytes_per_element_compressed(uint8_t data_type, uint8_t compression, uint8_t* size);
 
 /// Divide and round up
 #define divide_rounded_up(dividend,divisor) \
