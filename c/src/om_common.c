@@ -30,7 +30,7 @@ const char* om_error_string(OmError_t error) {
     return "";
 }
 
-OmError_t om_get_bytes_per_element_compressed(uint8_t data_type, uint8_t compression, uint8_t* bytes_per_element_compressed) {
+OmError_t om_get_bytes_per_element_compressed(OmDataType_t data_type, OmCompression_t compression, uint8_t* bytes_per_element_compressed) {
     // Adjust compressed size based on compression type
     switch (compression) {
         case COMPRESSION_PFOR_DELTA2D_INT16:

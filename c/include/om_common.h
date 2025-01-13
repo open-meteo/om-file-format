@@ -101,7 +101,7 @@ static const uint8_t OM_BYTES_PER_ELEMENT[23] = {
 };
 
 /// Get the number of bytes per element after compression
-OmError_t om_get_bytes_per_element_compressed(uint8_t data_type, uint8_t compression, uint8_t* size);
+OmError_t om_get_bytes_per_element_compressed(OmDataType_t data_type, OmCompression_t compression, uint8_t* size);
 
 /// Divide and round up
 #define divide_rounded_up(dividend,divisor) \

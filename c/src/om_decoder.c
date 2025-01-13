@@ -111,8 +111,8 @@ OmError_t om_decoder_init(
 }
 
 uint64_t om_decode_decompress(
-    uint8_t data_type,
-    uint8_t compression_type,
+    OmDataType_t data_type,
+    OmCompression_t compression_type,
     const void* input,
     uint64_t count,
     void* output,
@@ -186,8 +186,8 @@ uint64_t om_decode_decompress(
 }
 
 void om_decode_filter(
-    uint8_t data_type,
-    uint8_t compression_type,
+    OmDataType_t data_type,
+    OmCompression_t compression_type,
     void* data,
     uint64_t length_in_chunk,
     uint64_t length_last,
@@ -245,8 +245,8 @@ void om_decode_filter(
 }
 
 void om_decode_copy(
-    uint8_t data_type,
-    uint8_t compression_type,
+    OmDataType_t data_type,
+    OmCompression_t compression_type,
     uint64_t count,
     float scale_factor,
     float add_offset,
