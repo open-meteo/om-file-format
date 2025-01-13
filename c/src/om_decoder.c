@@ -11,6 +11,7 @@
 #include "delta2d.h"
 #include "om_decoder.h"
 
+#pragma clang diagnostic error "-Wswitch"
 
 void om_decoder_init_data_read(OmDecoder_dataRead_t *data_read, const OmDecoder_indexRead_t *index_read) {
     data_read->offset = 0;
@@ -103,11 +104,10 @@ OmError_t om_decoder_init(
     decoder->io_size_max = io_size_max;
     decoder->data_type = data_type;
     decoder->compression = compression;
-    decoder->bytes_per_element = om_get_bytes_per_element(data_type);
 
     OmError_t error = ERROR_OK;
-    uint8_t bytes_per_element_compressed = om_get_bytes_per_element_compressed(data_type, compression, &error);
-    decoder->bytes_per_element_compressed = bytes_per_element_compressed;
+    decoder->bytes_per_element = om_get_bytes_per_element(data_type, &error);
+    decoder->bytes_per_element_compressed = om_get_bytes_per_element_compressed(data_type, compression, &error);
     return error;
 }
 

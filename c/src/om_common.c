@@ -12,6 +12,7 @@
 #include "conf.h"
 #pragma clang diagnostic ignored "-Wunused-parameter"
 #pragma clang diagnostic warning "-Wbad-function-cast"
+#pragma clang diagnostic error "-Wswitch"
 
 const char* om_error_string(OmError_t error) {
     switch (error) {
@@ -31,42 +32,46 @@ const char* om_error_string(OmError_t error) {
     return "";
 }
 
-ALWAYS_INLINE uint8_t om_get_bytes_per_element(OmDataType_t data_type) {
+ALWAYS_INLINE uint8_t om_get_bytes_per_element(OmDataType_t data_type, OmError_t* error) {
     switch (data_type) {
-        case DATA_TYPE_INT8:
-        case DATA_TYPE_UINT8:
         case DATA_TYPE_INT8_ARRAY:
         case DATA_TYPE_UINT8_ARRAY:
             return 1;
 
-        case DATA_TYPE_INT16:
-        case DATA_TYPE_UINT16:
         case DATA_TYPE_INT16_ARRAY:
         case DATA_TYPE_UINT16_ARRAY:
             return 2;
 
-        case DATA_TYPE_INT32:
-        case DATA_TYPE_UINT32:
-        case DATA_TYPE_FLOAT:
         case DATA_TYPE_INT32_ARRAY:
         case DATA_TYPE_UINT32_ARRAY:
         case DATA_TYPE_FLOAT_ARRAY:
             return 4;
 
-        case DATA_TYPE_INT64:
-        case DATA_TYPE_UINT64:
-        case DATA_TYPE_DOUBLE:
         case DATA_TYPE_INT64_ARRAY:
         case DATA_TYPE_UINT64_ARRAY:
         case DATA_TYPE_DOUBLE_ARRAY:
             return 8;
 
+        case DATA_TYPE_STRING_ARRAY:
+            // NOTE: STRING_ARRAY is currently not implemented!
+            *error = ERROR_INVALID_DATA_TYPE;
+            return 0;
+            break;
+
+        case DATA_TYPE_INT8:
+        case DATA_TYPE_UINT8:
+        case DATA_TYPE_INT16:
+        case DATA_TYPE_UINT16:
+        case DATA_TYPE_INT32:
+        case DATA_TYPE_UINT32:
+        case DATA_TYPE_FLOAT:
+        case DATA_TYPE_INT64:
+        case DATA_TYPE_UINT64:
+        case DATA_TYPE_DOUBLE:
         case DATA_TYPE_NONE:
         case DATA_TYPE_STRING:
-        case DATA_TYPE_STRING_ARRAY:
-            return 0;
-
-        default:
+            // NOTE: These datatypes are scalar and should not be used with this function!
+            *error = ERROR_INVALID_DATA_TYPE;
             return 0;
     }
 }
@@ -87,14 +92,14 @@ ALWAYS_INLINE uint8_t om_get_bytes_per_element_compressed(OmDataType_t data_type
                 *error = ERROR_INVALID_DATA_TYPE;
                 break;
             }
-            return om_get_bytes_per_element(data_type);
+            return om_get_bytes_per_element(data_type, error);
         case COMPRESSION_PFOR_DELTA2D:
-            return om_get_bytes_per_element(data_type);
+            return om_get_bytes_per_element(data_type, error);
 
         default:
             *error = ERROR_INVALID_COMPRESSION_TYPE;
     }
-    return om_get_bytes_per_element(data_type);
+    return om_get_bytes_per_element(data_type, error);
 }
 
 void om_common_copy_float_to_int16(uint64_t length, float scale_factor, float add_offset, const void* src, void* dst) {

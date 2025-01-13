@@ -64,10 +64,14 @@ typedef enum {
     COMPRESSION_NONE = 4
 } OmCompression_t;
 
+/// Get the number of bytes per element.
+/// This function will set an error if called for an invalid data type.
+/// It only supports array types.
+uint8_t om_get_bytes_per_element(OmDataType_t data_type, OmError_t* error);
 
-uint8_t om_get_bytes_per_element(OmDataType_t data_type);
-
-/// Get the number of bytes per element after compression
+/// Get the number of bytes per element after compression.
+/// This function will set an error if called for an invalid data type.
+/// It only supports array types.
 uint8_t om_get_bytes_per_element_compressed(OmDataType_t data_type, OmCompression_t compression, OmError_t* error);
 
 /// Divide and round up
