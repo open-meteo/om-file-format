@@ -10,6 +10,7 @@
 #include "vp4.h"
 #include "fp.h"
 #include "delta2d.h"
+#include "conf.h"
 
 OmError_t om_encoder_init(
     OmEncoder_t* encoder,
@@ -28,10 +29,10 @@ OmError_t om_encoder_init(
     encoder->dimension_count = dimension_count;
     encoder->data_type = data_type;
     encoder->compression = compression;
-    encoder->bytes_per_element = OM_BYTES_PER_ELEMENT[data_type];
+    encoder->bytes_per_element = om_get_bytes_per_element(data_type);
 
-    uint8_t bytes_per_element_compressed = 0;
-    OmError_t error = om_get_bytes_per_element_compressed(data_type, compression, &bytes_per_element_compressed);
+    OmError_t error = ERROR_OK;
+    uint8_t bytes_per_element_compressed = om_get_bytes_per_element_compressed(data_type, compression, &error);
     encoder->bytes_per_element_compressed = bytes_per_element_compressed;
     return error;
 }

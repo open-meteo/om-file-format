@@ -7,6 +7,7 @@
 
 #include "vp4.h"
 #include "fp.h"
+#include "conf.h"
 #include "delta2d.h"
 #include "om_decoder.h"
 
@@ -102,10 +103,10 @@ OmError_t om_decoder_init(
     decoder->io_size_max = io_size_max;
     decoder->data_type = data_type;
     decoder->compression = compression;
-    decoder->bytes_per_element = OM_BYTES_PER_ELEMENT[data_type];
+    decoder->bytes_per_element = om_get_bytes_per_element(data_type);
 
-    uint8_t bytes_per_element_compressed = 0;
-    OmError_t error = om_get_bytes_per_element_compressed(data_type, compression, &bytes_per_element_compressed);
+    OmError_t error = ERROR_OK;
+    uint8_t bytes_per_element_compressed = om_get_bytes_per_element_compressed(data_type, compression, &error);
     decoder->bytes_per_element_compressed = bytes_per_element_compressed;
     return error;
 }
