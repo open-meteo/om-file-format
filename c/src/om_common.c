@@ -42,8 +42,13 @@ OmError_t om_get_bytes_per_element_compressed(uint8_t data_type, uint8_t compres
             break;
 
         case COMPRESSION_FPX_XOR2D:
-        case COMPRESSION_PFOR_DELTA2D:
+        if (data_type != DATA_TYPE_FLOAT_ARRAY && data_type != DATA_TYPE_DOUBLE_ARRAY) {
+            return ERROR_INVALID_DATA_TYPE;
+        }
             *bytes_per_element_compressed = OM_BYTES_PER_ELEMENT[data_type];
+            break;
+        case COMPRESSION_PFOR_DELTA2D:
+            *bytes_per_element_compressed = OM_BYTES_PER_ELEMENT[data_type];;
             break;
 
         default:
