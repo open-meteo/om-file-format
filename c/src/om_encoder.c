@@ -97,7 +97,6 @@ ALWAYS_INLINE uint64_t om_encode_compress(
                 case DATA_TYPE_DOUBLE_ARRAY:
                     result = p4nzenc64((uint64_t*)input, (size_t)count, (unsigned char*)output);
                     break;
-
                 case DATA_TYPE_NONE:
                 case DATA_TYPE_STRING:
                 case DATA_TYPE_STRING_ARRAY:
