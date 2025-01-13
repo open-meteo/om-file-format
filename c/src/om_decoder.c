@@ -110,7 +110,7 @@ OmError_t om_decoder_init(
     return error;
 }
 
-uint64_t om_decode_decompress(
+ALWAYS_INLINE uint64_t om_decode_decompress(
     OmDataType_t data_type,
     OmCompression_t compression_type,
     const void* input,
@@ -185,7 +185,7 @@ uint64_t om_decode_decompress(
     return result;
 }
 
-void om_decode_filter(
+ALWAYS_INLINE void om_decode_filter(
     OmDataType_t data_type,
     OmCompression_t compression_type,
     void* data,
@@ -244,7 +244,7 @@ void om_decode_filter(
     }
 }
 
-void om_decode_copy(
+ALWAYS_INLINE void om_decode_copy(
     OmDataType_t data_type,
     OmCompression_t compression_type,
     uint64_t count,

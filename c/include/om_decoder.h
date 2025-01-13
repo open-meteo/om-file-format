@@ -14,6 +14,7 @@
 
 #include "om_common.h"
 #include "om_variable.h"
+#include "conf.h"
 
 typedef struct {
     uint64_t lowerBound;

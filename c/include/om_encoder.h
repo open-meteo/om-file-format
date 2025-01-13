@@ -9,6 +9,7 @@
 #define OM_ENCODER_H
 
 #include "om_common.h"
+#include "conf.h"
 
 
 // Encoder struct
