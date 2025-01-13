@@ -114,7 +114,7 @@ uint64_t om_decode_decompress(
     const OmDataType_t data_type,
     const OmCompression_t compression_type,
     const void* input,
-    uint64_t length_in_chunk,
+    uint64_t count,
     void* output,
     OmError_t* error
 ) {
@@ -124,7 +124,7 @@ uint64_t om_decode_decompress(
         case COMPRESSION_PFOR_DELTA2D_INT16:
         case COMPRESSION_PFOR_DELTA2D_INT16_LOGARITHMIC:
             if (data_type == DATA_TYPE_FLOAT_ARRAY) {
-                result = p4nzdec128v16((unsigned char*)input, (size_t)length_in_chunk, (uint16_t*)output);
+                result = p4nzdec128v16((unsigned char*)input, (size_t)count, (uint16_t*)output);
             } else {
                 *error = ERROR_INVALID_DATA_TYPE;
             }
@@ -132,10 +132,10 @@ uint64_t om_decode_decompress(
         case COMPRESSION_FPX_XOR2D:
             switch (data_type) {
                 case DATA_TYPE_FLOAT_ARRAY:
-                    result = om_common_decompress_fpxdec32((unsigned char*)input, (size_t)length_in_chunk, (float*)output);
+                    result = om_common_decompress_fpxdec32((unsigned char*)input, (size_t)count, (float*)output);
                     break;
                 case DATA_TYPE_DOUBLE_ARRAY:
-                    result = om_common_decompress_fpxdec64((unsigned char*)input, (size_t)length_in_chunk, (double*)output);
+                    result = om_common_decompress_fpxdec64((unsigned char*)input, (size_t)count, (double*)output);
                     break;
                 default:
                     *error = ERROR_INVALID_DATA_TYPE;
@@ -144,34 +144,34 @@ uint64_t om_decode_decompress(
         case COMPRESSION_PFOR_DELTA2D:
             switch (data_type) {
                 case DATA_TYPE_INT8_ARRAY:
-                    result = p4nzdec8((unsigned char*)input, (size_t)length_in_chunk, (uint8_t*)output);
+                    result = p4nzdec8((unsigned char*)input, (size_t)count, (uint8_t*)output);
                     break;
                 case DATA_TYPE_UINT8_ARRAY:
-                    result = p4nddec8((unsigned char*)input, (size_t)length_in_chunk, (uint8_t*)output);
+                    result = p4nddec8((unsigned char*)input, (size_t)count, (uint8_t*)output);
                     break;
                 case DATA_TYPE_INT16_ARRAY:
-                    result = p4nzdec128v16((unsigned char*)input, (size_t)length_in_chunk, (uint16_t*)output);
+                    result = p4nzdec128v16((unsigned char*)input, (size_t)count, (uint16_t*)output);
                     break;
                 case DATA_TYPE_UINT16_ARRAY:
-                    result = p4nddec128v16((unsigned char*)input, (size_t)length_in_chunk, (uint16_t*)output);
+                    result = p4nddec128v16((unsigned char*)input, (size_t)count, (uint16_t*)output);
                     break;
                 case DATA_TYPE_INT32_ARRAY:
-                    result = p4nzdec128v32((unsigned char*)input, (size_t)length_in_chunk, (uint32_t*)output);
+                    result = p4nzdec128v32((unsigned char*)input, (size_t)count, (uint32_t*)output);
                     break;
                 case DATA_TYPE_UINT32_ARRAY:
-                    result = p4nddec128v32((unsigned char*)input, (size_t)length_in_chunk, (uint32_t*)output);
+                    result = p4nddec128v32((unsigned char*)input, (size_t)count, (uint32_t*)output);
                     break;
                 case DATA_TYPE_INT64_ARRAY:
-                    result = p4nzdec64((unsigned char*)input, (size_t)length_in_chunk, (uint64_t*)output);
+                    result = p4nzdec64((unsigned char*)input, (size_t)count, (uint64_t*)output);
                     break;
                 case DATA_TYPE_UINT64_ARRAY:
-                    result = p4nddec64((unsigned char*)input, (size_t)length_in_chunk, (uint64_t*)output);
+                    result = p4nddec64((unsigned char*)input, (size_t)count, (uint64_t*)output);
                     break;
                 case DATA_TYPE_FLOAT_ARRAY:
-                    result = p4nzdec128v32((unsigned char*)input, (size_t)length_in_chunk, (uint32_t*)output);
+                    result = p4nzdec128v32((unsigned char*)input, (size_t)count, (uint32_t*)output);
                     break;
                 case DATA_TYPE_DOUBLE_ARRAY:
-                    result = p4nzdec64((unsigned char*)input, (size_t)length_in_chunk, (uint64_t*)output);
+                    result = p4nzdec64((unsigned char*)input, (size_t)count, (uint64_t*)output);
                     break;
                 default:
                     *error = ERROR_INVALID_DATA_TYPE;
