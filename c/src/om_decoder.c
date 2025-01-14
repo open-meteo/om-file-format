@@ -11,7 +11,6 @@
 #include "conf.h"
 #include "delta2d.h"
 #include "om_decoder.h"
-#include "om_common.h"
 
 #pragma clang diagnostic error "-Wswitch"
 
