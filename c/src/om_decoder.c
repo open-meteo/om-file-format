@@ -80,6 +80,12 @@ OmError_t om_decoder_init(
     // Calculate the number of chunks based on dims and chunks
     uint64_t nChunks = 1;
     for (uint64_t i = 0; i < dimension_count; i++) {
+        if (dimensions[i] == 0) {
+            return ERROR_INVALID_DIMENSIONS;
+        }
+        if (chunks[i] == 0 || chunks[i] > dimensions[i]) {
+            return ERROR_INVALID_CHUNK_DIMENSIONS;
+        }
         nChunks *= divide_rounded_up(dimensions[i], chunks[i]);
     }
 
@@ -488,7 +494,7 @@ bool om_decoder_next_data_read(const OmDecoder_t *decoder, OmDecoder_dataRead_t*
     uint64_t chunkIndex = data_read->nextChunk.lowerBound;
     data_read->chunkIndex.lowerBound = chunkIndex;
     
-    uint64_t number_of_chunks = decoder->number_of_chunks;
+    const uint64_t number_of_chunks = decoder->number_of_chunks;
 
     // Version 1 case
     if (decoder->lut_chunk_length == 0) {

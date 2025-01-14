@@ -24,6 +24,15 @@ OmError_t om_encoder_init(
     const uint64_t* chunks,
     uint64_t dimension_count
 ) {
+    for (uint64_t i = 0; i < dimension_count; i++) {
+        if (dimensions[i] == 0) {
+            return ERROR_INVALID_DIMENSIONS;
+        }
+        if (chunks[i] == 0 || chunks[i] > dimensions[i]) {
+            return ERROR_INVALID_CHUNK_DIMENSIONS;
+        }
+    }
+    
     encoder->scale_factor = scale_factor;
     encoder->add_offset = add_offset;
     encoder->dimensions = dimensions;
