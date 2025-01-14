@@ -552,7 +552,8 @@ bool om_decoder_next_data_read(const OmDecoder_t *decoder, OmDecoder_dataRead_t*
 
     uint8_t* indexDataPtr = (uint8_t*)index_data;
 
-    uint64_t uncompressedLut[LUT_CHUNK_COUNT] = {0};
+    /// Buffer for the uncompressed LUT. 64 elements added to work around a potential out of bounds bug (2025-01-14)
+    uint64_t uncompressedLut[LUT_CHUNK_COUNT + 64] = {0};
 
     // Which LUT chunk is currently loaded into `uncompressedLut`
     uint64_t lutChunk = chunkIndex / LUT_CHUNK_COUNT;
