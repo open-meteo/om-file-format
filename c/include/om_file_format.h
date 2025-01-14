@@ -7,3 +7,4 @@
 #include "om_encoder.h"
 #include "om_variable.h"
 #include "om_file.h"
+#include "om_common.h"
