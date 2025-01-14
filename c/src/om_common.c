@@ -32,7 +32,7 @@ const char* om_error_string(OmError_t error) {
     return "";
 }
 
-ALWAYS_INLINE uint8_t om_get_bytes_per_element(OmDataType_t data_type, OmError_t* error) {
+uint8_t om_get_bytes_per_element(OmDataType_t data_type, OmError_t* error) {
     switch (data_type) {
         case DATA_TYPE_INT8_ARRAY:
         case DATA_TYPE_UINT8_ARRAY:
@@ -76,7 +76,7 @@ ALWAYS_INLINE uint8_t om_get_bytes_per_element(OmDataType_t data_type, OmError_t
     }
 }
 
-ALWAYS_INLINE uint8_t om_get_bytes_per_element_compressed(OmDataType_t data_type, OmCompression_t compression, OmError_t* error) {
+uint8_t om_get_bytes_per_element_compressed(OmDataType_t data_type, OmCompression_t compression, OmError_t* error) {
     // Adjust compressed size based on compression type
     switch (compression) {
         case COMPRESSION_PFOR_DELTA2D_INT16:
