@@ -487,6 +487,8 @@ bool om_decoder_next_data_read(const OmDecoder_t *decoder, OmDecoder_dataRead_t*
 
     uint64_t chunkIndex = data_read->nextChunk.lowerBound;
     data_read->chunkIndex.lowerBound = chunkIndex;
+    
+    uint64_t number_of_chunks = decoder->number_of_chunks;
 
     // Version 1 case
     if (decoder->lut_chunk_length == 0) {
@@ -542,7 +544,7 @@ bool om_decoder_next_data_read(const OmDecoder_t *decoder, OmDecoder_dataRead_t*
         // Old files do not compress LUT and data is after LUT
         // V1 header size
         const uint64_t om_header_v1_length = sizeof(OmHeaderV1_t);
-        const uint64_t dataStart = om_header_v1_length + decoder->number_of_chunks * sizeof(int64_t);
+        const uint64_t dataStart = om_header_v1_length + number_of_chunks * sizeof(int64_t);
 
         data_read->offset = startPos + dataStart;
         data_read->count = endPos - startPos;
@@ -552,8 +554,7 @@ bool om_decoder_next_data_read(const OmDecoder_t *decoder, OmDecoder_dataRead_t*
 
     uint8_t* indexDataPtr = (uint8_t*)index_data;
 
-    /// Buffer for the uncompressed LUT. 64 elements added to work around a potential out of bounds bug (2025-01-14)
-    uint64_t uncompressedLut[LUT_CHUNK_COUNT + 64] = {0};
+    uint64_t uncompressedLut[LUT_CHUNK_COUNT] = {0};
 
     // Which LUT chunk is currently loaded into `uncompressedLut`
     uint64_t lutChunk = chunkIndex / LUT_CHUNK_COUNT;
@@ -565,7 +566,7 @@ bool om_decoder_next_data_read(const OmDecoder_t *decoder, OmDecoder_dataRead_t*
 
     // Uncompress the first LUT index chunk and check the length
     {
-        const uint64_t thisLutChunkElementCount = min((lutChunk + 1) * LUT_CHUNK_COUNT, decoder->number_of_chunks+1) - lutChunk * LUT_CHUNK_COUNT;
+        const uint64_t thisLutChunkElementCount = min((lutChunk + 1) * LUT_CHUNK_COUNT, number_of_chunks+1) - lutChunk * LUT_CHUNK_COUNT;
         const uint64_t start = lutChunk * lutChunkLength - lutOffset;
         if (start + lutChunkLength > index_data_size) {
             (*error) = ERROR_OUT_OF_BOUND_READ;
@@ -586,7 +587,7 @@ bool om_decoder_next_data_read(const OmDecoder_t *decoder, OmDecoder_dataRead_t*
 
         // Maybe the next LUT chunk needs to be uncompressed
         if (nextLutChunk != lutChunk) {
-            const uint64_t nextLutChunkElementCount = min((nextLutChunk + 1) * LUT_CHUNK_COUNT, decoder->number_of_chunks+1) - nextLutChunk * LUT_CHUNK_COUNT;
+            const uint64_t nextLutChunkElementCount = min((nextLutChunk + 1) * LUT_CHUNK_COUNT, number_of_chunks+1) - nextLutChunk * LUT_CHUNK_COUNT;
             const uint64_t start = nextLutChunk * lutChunkLength - lutOffset;
             if (start + lutChunkLength > index_data_size) {
                 (*error) = ERROR_OUT_OF_BOUND_READ;
