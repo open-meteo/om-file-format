@@ -26,6 +26,9 @@ typedef enum {
     ERROR_DEFLATED_SIZE_MISMATCH = 5,
     ERROR_INVALID_DIMENSIONS = 6,
     ERROR_INVALID_CHUNK_DIMENSIONS = 7,
+    ERROR_INVALID_READ_OFFSET = 8,
+    ERROR_INVALID_READ_COUNT = 9,
+    ERROR_INVALID_CUBE_OFFSET = 10,
 } OmError_t;
 
 const char* om_error_string(OmError_t error);

@@ -86,6 +86,15 @@ OmError_t om_decoder_init(
         if (chunks[i] == 0 || chunks[i] > dimensions[i]) {
             return ERROR_INVALID_CHUNK_DIMENSIONS;
         }
+        if (read_offset[i] >= dimensions[i]) {
+            return ERROR_INVALID_READ_OFFSET;
+        }
+        if (read_count[i] > dimensions[i] || read_offset[i] + read_count[i] > dimensions[i]) {
+            return ERROR_INVALID_READ_COUNT;
+        }
+        if (cube_offset[i] >= dimensions[i] || cube_offset[i] + read_count[i] > dimensions[i]) {
+            return ERROR_INVALID_CUBE_OFFSET;
+        }
         nChunks *= divide_rounded_up(dimensions[i], chunks[i]);
     }
 

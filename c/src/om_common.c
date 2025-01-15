@@ -32,6 +32,12 @@ const char* om_error_string(OmError_t error) {
             return "Invalid dimensions";
         case ERROR_INVALID_CHUNK_DIMENSIONS:
             return "Invalid chunk dimensions";
+        case ERROR_INVALID_READ_OFFSET:
+            return "Invalid read offset dimensions";
+        case ERROR_INVALID_READ_COUNT:
+            return "Invalid read count dimensions";
+        case ERROR_INVALID_CUBE_OFFSET:
+            return "Invalid read cube offset dimensions";
     }
     return "";
 }
