@@ -92,7 +92,9 @@ OmError_t om_decoder_init(
         if (read_count[i] > dimensions[i] || read_offset[i] + read_count[i] > dimensions[i]) {
             return ERROR_INVALID_READ_COUNT;
         }
-        if (cube_offset[i] >= dimensions[i] || cube_offset[i] + read_count[i] > dimensions[i]) {
+        const uint64_t cube_offset = decoder->cube_offset == NULL ? 0 : decoder->cube_offset[i];
+        const uint64_t cube_dimension = decoder->cube_dimensions == NULL ? read_count[i] : decoder->cube_dimensions[i];
+        if (cube_offset >= dimensions[i] || cube_offset + read_count[i] > cube_dimension) {
             return ERROR_INVALID_CUBE_OFFSET;
         }
         nChunks *= divide_rounded_up(dimensions[i], chunks[i]);
@@ -677,8 +679,8 @@ uint64_t _om_decoder_decode_chunk(
         const uint64_t chunk = decoder->chunks[i];
         const uint64_t read_offset = decoder->read_offset[i];
         const uint64_t read_count = decoder->read_count[i];
-        const uint64_t cube_offset = decoder->cube_offset[i];
-        const uint64_t cube_dimension = decoder->cube_dimensions[i];
+        const uint64_t cube_offset = decoder->cube_offset == NULL ? 0 : decoder->cube_offset[i];
+        const uint64_t cube_dimension = decoder->cube_dimensions == NULL ? read_count : decoder->cube_dimensions[i];
 
         const uint64_t nChunksInThisDimension = divide_rounded_up(dimension, chunk);
         const uint64_t c0 = (chunkIndex / rollingMultiply) % nChunksInThisDimension;
@@ -769,7 +771,7 @@ uint64_t _om_decoder_decode_chunk(
             const uint64_t chunk = decoder->chunks[i];
             const uint64_t read_offset = decoder->read_offset[i];
             const uint64_t read_count = decoder->read_count[i];
-            const uint64_t cube_dimension = decoder->cube_dimensions[i];
+            const uint64_t cube_dimension = decoder->cube_dimensions == NULL ? read_count : decoder->cube_dimensions[i];
 
             //printf("i=%d q=%d d=%d\n", i,q,d);
             const uint64_t nChunksInThisDimension = divide_rounded_up(dimension, chunk);
