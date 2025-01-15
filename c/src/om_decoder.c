@@ -37,8 +37,8 @@ OmError_t om_decoder_init(
 
     float scalefactor, add_offset;
     const uint64_t *dimensions, *chunks;
-    OmDataType_t data_type;
-    OmCompression_t compression;
+    uint8_t data_type;
+    uint8_t compression;
     uint64_t lut_size, lut_start, lut_chunk_length;
 
     switch (_om_variable_memory_layout(variable)) {
