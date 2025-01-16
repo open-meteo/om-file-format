@@ -585,7 +585,6 @@ bool om_decoder_next_data_read(const OmDecoder_t *decoder, OmDecoder_dataRead_t*
     {
         const size_t thisLutChunkElementCount = min((lutChunk + 1) * LUT_CHUNK_COUNT, number_of_chunks+1) - lutChunk * LUT_CHUNK_COUNT;
         const uint64_t start = lutChunk * lutChunkLength - lutOffset;
-        // Note PZ 2025-01-14: `thisLutChunkElementCount > LUT_CHUNK_COUNT` could indicate a bug. Still debugging.
         if (start + lutChunkLength > index_data_size || thisLutChunkElementCount > LUT_CHUNK_COUNT) {
             (*error) = ERROR_OUT_OF_BOUND_READ;
             return false;
@@ -607,7 +606,6 @@ bool om_decoder_next_data_read(const OmDecoder_t *decoder, OmDecoder_dataRead_t*
         if (nextLutChunk != lutChunk) {
             const size_t nextLutChunkElementCount = min((nextLutChunk + 1) * LUT_CHUNK_COUNT, number_of_chunks+1) - nextLutChunk * LUT_CHUNK_COUNT;
             const uint64_t start = nextLutChunk * lutChunkLength - lutOffset;
-            // Note PZ 2025-01-14: `nextLutChunkElementCount > LUT_CHUNK_COUNT` could indicate a bug. Still debugging.
             if (start + lutChunkLength > index_data_size || nextLutChunkElementCount > LUT_CHUNK_COUNT) {
                 (*error) = ERROR_OUT_OF_BOUND_READ;
                 return false;
