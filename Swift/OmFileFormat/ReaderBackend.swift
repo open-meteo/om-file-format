@@ -1,14 +1,14 @@
 /// OmFileReader can read data from this backend
 public protocol OmFileReaderBackend {
     /// The pointer type can be a directly a pointer or a `Data` class that retains data.
-    associatedtype PointerType: OmFileReaderPointer
+    /// Note: Needs additional testing to ensure data is retained while calling C functions
+    associatedtype DataType: OmFileReaderPointer
     
     /// Length in bytes
     var count: Int { get }
-    var needsPrefetch: Bool { get }
     func prefetchData(offset: Int, count: Int)
     
-    func getData(offset: Int, count: Int) -> PointerType
+    func getData(offset: Int, count: Int) -> DataType
 }
 
 public protocol OmFileReaderPointer {
@@ -32,16 +32,8 @@ extension MmapFile: OmFileReaderBackend {
         self.prefetchData(offset: offset, count: count, advice: .willneed)
     }
     
-    public func preRead(offset: Int, count: Int) {
-        
-    }
-    
     public var count: Int {
         return data.count
-    }
-    
-    public var needsPrefetch: Bool {
-        return true
     }
 }
 
@@ -54,16 +46,8 @@ extension DataAsClass: OmFileReaderBackend {
         })
     }
     
-    public func preRead(offset: Int, count: Int) {
-        
-    }
-    
     public var count: Int {
         return data.count
-    }
-    
-    public var needsPrefetch: Bool {
-        return false
     }
     
     public func prefetchData(offset: Int, count: Int) {

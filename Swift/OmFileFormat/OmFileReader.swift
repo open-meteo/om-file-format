@@ -17,7 +17,7 @@ public struct OmFileReader<Backend: OmFileReaderBackend> {
     public let fn: Backend
     
     /// Underlaying memory for the variable. Could just be a pointer or a reference counted allocated memory region
-    let variable: Backend.PointerType
+    let variable: Backend.DataType
         
     /// Open a file and decode om file meta data. In this case  fn is typically mmap or just plain memory
     public init(fn: Backend) throws {
@@ -48,7 +48,7 @@ public struct OmFileReader<Backend: OmFileReaderBackend> {
         }
     }
     
-    init(fn: Backend, variable: Backend.PointerType) {
+    init(fn: Backend, variable: Backend.DataType) {
         self.fn = fn
         self.variable = variable
     }
@@ -133,7 +133,7 @@ public struct OmFileReaderArray<Backend: OmFileReaderBackend, OmType: OmFileArra
     /// Points to the underlying memory. Needs to remain in scope to keep memory accessible
     public let fn: Backend
     
-    let variable: Backend.PointerType
+    let variable: Backend.DataType
     
     let io_size_max: UInt64
         
