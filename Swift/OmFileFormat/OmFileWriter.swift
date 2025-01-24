@@ -10,7 +10,7 @@ import Foundation
 
 
 /// Writes om file header and trailer
-public struct OmFileWriter2<FileHandle: OmFileWriterBackend> {
+public struct OmFileWriter<FileHandle: OmFileWriterBackend> {
     let buffer: OmBufferedWriter<FileHandle>
     
     public init(fn: FileHandle, initialCapacity: Int) {

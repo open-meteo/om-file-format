@@ -1,4 +1,4 @@
-extension OmFileReader2Array where OmType == Float {
+extension OmFileReaderArray where OmType == Float {
     /// Read interpolated between 4 points. Assuming dim0 and dim1 are a spatial field
     public func readInterpolated(dim0: Int, dim0Fraction: Float, dim1: Int, dim1Fraction: Float) throws -> Float {
         let dims = getDimensions()

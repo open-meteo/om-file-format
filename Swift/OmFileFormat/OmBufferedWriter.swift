@@ -70,7 +70,7 @@ public final class OmBufferedWriter<FileHandle: OmFileWriterBackend> {
             return // enugh space in buffer
         }
         // Need to grow buffer to a multiple of the initial capacity
-        let newCapacity = minimumCapacity.divideRoundedUp(divisor: initialCapacity) * initialCapacity
+        let newCapacity = (minimumCapacity + initialCapacity - 1) / initialCapacity * initialCapacity
         buffer = UnsafeMutableRawBufferPointer(start: realloc(buffer.baseAddress, newCapacity), count: newCapacity)
         bufferAtWritePosition.initializeMemory(as: UInt8.self, repeating: 0, count: remainingCapacity)
     }

@@ -47,18 +47,13 @@ public final class MmapFile {
         self.file = fn
     }
     
-    /// Check if the file was deleted on the file system. Linux keep the file alive, as long as some processes have it open.
-    public func wasDeleted() -> Bool {
-        file.wasDeleted()
-    }
-    
     /// Tell the OS to prefault the required memory pages. Subsequent calls to read data should be faster
     public func prefetchData(offset: Int, count: Int, advice: MAdvice) {
-        let pageStart = offset.floor(to: 4096)
-        let pageEnd = (offset + count).ceil(to: 4096)
-        let length = pageEnd - pageStart
-        // Note: length can be greater than data size, due to page cache alignment
-        //precondition(length <= data.count, "Prefetch read exceeds length. Length=\(length) data count=\(data.count)")
+        /// Page start aligned to page size
+        let pageStart = (offset / 4096) * 4096
+        /// Length as a multiple of the page size
+        let length = (count + 4096 - 1) / 4096 * 4096
+
         let ret = madvise(UnsafeMutableRawPointer(mutating: data.baseAddress!.advanced(by: pageStart)), length, advice.mode)
         guard ret == 0 else {
             let error = String(cString: strerror(errno))
