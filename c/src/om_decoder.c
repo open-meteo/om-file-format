@@ -307,7 +307,7 @@ ALWAYS_INLINE void om_decode_copy(
                     break;
                 case DATA_TYPE_INT64_ARRAY:
                 case DATA_TYPE_UINT64_ARRAY:
-                    om_common_copy32(count, scale_factor, add_offset, input, output);
+                    om_common_copy64(count, scale_factor, add_offset, input, output);
                     break;
                 case DATA_TYPE_DOUBLE_ARRAY:
                     om_common_copy_int64_to_double(count, scale_factor, add_offset, input, output);
@@ -504,7 +504,7 @@ bool om_decoder_next_data_read(const OmDecoder_t *decoder, OmDecoder_dataRead_t*
 
     uint64_t chunkIndex = data_read->nextChunk.lowerBound;
     data_read->chunkIndex.lowerBound = chunkIndex;
-    
+
     const uint64_t number_of_chunks = decoder->number_of_chunks;
 
     // Version 1 case

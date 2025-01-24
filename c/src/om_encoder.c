@@ -32,7 +32,7 @@ OmError_t om_encoder_init(
             return ERROR_INVALID_CHUNK_DIMENSIONS;
         }
     }
-    
+
     encoder->scale_factor = scale_factor;
     encoder->add_offset = add_offset;
     encoder->dimensions = dimensions;
@@ -231,7 +231,7 @@ ALWAYS_INLINE void om_encode_copy(
                     break;
                 case DATA_TYPE_INT64_ARRAY:
                 case DATA_TYPE_UINT64_ARRAY:
-                    om_common_copy32(count, scale_factor, add_offset, input, output);
+                    om_common_copy64(count, scale_factor, add_offset, input, output);
                     break;
                 case DATA_TYPE_DOUBLE_ARRAY:
                     om_common_copy_double_to_int64(count, scale_factor, add_offset, input, output);
