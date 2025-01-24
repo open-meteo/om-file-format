@@ -2,9 +2,6 @@ import Foundation
 
 /// OmFileReader can read data from this backend
 public protocol OmFileReaderBackend {
-    /// The return data can be a directly a pointer or a `Data` class that retains data.
-    associatedtype DataType: ContiguousBytes
-    
     /// Length in bytes
     var count: Int { get }
     
@@ -12,14 +9,14 @@ public protocol OmFileReaderBackend {
     func prefetchData(offset: Int, count: Int)
     
     /// Read data
-    func getData(offset: Int, count: Int) -> DataType
+    func getData(offset: Int, count: Int) -> UnsafeRawPointer
 }
 
 /// Make `FileHandle` work as reader
 extension MmapFile: OmFileReaderBackend {
-    public func getData(offset: Int, count: Int) -> Slice<UnsafeBufferPointer<UInt8>> {
+    public func getData(offset: Int, count: Int) -> UnsafeRawPointer {
         assert(offset + count <= data.count)
-        return data[offset ..< offset + count]
+        return UnsafeRawPointer(data.baseAddress!.advanced(by: offset))
     }
     
     public func prefetchData(offset: Int, count: Int) {
@@ -33,9 +30,11 @@ extension MmapFile: OmFileReaderBackend {
 
 /// Make `Data` work as reader
 extension DataAsClass: OmFileReaderBackend {
-    public func getData(offset: Int, count: Int) -> Data {
-        assert(offset + count <= data.count)
-        return data[offset ..< offset+count]
+    public func getData(offset: Int, count: Int) -> UnsafeRawPointer {
+        // NOTE: Probably a bad idea to expose a pointer
+        return data.withUnsafeBytes({
+            $0.baseAddress!.advanced(by: offset)
+        })
     }
     
     public var count: Int {

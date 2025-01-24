@@ -110,6 +110,35 @@ import Foundation
         //let hex = Data(bytesNoCopy: UnsafeMutableRawPointer(mutating: readFn.getData(offset: 0, count: readFn.count)), count: readFn.count, deallocator: .none)
         //XCTAssertEqual(hex, "awfawf")
     }
+    
+    @Test func writeLargeAsync() async throws {
+        let file = "writeLarge.om"
+        let fn = try FileHandle.createNewFile(file: file, overwrite: true)
+        defer { try? FileManager.default.removeItem(atPath: file) }
+        
+        let fileWriter = OmFileWriter(fn: fn, initialCapacity: 8)
+        let writer = try fileWriter.prepareArray(type: Float.self, dimensions: [100,100,10], chunkDimensions: [2,2,2], compression: .pfor_delta2d_int16, scale_factor: 1, add_offset: 0)
+
+        let data = (0..<100000).map({Float($0 % 10000)})
+        try writer.writeData(array: data)
+        let variableMeta = try writer.finalise()
+        let variable = try fileWriter.write(array: variableMeta, name: "data", children: [])
+        try fileWriter.writeTrailer(rootVariable: variable)
+
+        let readFn = try FileHandle.openFileReading(file: file)
+        let read = try await OmFileReaderAsync(fn: readFn).asArray(of: Float.self)!
+        
+        let a1 = try await read.read(range: [50..<51, 20..<21, 1..<2])
+        #expect(a1 == [201.0])
+
+        // NOTE: This does not work properly because FileHandle is not thread safe
+        /*let a = try await read.readConcurrent(range: [0..<100, 0..<100, 0..<10])
+        #expect(a == data)*/
+
+        #expect(try await readFn.getCount() == 154176)
+        //let hex = Data(bytesNoCopy: UnsafeMutableRawPointer(mutating: readFn.getData(offset: 0, count: readFn.count)), count: readFn.count, deallocator: .none)
+        //XCTAssertEqual(hex, "awfawf")
+    }
 
     @Test func writeChunks() throws {
         let file = "writeChunks.om"
@@ -225,7 +254,7 @@ import Foundation
 
         // Ensure written bytes are correct
         #expect(readFn.count == 240)
-        let bytes = Array(readFn.getData(offset: 0, count: readFn.count))
+        let bytes = Data(bytesNoCopy: UnsafeMutableRawPointer(mutating: readFn.getData(offset: 0, count: readFn.count)), count: readFn.count, deallocator: .none).map{UInt8($0)}
         #expect(bytes[0..<3] == [79, 77, 3])
         #expect(bytes[3..<8] == [0, 3, 34, 140, 2]) // chunk
         #expect(bytes[8..<12] == [2, 3, 114, 1] || bytes[8..<12] == [2, 3, 114, 141]) // difference on x86 and ARM cause by the underlying compression
@@ -328,7 +357,7 @@ import Foundation
         }
 
         #expect(readFn.count == 144)
-        let bytes = Array(readFn.getData(offset: 0, count: readFn.count))
+        let bytes = Data(bytesNoCopy: UnsafeMutableRawPointer(mutating: readFn.getData(offset: 0, count: readFn.count)), count: readFn.count, deallocator: .none).map{UInt8($0)}
         #expect(bytes == [79, 77, 3, 0, 4, 130, 0, 2, 3, 34, 0, 4, 194, 2, 10, 4, 178, 0, 12, 4, 242, 0, 14, 197, 17, 20, 194, 2, 22, 194, 2, 24, 3, 3, 228, 200, 109, 1, 0, 0, 20, 0, 4, 0, 0, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0, 32, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 128, 63, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 100, 97, 116, 97, 0, 0, 0, 0, 79, 77, 3, 0, 0, 0, 0, 0, 40, 0, 0, 0, 0, 0, 0, 0, 76, 0, 0, 0, 0, 0, 0, 0])
         
         // test interpolation
