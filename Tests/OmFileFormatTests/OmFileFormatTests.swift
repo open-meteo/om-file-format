@@ -290,7 +290,7 @@ import Foundation
                 try r.withUnsafeMutableBufferPointer({
                     try read.read(into: $0.baseAddress!, range: [x..<x+1, y..<y+1], intoCubeOffset: [1,1], intoCubeDimension: [3,3])
                 })
-                #expect(r.testSimilar([.nan, .nan, .nan, .nan, Float(x*5 + y), .nan, .nan, .nan, .nan]))
+                #expect(r.testSimilar([Float.nan, .nan, .nan, .nan, Float(x*5 + y), .nan, .nan, .nan, .nan]))
             }
         }
 
@@ -381,7 +381,7 @@ import Foundation
                 try r.withUnsafeMutableBufferPointer({
                     try read.read(into: $0.baseAddress!, range: [x..<x+1, y..<y+1], intoCubeOffset: [1,1], intoCubeDimension: [3,3])
                 })
-                #expect(r.testSimilar([.nan, .nan, .nan, .nan, Float(x*5 + y), .nan, .nan, .nan, .nan]))
+                #expect(r.testSimilar([Float.nan, .nan, .nan, .nan, Float(x*5 + y), .nan, .nan, .nan, .nan]))
             }
         }
 
@@ -471,7 +471,7 @@ import Foundation
                 try r.withUnsafeMutableBufferPointer({
                     try read.read(into: $0.baseAddress!, range: [x..<x+1, y..<y+1], intoCubeOffset: [1,1], intoCubeDimension: [3,3])
                 })
-                #expect(r.testSimilar([.nan, .nan, .nan, .nan, Float(x*5 + y), .nan, .nan, .nan, .nan]))
+                #expect(r.testSimilar([Float.nan, .nan, .nan, .nan, Float(x*5 + y), .nan, .nan, .nan, .nan]))
             }
         }
 
@@ -686,160 +686,73 @@ import Foundation
         try FileManager.default.removeItem(atPath: file)
     }
 
-    @Test func writeReadOmFileTypes() throws {
-        let types: [OmFileArrayDataTypeProtocol.Type] = [
-            Float.self, Double.self,
-            Int8.self, Int16.self, Int32.self, Int.self,
-            UInt8.self, UInt16.self, UInt32.self, UInt.self
-        ]
-        for type in types {
-            let file = "test_file_\(type).om"
-            try FileManager.default.removeItemIfExists(at: file)
+    @Test func readWriteRoundTripArrayTypes() throws {
 
-            do {
-                defer { try? FileManager.default.removeItem(atPath: file) }
-                let fn = try FileHandle.createNewFile(file: file)
-                let fileWriter = OmFileWriter2(fn: fn, initialCapacity: 8)
+        struct TestCase<T: OmFileArrayDataTypeProtocol & Equatable> {
+            let dimensions: [UInt64] = [5, 5]
+            let chunkDimensions: [UInt64] = [2, 2]
+            let generateValue: () -> T
 
-                let intValues = (0..<25).map({ _ in Int.random(in: Int.min..<Int.max) })
-                let uintValues = (0..<25).map({ _ in UInt.random(in: 0..<UInt.max) })
+            func test() throws {
+                let file = "test_file_\(T.self).om"
+                try FileManager.default.removeItemIfExists(at: file)
 
+                do {
+                    defer { try? FileManager.default.removeItemIfExists(at: file) }
 
-                let variableMeta: OmFileWriterArrayFinalised = try {
-                    switch type {
-                    case is Float.Type:
-                        let writer = try fileWriter.prepareArray(
-                            type: Float.self, dimensions: [5, 5], chunkDimensions: [2, 2],
-                            compression: .pfor_delta2d, scale_factor: 10000, add_offset: 0)
-                        try writer.writeData(array: (0..<25).map({ _ in Float.random(in: 0..<1) }))
-                        return try writer.finalise()
-                    case is Double.Type:
-                        let writer = try fileWriter.prepareArray(
-                            type: Double.self, dimensions: [5, 5], chunkDimensions: [2, 2],
-                            compression: .pfor_delta2d, scale_factor: 10000, add_offset: 0)
-                        try writer.writeData(array: (0..<25).map({ _ in Double.random(in: 0..<1) }))
-                        return try writer.finalise()
-                    case is Int8.Type:
-                        let writer = try fileWriter.prepareArray(
-                            type: Int8.self, dimensions: [5, 5], chunkDimensions: [2, 2],
-                            compression: .pfor_delta2d, scale_factor: 10000, add_offset: 0)
-                        try writer.writeData(array: (0..<25).map({ _ in Int8.random(in: Int8.min..<Int8.max) }))
-                        return try writer.finalise()
-                    case is Int16.Type:
-                        let writer = try fileWriter.prepareArray(
-                            type: Int16.self, dimensions: [5, 5], chunkDimensions: [2, 2],
-                            compression: .pfor_delta2d, scale_factor: 10000, add_offset: 0)
-                        try writer.writeData(array: (0..<25).map({ _ in Int16.random(in: Int16.min..<Int16.max) }))
-                        return try writer.finalise()
-                    case is Int32.Type:
-                        let writer = try fileWriter.prepareArray(
-                            type: Int32.self, dimensions: [5, 5], chunkDimensions: [2, 2],
-                            compression: .pfor_delta2d, scale_factor: 10000, add_offset: 0)
-                        try writer.writeData(array: (0..<25).map({ _ in Int32.random(in: Int32.min..<Int32.max) }))
-                        return try writer.finalise()
-                    case is Int.Type:
-                        let writer = try fileWriter.prepareArray(
-                            type: Int.self, dimensions: [5, 5], chunkDimensions: [2, 2],
-                            compression: .pfor_delta2d, scale_factor: 10000, add_offset: 0)
-                        try writer.writeData(array: intValues)
-                        return try writer.finalise()
-                    case is UInt8.Type:
-                        let writer = try fileWriter.prepareArray(
-                            type: UInt8.self, dimensions: [5, 5], chunkDimensions: [2, 2],
-                            compression: .pfor_delta2d, scale_factor: 10000, add_offset: 0)
-                        try writer.writeData(array: (0..<25).map({ _ in UInt8.random(in: 0..<UInt8.max) }))
-                        return try writer.finalise()
-                    case is UInt16.Type:
-                        let writer = try fileWriter.prepareArray(
-                            type: UInt16.self, dimensions: [5, 5], chunkDimensions: [2, 2],
-                            compression: .pfor_delta2d, scale_factor: 10000, add_offset: 0)
-                        try writer.writeData(array: (0..<25).map({ _ in UInt16.random(in: 0..<UInt16.max) }))
-                        return try writer.finalise()
-                    case is UInt32.Type:
-                        let writer = try fileWriter.prepareArray(
-                            type: UInt32.self, dimensions: [5, 5], chunkDimensions: [2, 2],
-                            compression: .pfor_delta2d, scale_factor: 10000, add_offset: 0)
-                        try writer.writeData(array: (0..<25).map({ _ in UInt32.random(in: 0..<UInt32.max) }))
-                        return try writer.finalise()
-                    case is UInt.Type:
-                        let writer = try fileWriter.prepareArray(
-                            type: UInt.self, dimensions: [5, 5], chunkDimensions: [2, 2],
-                            compression: .pfor_delta2d, scale_factor: 10000, add_offset: 0)
-                        try writer.writeData(array: uintValues)
-                        return try writer.finalise()
+                    // Write file
+                    let fn = try FileHandle.createNewFile(file: file)
+                    let fileWriter = OmFileWriter2(fn: fn, initialCapacity: 8)
 
-                    default:
-                        fatalError("Unsupported type \(type)")
+                    let count = Int(dimensions.reduce(1, *))
+                    let values = (0..<count).map { _ in generateValue() }
+                    let writer = try fileWriter.prepareArray(
+                        type: T.self,
+                        dimensions: dimensions,
+                        chunkDimensions: chunkDimensions,
+                        compression: .pfor_delta2d,
+                        scale_factor: 10000,
+                        add_offset: 0
+                    )
+                    try writer.writeData(array: values)
+                    let variableMeta = try writer.finalise()
+
+                    let variable = try fileWriter.write(array: variableMeta, name: "data", children: [])
+                    try fileWriter.writeTrailer(rootVariable: variable)
+
+                    // Read and verify
+                    let readFn = try MmapFile(fn: FileHandle.openFileReading(file: file))
+                    let readFile = try OmFileReader2(fn: readFn)
+
+                    let array = readFile.asArray(of: T.self)!
+                    #expect(array.getDimensions()[0] == dimensions[0])
+                    #expect(array.getDimensions()[1] == dimensions[1])
+
+                    let readValues = try array.read(range: [0..<dimensions[0], 0..<dimensions[1]])
+                    if T.self == Float.self {
+                        #expect((values as! [Float]).testSimilar(readValues as! [Float]))
+                    } else if T.self == Double.self {
+                        #expect((values as! [Double]).testSimilar(readValues as! [Double]))
+                    } else {
+                        #expect(values == readValues)
                     }
-                }()
 
-                let variable = try fileWriter.write(array: variableMeta, name: "data", children: [])
-                try fileWriter.writeTrailer(rootVariable: variable)
-
-                let readFn = try MmapFile(fn: FileHandle.openFileReading(file: file))
-                let readFile = try OmFileReader2(fn: readFn)
-
-                switch type {
-                case is Float.Type:
-                    let array = readFile.asArray(of: Float.self)!
-                    #expect(array.getDimensions()[0] == 5)
-                    #expect(array.getDimensions()[1] == 5)
-                    _ = try array.read(range: [0..<5, 0..<5])
-                case is Double.Type:
-                    let array = readFile.asArray(of: Double.self)!
-                    #expect(array.getDimensions()[0] == 5)
-                    #expect(array.getDimensions()[1] == 5)
-                    _ = try array.read(range: [0..<5, 0..<5])
-                case is Int8.Type:
-                    let array = readFile.asArray(of: Int8.self)!
-                    #expect(array.getDimensions()[0] == 5)
-                    #expect(array.getDimensions()[1] == 5)
-                    _ = try array.read(range: [0..<5, 0..<5])
-                case is Int16.Type:
-                    let array = readFile.asArray(of: Int16.self)!
-                    #expect(array.getDimensions()[0] == 5)
-                    #expect(array.getDimensions()[1] == 5)
-                    _ = try array.read(range: [0..<5, 0..<5])
-                case is Int32.Type:
-                    let array = readFile.asArray(of: Int32.self)!
-                    #expect(array.getDimensions()[0] == 5)
-                    #expect(array.getDimensions()[1] == 5)
-                    _ = try array.read(range: [0..<5, 0..<5])
-                case is Int.Type:
-                    let array = readFile.asArray(of: Int.self)!
-                    #expect(array.getDimensions()[0] == 5)
-                    #expect(array.getDimensions()[1] == 5)
-                    let values = try array.read(range: [0..<5, 0..<5])
-                    #expect(values == intValues)
-                case is UInt8.Type:
-                    let array = readFile.asArray(of: UInt8.self)!
-                    #expect(array.getDimensions()[0] == 5)
-                    #expect(array.getDimensions()[1] == 5)
-                    _ = try array.read(range: [0..<5, 0..<5])
-                case is UInt16.Type:
-                    let array = readFile.asArray(of: UInt16.self)!
-                    #expect(array.getDimensions()[0] == 5)
-                    #expect(array.getDimensions()[1] == 5)
-                    _ = try array.read(range: [0..<5, 0..<5])
-                case is UInt32.Type:
-                    let array = readFile.asArray(of: UInt32.self)!
-                    #expect(array.getDimensions()[0] == 5)
-                    #expect(array.getDimensions()[1] == 5)
-                    _ = try array.read(range: [0..<5, 0..<5])
-                case is UInt.Type:
-                    let array = readFile.asArray(of: UInt.self)!
-                    #expect(array.getDimensions()[0] == 5)
-                    #expect(array.getDimensions()[1] == 5)
-                    let values = try array.read(range: [0..<5, 0..<5])
-                    #expect(values == uintValues)
-
-                default:
-                    fatalError("Unsupported type")
+                } catch {
+                    Issue.record("Error testing \(T.self): \(error)")
                 }
-            } catch {
-                Issue.record("Error: \(error)")
             }
         }
+
+        try TestCase<Float>.init() { Float.random(in: 0..<1) * 10000 }.test()
+        try TestCase<Double>.init() { Double.random(in: 0..<1) * 10000 }.test()
+        try TestCase<Int8>.init() { Int8.random(in: Int8.min..<Int8.max) }.test()
+        try TestCase<Int16>.init() { Int16.random(in: Int16.min..<Int16.max) }.test()
+        try TestCase<Int32>.init() { Int32.random(in: Int32.min..<Int32.max) }.test()
+        try TestCase<Int>.init() { Int.random(in: Int.min..<Int.max) }.test()
+        try TestCase<UInt8>.init() { UInt8.random(in: 0..<UInt8.max) }.test()
+        try TestCase<UInt16>.init() { UInt16.random(in: 0..<UInt16.max) }.test()
+        try TestCase<UInt32>.init() { UInt32.random(in: 0..<UInt32.max) }.test()
+        try TestCase<UInt>.init() { UInt.random(in: 0..<UInt.max) }.test()
     }
 
     @Test func copyLog10Roundtrip() {
@@ -863,9 +776,20 @@ import Foundation
     }
 }
 
-
 extension Array where Element == Float {
-    func testSimilar(_ b: [Float], accuracy: Float = 0.0001) -> Bool {
+    func testSimilar(_ b: [Element], accuracy: Element = 0.001) -> Bool {
+        return testSimilarFloating(b, accuracy: accuracy)
+    }
+}
+
+extension Array where Element == Double {
+    func testSimilar(_ b: [Element], accuracy: Element = 0.001) -> Bool {
+        return testSimilarFloating(b, accuracy: accuracy)
+    }
+}
+
+extension Array where Element: FloatingPoint {
+    func testSimilarFloating(_ b: [Element], accuracy: Element) -> Bool {
         let a = self
         guard a.count == b.count else {
             Issue.record("Array length different")
