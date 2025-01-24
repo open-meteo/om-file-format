@@ -19,6 +19,7 @@ public enum OmFileFormatSwiftError: Error {
     case omDecoder(error: String)
     case omEncoder(error: String)
     case notAnOpenMeteoFile
+    case requireDimensionsToMatch(required: Int, actual: Int)
 }
 
 
