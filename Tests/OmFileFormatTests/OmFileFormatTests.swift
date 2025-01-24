@@ -684,7 +684,7 @@ import Foundation
                 do {
                     // Write file
                     let fn = try FileHandle.createNewFile(file: file, overwrite: true)
-                    defer { try? FileManager.default.removeItem(at: file) }
+                    defer { try? FileManager.default.removeItem(atPath: file) }
                     let fileWriter = OmFileWriter(fn: fn, initialCapacity: 8)
 
                     let count = Int(dimensions.reduce(1, *))
