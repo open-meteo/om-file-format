@@ -681,14 +681,11 @@ import Foundation
 
             func test() throws {
                 let file = "test_file_\(T.self).om"
-                try FileManager.default.removeItemIfExists(at: file)
-
                 do {
-                    defer { try? FileManager.default.removeItemIfExists(at: file) }
-
                     // Write file
-                    let fn = try FileHandle.createNewFile(file: file)
-                    let fileWriter = OmFileWriter2(fn: fn, initialCapacity: 8)
+                    let fn = try FileHandle.createNewFile(file: file, overwrite: true)
+                    defer { try? FileManager.default.removeItem(at: file) }
+                    let fileWriter = OmFileWriter(fn: fn, initialCapacity: 8)
 
                     let count = Int(dimensions.reduce(1, *))
                     let values = (0..<count).map { _ in generateValue() }
@@ -708,7 +705,7 @@ import Foundation
 
                     // Read and verify
                     let readFn = try MmapFile(fn: FileHandle.openFileReading(file: file))
-                    let readFile = try OmFileReader2(fn: readFn)
+                    let readFile = try OmFileReader(fn: readFn)
 
                     let array = readFile.asArray(of: T.self)!
                     #expect(array.getDimensions()[0] == dimensions[0])
