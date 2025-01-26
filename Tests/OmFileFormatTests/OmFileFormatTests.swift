@@ -112,7 +112,7 @@ import Foundation
     }
     
     @Test func writeLargeAsync() async throws {
-        let file = "writeLarge.om"
+        let file = "writeLargeAsync.om"
         let fn = try FileHandle.createNewFile(file: file, overwrite: true)
         defer { try? FileManager.default.removeItem(atPath: file) }
         
@@ -131,9 +131,8 @@ import Foundation
         let a1 = try await read.read(range: [50..<51, 20..<21, 1..<2])
         #expect(a1 == [201.0])
 
-        // NOTE: This does not work properly because FileHandle is not thread safe
-        /*let a = try await read.readConcurrent(range: [0..<100, 0..<100, 0..<10])
-        #expect(a == data)*/
+        let a = try await read.readConcurrent(range: [0..<100, 0..<100, 0..<10])
+        #expect(a == data)
 
         #expect(try await readFn.getCount() == 154176)
         //let hex = Data(bytesNoCopy: UnsafeMutableRawPointer(mutating: readFn.getData(offset: 0, count: readFn.count)), count: readFn.count, deallocator: .none)

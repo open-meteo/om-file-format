@@ -7,6 +7,7 @@ public enum OmFileFormatSwiftError: Error {
     case cannotCreateFile(filename: String, errno: Int32, error: String)
     case cannotTruncateFile(filename: String, errno: Int32, error: String)
     case cannotOpenFile(errno: Int32, error: String)
+    case cannotReadFile(errno: Int32, error: String)
     case cannotMoveFile(from: String, to: String, errno: Int32, error: String)
     case chunkHasWrongNumberOfElements
     case dimensionOutOfBounds(range: Range<Int>, allowed: Int)
