@@ -11,16 +11,16 @@ import Foundation
 public final class OmBufferedWriter<FileHandle: OmFileWriterBackend> {
     /// All data is written to this buffer. The current offset is in `writeBufferPos`. This buffer must be written out before it is full.
     public var buffer: UnsafeMutableRawBufferPointer
-    
+
     /// The final backing store to write data to
     public var backend: FileHandle
-        
+
     public var writePosition: Int
-    
+
     public var totalBytesWritten: Int
-    
+
     private var initialCapacity: Int
-    
+
     public init(backend: FileHandle, initialCapacity: Int = 1024) {
         self.writePosition = 0
         self.totalBytesWritten = 0
@@ -29,16 +29,16 @@ public final class OmBufferedWriter<FileHandle: OmFileWriterBackend> {
         buffer.initializeMemory(as: UInt8.self, repeating: 0)
         self.initialCapacity = initialCapacity
     }
-    
+
     func incrementWritePosition(by bytes: Int) {
         writePosition += bytes
         totalBytesWritten += bytes
     }
-    
+
     func resetWritePosition() {
         writePosition = 0
     }
-    
+
     /// Add empty space if required to align to 64 bits
     func alignTo64Bytes() throws {
         let bytesToPadd = 8 - totalBytesWritten % 8
@@ -49,17 +49,17 @@ public final class OmBufferedWriter<FileHandle: OmFileWriterBackend> {
         bufferAtWritePosition.initializeMemory(as: UInt8.self, repeating: 0, count: bytesToPadd)
         incrementWritePosition(by: bytesToPadd)
     }
-    
+
     /// How many bytes are left in the write buffer
     var remainingCapacity: Int {
         return buffer.count - (writePosition)
     }
-    
+
     /// A pointer to the current write position
     var bufferAtWritePosition: UnsafeMutableRawPointer {
         return buffer.baseAddress!.advanced(by: writePosition)
     }
-    
+
     /// Ensure the buffer has at least a minimum capacity. Write to backend if too much data is in the buffer
     public func reallocate(minimumCapacity: Int) throws {
         if remainingCapacity >= minimumCapacity {
@@ -74,7 +74,7 @@ public final class OmBufferedWriter<FileHandle: OmFileWriterBackend> {
         buffer = UnsafeMutableRawBufferPointer(start: realloc(buffer.baseAddress, newCapacity), count: newCapacity)
         bufferAtWritePosition.initializeMemory(as: UInt8.self, repeating: 0, count: remainingCapacity)
     }
-    
+
     /// Write buffer to file
     public func writeToFile() throws {
         let readableBytes = UnsafeRawBufferPointer(start: buffer.baseAddress, count: writePosition)
@@ -83,7 +83,7 @@ public final class OmBufferedWriter<FileHandle: OmFileWriterBackend> {
         // zero fill buffer
         bufferAtWritePosition.initializeMemory(as: UInt8.self, repeating: 0, count: readableBytes.count)
     }
-    
+
     deinit {
         buffer.deallocate()
     }

@@ -434,7 +434,7 @@ static ALIGNED(unsigned char, permv[256][8], 32) = {
 };
 #define u2vmask(_m_,_tv_)                  _mm256_sllv_epi32(_mm256_set1_epi8(_m_), _tv_)
 #define mm256_maskz_expand_epi32(_m_, _v_) _mm256_permutevar8x32_epi32(_v_,  _mm256_cvtepu8_epi32(_mm_cvtsi64_si128(ctou64(permv[_m_]))) )
-#define mm256_maskz_loadu_epi32(_m_,_v_)   _mm256_blendv_epi8(zv, mm256_maskz_expand_epi32(xm, _mm256_loadu_si256((__m256i*)pex)), u2vmask(xm,tv)) // emulate AVX512 _mm256_maskz_loadu_epi32 on AVX2 
+#define mm256_maskz_loadu_epi32(_m_,_v_)   _mm256_blendv_epi8(zv, mm256_maskz_expand_epi32(xm, _mm256_loadu_si256((__m256i*)pex)), u2vmask(xm,tv)) // emulate AVX512 _mm256_maskz_loadu_epi32 on AVX2
   #endif
 
 //-----------------------------------------------------------------------------
@@ -566,11 +566,11 @@ unsigned char *_bitdunpack256v32( const unsigned char *__restrict in, unsigned n
 #include "bitunpack_.h"
 #define BITUNPACK0(_parm_)
 unsigned char *_bitzunpack256v32( const unsigned char *__restrict in, unsigned n, unsigned *__restrict out, unsigned start, unsigned b, unsigned *__restrict pex, unsigned char *bb) {
-  const unsigned char *ip = in+PAD8(256*b); 
-        unsigned xm; 
-  const __m256i zv = _mm256_setzero_si256(), tv = _mm256_set_epi32(0,1,2,3,4,5,6,7); 
+  const unsigned char *ip = in+PAD8(256*b);
+        unsigned xm;
+  const __m256i zv = _mm256_setzero_si256(), tv = _mm256_set_epi32(0,1,2,3,4,5,6,7);
         __m256i sv = _mm256_set1_epi32(start);
-  BITUNPACK256V32(in, b, out, sv); 
+  BITUNPACK256V32(in, b, out, sv);
   return (unsigned char *)ip;
 }
 

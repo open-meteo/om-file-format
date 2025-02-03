@@ -9,7 +9,7 @@ public protocol OmFileWriterBackend {
 /// Need to maintain a strong reference
 public final class DataAsClass {
     public var data: Data
-    
+
     public init(data: Data) {
         self.data = data
     }
@@ -18,9 +18,9 @@ public final class DataAsClass {
 /// Make `Data` work as writer
 extension DataAsClass: OmFileWriterBackend {
     public func synchronize() throws {
-        
+
     }
-    
+
     public func write<T>(contentsOf data: T) throws where T : DataProtocol {
         self.data.append(contentsOf: data)
     }
@@ -33,4 +33,3 @@ extension FileHandle: OmFileWriterBackend {
         try write(contentsOf: data)
     }
 }
-

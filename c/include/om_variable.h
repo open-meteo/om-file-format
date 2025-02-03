@@ -30,7 +30,7 @@ typedef struct {
 
     // Scalars are now set
     //void* value;
-    
+
     // name is always last
     //char[name_size] name;
 } OmVariableV3_t;
@@ -43,18 +43,18 @@ typedef struct {
     uint64_t lut_size;
     uint64_t lut_offset;
     uint64_t dimension_count;
-    
+
     float scale_factor;
     float add_offset;
-    
+
     // Followed by payload: NOTE: Lets to try 64 bit align it somehow
     //uint32_t[children_count] children_length;
     //uint32_t[children_count] children_offset;
-    
+
     // Afterwards additional payload from value types
     //uint64_t[dimension_count] dimensions;
     //uint64_t[dimension_count] chunks;
-    
+
     // name is always last
     //char[name_size] name;
 } OmVariableArrayV3_t;

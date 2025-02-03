@@ -47,7 +47,7 @@ public enum DataType: UInt8, Codable {
     case float_array = 20
     case double_array = 21
     case string_array = 22
-    
+
     func toC() -> OmDataType_t {
         return OmDataType_t(rawValue: UInt32(self.rawValue))
     }
@@ -56,16 +56,16 @@ public enum DataType: UInt8, Codable {
 public enum CompressionType: UInt8, Codable {
     /// Lossy compression using 2D delta coding and scalefactor. Only support float which are scaled to 16 bit signed integers
     case pfor_delta2d_int16 = 0
-    
+
     /// Lossless compression using 2D xor coding for float and double values
     case fpx_xor2d = 1
-    
+
     /// PFor integer compression. Floating point values are scaled to 32 bit signed integers. Doubles are scaled to 64 bit signed integers.
     case pfor_delta2d = 2
-    
+
     ///  Similar to `pfor_delta2d_int16` but applies `log10(1+x)` before
     case pfor_delta2d_int16_logarithmic = 3
-    
+
     func toC() -> OmCompression_t {
         switch self {
         case .pfor_delta2d_int16:
@@ -79,5 +79,3 @@ public enum CompressionType: UInt8, Codable {
         }
     }
 }
-
-
