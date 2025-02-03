@@ -135,3 +135,9 @@ extension Double: OmFileScalarDataTypeProtocol {
         return .double
     }
 }
+
+extension String: OmFileScalarDataTypeProtocol {
+    public static var dataTypeScalar: DataType {
+        return .string
+    }
+}
