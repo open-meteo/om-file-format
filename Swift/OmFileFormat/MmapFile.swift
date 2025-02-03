@@ -4,11 +4,11 @@ import Foundation
 public final class MmapFile {
     public let data: UnsafeBufferPointer<UInt8>
     public let file: FileHandle
-    
+
     public enum Mode {
         case readOnly
         case readWrite
-        
+
         /// mmap `prot` attribute
         fileprivate var prot: Int32 {
             switch self {
@@ -19,11 +19,11 @@ public final class MmapFile {
             }
         }
     }
-    
+
     public enum MAdvice {
         case willneed
         case dontneed
-        
+
         fileprivate var mode: Int32 {
             switch self {
             case .willneed:
@@ -46,7 +46,7 @@ public final class MmapFile {
         self.data = UnsafeBufferPointer(start: start, count: len)
         self.file = fn
     }
-    
+
     /// Tell the OS to prefault the required memory pages. Subsequent calls to read data should be faster
     public func prefetchData(offset: Int, count: Int, advice: MAdvice) {
         /// Page start aligned to page size

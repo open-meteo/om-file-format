@@ -133,7 +133,7 @@ classDiagram
     }
 ```
 
-Legacy Binary Format: 
+Legacy Binary Format:
 - Int16: magic number "OM"
 - Int8: version
 - Int8: compression type with filter
@@ -256,5 +256,3 @@ Variable message:
     <td colspan="8">Byte of name</td>
   </tr>
 </tbody></table>
-
-

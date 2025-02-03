@@ -13,7 +13,7 @@ extension FileHandle {
             let error = String(cString: strerror(errno))
             throw OmFileFormatSwiftError.cannotCreateFile(filename: file, errno: errno, error: error)
         }
-        
+
         let handle = FileHandle(fileDescriptor: fn, closeOnDealloc: true)
         if let sparseSize {
             guard ftruncate(fn, off_t(sparseSize)) == 0 else {
@@ -27,7 +27,7 @@ extension FileHandle {
         try handle.seek(toOffset: 0)
         return handle
     }
-    
+
     /// Allocate the required diskspace for a given file
     func preAllocate(size: Int) throws {
         #if os(Linux)
@@ -53,7 +53,7 @@ extension FileHandle {
         }
         #endif
     }
-    
+
     /// Open file for reading
     public static func openFileReading(file: String) throws -> FileHandle {
         // 0644 permissions
@@ -66,7 +66,7 @@ extension FileHandle {
         let handle = FileHandle(fileDescriptor: fn, closeOnDealloc: true)
         return handle
     }
-    
+
     /// Open file for read/write
     public static func openFileReadWrite(file: String) throws -> FileHandle {
         // 0644 permissions
@@ -80,4 +80,3 @@ extension FileHandle {
         return handle
     }
 }
-

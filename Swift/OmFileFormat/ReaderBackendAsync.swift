@@ -4,13 +4,13 @@ import Foundation
 public protocol OmFileReaderBackendAsync {
     /// The return data can be a directly a pointer or a `Data` class that retains data.
     associatedtype DataType: ContiguousBytes
-    
+
     /// Length in bytes
     func getCount() async throws -> UInt64
-    
+
     /// Prefect data for future access. E.g. madvice on memory mapped files
-    func prefetchData(offset: Int, count: Int) async throws 
-    
+    func prefetchData(offset: Int, count: Int) async throws
+
     /// Read data. Must be thread safe!
     func getData(offset: Int, count: Int) async throws -> DataType
 }
@@ -28,11 +28,11 @@ extension FileHandle: OmFileReaderBackendAsync {
         }
         return data
     }
-    
+
     public func prefetchData(offset: Int, count: Int) async throws  {
-        
+
     }
-    
+
     public func getCount() async throws -> UInt64 {
         try seek(toOffset: 0)
         return try seekToEnd()
