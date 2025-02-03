@@ -309,9 +309,9 @@ void om_variable_write_scalar(void* dst, uint16_t name_size, uint32_t children_c
             break;
         case DATA_TYPE_STRING:
             // Strings are written as uint16_t string_length + string data
-            *(uint16_t*)destValue = string_length;
+            *(uint16_t*)destValue = string_length; // write string length to the first two bytes
             for (uint16_t i = 0; i < string_length; i++) {
-                destValue[sizeof(uint16_t) + i] = ((const char*)value)[i];
+                ((char*)destValue)[sizeof(uint16_t) + i] = ((const char*)value)[i];
             }
 
             valueSize = sizeof(uint16_t) + string_length;
