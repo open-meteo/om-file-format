@@ -37,7 +37,7 @@ import Foundation
 
     @Test func variable() {
         var name: String = "name"
-        let stringSize: UInt16 = 0
+        let stringSize: UInt64 = 0
         name.withUTF8({ name in
             let sizeScalar = om_variable_write_scalar_size(UInt16(name.count), 0, DATA_TYPE_INT8, stringSize)
             #expect(sizeScalar == 13)
@@ -59,10 +59,10 @@ import Foundation
     @Test func variableString() {
         var name: String = "name"
         let value: String = "Hello, World!"
-        let stringSize = UInt16(value.utf8.count)
+        let stringSize = UInt64(value.utf8.count)
         name.withUTF8({ name in
             let sizeScalar = om_variable_write_scalar_size(UInt16(name.count), 0, DATA_TYPE_STRING, stringSize)
-            #expect(sizeScalar == 27)
+            #expect(sizeScalar == 33)
 
             var data = [UInt8](repeating: 255, count: sizeScalar)
 
@@ -75,7 +75,7 @@ import Foundation
                 4, // OmCompression_t: 4 = COMPRESSION_NONE
                 4, 0, // Size of name
                 0, 0, 0, 0, // Children count
-                13, 0, // stringSize
+                13, 0, 0, 0, 0, 0, 0, 0, // stringSize
                 72, 101, 108, 108, 111, 44, 32, 87, 111, 114, 108, 100, 33, // "Hello, World!"
                 110, 97, 109, 101 // "name"
             ])
@@ -298,7 +298,7 @@ import Foundation
         }
 
         // Ensure written bytes are correct
-        #expect(readFn.count == 288)
+        #expect(readFn.count == 296)
         let bytes = Data(bytesNoCopy: UnsafeMutableRawPointer(mutating: readFn.getData(offset: 0, count: readFn.count)), count: readFn.count, deallocator: .none).map{UInt8($0)}
         #expect(bytes[0..<3] == [79, 77, 3])
         #expect(bytes[3..<8] == [0, 3, 34, 140, 2]) // chunk
@@ -313,9 +313,9 @@ import Foundation
         #expect(bytes[35..<40] == [0, 0, 0, 0, 0]) // zero padding
         #expect(bytes[40..<40+17] == [5, 4, 5, 0, 0, 0, 0, 0, 82, 9, 188, 0, 105, 110, 116, 51, 50]) // scalar int32
         #expect(bytes[65..<65+22] == [4, 6, 0, 0, 0, 0, 0, 0, 0, 0, 64, 42, 129, 103, 65, 100, 111, 117, 98, 108, 101, 0]) // scalar double
-        #expect(bytes[88..<88+28] == [11, 4, 6, 0, 0, 0, 0, 0, 12, 0, 109, 121, 95, 97, 116, 116, 114, 105, 98, 117, 116, 101, 115, 116, 114, 105, 110, 103]) // scalar string
-        #expect(bytes[120..<120+140] == [20, 0, 4, 0, 3, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 30, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 128, 63, 0, 0, 0, 0, 17, 0, 0, 0, 0, 0, 0, 0, 22, 0, 0, 0, 0, 0, 0, 0, 28, 0, 0, 0, 0, 0, 0, 0, 40, 0, 0, 0, 0, 0, 0, 0, 64, 0, 0, 0, 0, 0, 0, 0, 88, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 100, 97, 116, 97]) // array meta // array meta
-        #expect(bytes[264..<288] == [79, 77, 3, 0, 0, 0, 0, 0, 120, 0, 0, 0, 0, 0, 0, 0, 140, 0, 0, 0, 0, 0, 0, 0]) // trailer
+        #expect(bytes[88..<88+34] == [11, 4, 6, 0, 0, 0, 0, 0, 12, 0, 0, 0, 0, 0, 0, 0, 109, 121, 95, 97, 116, 116, 114, 105, 98, 117, 116, 101, 115, 116, 114, 105, 110, 103]) // scalar string
+        #expect(bytes[128..<128+140] == [20, 0, 4, 0, 3, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 30, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 128, 63, 0, 0, 0, 0, 17, 0, 0, 0, 0, 0, 0, 0, 22, 0, 0, 0, 0, 0, 0, 0, 34, 0, 0, 0, 0, 0, 0, 0, 40, 0, 0, 0, 0, 0, 0, 0, 64, 0, 0, 0, 0, 0, 0, 0, 88, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 100, 97, 116, 97]) // array meta
+        #expect(bytes[272..<296] == [79, 77, 3, 0, 0, 0, 0, 0, 128, 0, 0, 0, 0, 0, 0, 0, 140, 0, 0, 0, 0, 0, 0, 0]) // trailer
 
         // Test interpolation
         #expect(try read.readInterpolated(dim0X: 0, dim0XFraction: 0.5, dim0Y: 0, dim0YFraction: 0.5, dim0Nx: 3, dim1: 0..<3) == [6.0, 7.0, 8.0])
