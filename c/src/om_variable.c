@@ -6,7 +6,6 @@
 //
 
 #include "om_variable.h"
-#include <stdio.h>
 
 const OmVariable_t* om_variable_init(const void* src) {
     return src;
@@ -309,10 +308,8 @@ void om_variable_write_scalar(void* dst, uint16_t name_size, uint32_t children_c
             valueSize = 8;
             break;
         case DATA_TYPE_STRING:
-            // Write the string length
+            // Strings are written as uint16_t string_length + string data
             *(uint16_t*)destValue = string_length;
-
-            // Copy the string data
             for (uint16_t i = 0; i < string_length; i++) {
                 destValue[sizeof(uint16_t) + i] = ((const char*)value)[i];
             }
