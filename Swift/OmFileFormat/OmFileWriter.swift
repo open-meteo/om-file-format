@@ -37,10 +37,10 @@ public struct OmFileWriter<FileHandle: OmFileWriterBackend> {
             let type = OmType.dataTypeScalar.toC()
             try buffer.alignTo64Bytes()
 
-            let stringLength: UInt16
+            let stringLength: UInt64
             if type == DATA_TYPE_STRING {
                 // For strings, pass the string length
-                stringLength = UInt16((value as! String).utf8.count) // TODO: safely init?
+                stringLength = UInt64((value as! String).utf8.count) // TODO: safely init?
             } else {
                 stringLength = 0
             }
