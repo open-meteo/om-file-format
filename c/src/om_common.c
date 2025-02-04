@@ -63,9 +63,7 @@ uint8_t om_get_bytes_per_element(OmDataType_t data_type, OmError_t* error) {
             return 8;
 
         case DATA_TYPE_STRING_ARRAY:
-            // NOTE: STRING_ARRAY is currently not implemented!
-            *error = ERROR_INVALID_DATA_TYPE;
-            return 0;
+            return 0; // strings are variable length
             break;
 
         case DATA_TYPE_INT8:
@@ -105,7 +103,8 @@ uint8_t om_get_bytes_per_element_compressed(OmDataType_t data_type, OmCompressio
             return om_get_bytes_per_element(data_type, error);
         case COMPRESSION_PFOR_DELTA2D:
             return om_get_bytes_per_element(data_type, error);
-
+        case COMPRESSION_NONE:
+            return 0;
         default:
             *error = ERROR_INVALID_COMPRESSION_TYPE;
     }
@@ -213,6 +212,12 @@ void om_common_copy32(uint64_t length, float scale_factor, float add_offset, con
 void om_common_copy64(uint64_t length, float scale_factor, float add_offset, const void* src, void* dst) {
     for (uint64_t i = 0; i < length; ++i) {
         ((int64_t *)dst)[i] = ((int64_t *)src)[i];
+    }
+}
+
+void om_common_copy_string_array(uint64_t length, const void* src, void* dst) {
+    for (uint64_t i = 0; i < length; ++i) {
+        ((char **)dst)[i] = ((char **)src)[i];
     }
 }
 

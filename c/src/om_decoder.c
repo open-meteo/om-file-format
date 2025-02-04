@@ -73,6 +73,7 @@ OmError_t om_decoder_init(
             lut_chunk_length = 1;
             break;
         }
+        case OM_MEMORY_LAYOUT_STRING_ARRAY:
         case OM_MEMORY_LAYOUT_SCALAR:
             return ERROR_INVALID_DATA_TYPE;
     }
@@ -184,24 +185,21 @@ ALWAYS_INLINE uint64_t om_decode_decompress(
                 case DATA_TYPE_DOUBLE_ARRAY:
                     result = p4nzdec64((unsigned char*)input, (size_t)count, (uint64_t*)output);
                     break;
-                case DATA_TYPE_NONE:
-                case DATA_TYPE_STRING:
-                case DATA_TYPE_STRING_ARRAY:
-                case DATA_TYPE_INT8:
-                case DATA_TYPE_UINT8:
-                case DATA_TYPE_INT16:
-                case DATA_TYPE_UINT16:
-                case DATA_TYPE_INT32:
-                case DATA_TYPE_UINT32:
-                case DATA_TYPE_INT64:
-                case DATA_TYPE_UINT64:
-                case DATA_TYPE_FLOAT:
-                case DATA_TYPE_DOUBLE:
+                default:
                     break;
             }
             break;
-
         case COMPRESSION_NONE:
+            switch (data_type) {
+                case DATA_TYPE_STRING_ARRAY:
+                    // For string arrays, we just return the total size
+                    // The actual string data is read separately
+                    result = count;
+                    break;
+                default:
+                    // Other data types need to be compressed
+                    break;
+            }
             break;
     }
 

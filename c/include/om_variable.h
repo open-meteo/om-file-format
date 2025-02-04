@@ -158,7 +158,7 @@ typedef enum {
     OM_MEMORY_LAYOUT_ARRAY = 1,
     OM_MEMORY_LAYOUT_SCALAR = 3,
     //OM_MEMORY_LAYOUT_STRING = 4,
-    //OM_MEMORY_LAYOUT_STRING_ARRAY = 5,
+    OM_MEMORY_LAYOUT_STRING_ARRAY = 5,
 } OmMemoryLayout_t;
 
 /// Check if a variable is legacy or version 3 array of scalar. Legacy files are the entire header containing magic number and version.

@@ -118,6 +118,9 @@ void om_common_copy16(uint64_t length, float scale_factor, float add_offset, con
 void om_common_copy32(uint64_t length, float scale_factor, float add_offset, const void* src, void* dst);
 void om_common_copy64(uint64_t length, float scale_factor, float add_offset, const void* src, void* dst);
 
+/// Copy string array
+void om_common_copy_string_array(uint64_t length, const void* src, void* dst);
+
 uint64_t om_common_compress_fpxenc32(const void* src, uint64_t length, void* dst);
 uint64_t om_common_compress_fpxenc64(const void* src, uint64_t length, void* dst);
 uint64_t om_common_decompress_fpxdec32(const void* src, uint64_t length, void* dst);
