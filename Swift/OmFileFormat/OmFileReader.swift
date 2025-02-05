@@ -358,27 +358,51 @@ public struct OmFileReaderStringArray<Backend: OmFileReaderBackend> {
     let io_size_max: UInt64
     let io_size_merge: UInt64
 
+    let lutTable: [UInt64]
+
+    init(fn: Backend, variable: UnsafePointer<OmVariable_t?>?, io_size_max: UInt64, io_size_merge: UInt64) {
+        self.fn = fn
+        self.variable = variable
+        self.io_size_max = io_size_max
+        self.io_size_merge = io_size_merge
+
+        guard let variable = self.variable,
+            case let meta = UnsafeRawPointer(variable).assumingMemoryBound(to: OmVariableArrayV3_t.self).pointee,
+            case .string_array = DataType(rawValue: UInt8(om_variable_get_type(variable).rawValue))
+        else {
+            fatalError("Variable is nil")
+        }
+
+        let lutOffset = meta.lut_offset
+        let lutSize = meta.lut_size
+        print("lutOffset \(lutOffset) lutSize \(lutSize)")
+        let lutPtr = self.fn.getData(offset: Int(lutOffset), count: Int(lutSize)).assumingMemoryBound(to: UInt64.self)
+        let buffer = UnsafeBufferPointer(start: lutPtr, count: Int(lutSize/8))
+        self.lutTable = Array(buffer)
+        print("lutTable \(lutTable)")
+    }
+
     /// Get the dimensions of the string array
     public func getDimensions() -> UnsafeBufferPointer<UInt64> {
         let dimensions = om_variable_get_dimensions(variable)
         return UnsafeBufferPointer<UInt64>(start: dimensions.values, count: Int(dimensions.count))
     }
 
-    public func getLutTable() -> [UInt64] {
-        guard let variable = self.variable else {
-                fatalError("Variable is nil")
-        }
-        if case let meta = UnsafeRawPointer(variable).assumingMemoryBound(to: OmVariableArrayV3_t.self).pointee,
-           case .string_array = DataType(rawValue: UInt8(om_variable_get_type(variable).rawValue)) {
-            let lutOffset = meta.lut_offset
-            let lutSize = meta.lut_size
-            print("lutOffset \(lutOffset) lutSize \(lutSize)")
-            let lutPtr = self.fn.getData(offset: Int(lutOffset), count: Int(lutSize)).assumingMemoryBound(to: UInt64.self)
-            let buffer = UnsafeBufferPointer(start: lutPtr, count: Int(lutSize/8))
-            return Array(buffer)
-        }
-        return []
-    }
+    //public func getLutTable() -> [UInt64] {
+    //    guard let variable = self.variable else {
+    //            fatalError("Variable is nil")
+    //    }
+    //    if case let meta = UnsafeRawPointer(variable).assumingMemoryBound(to: OmVariableArrayV3_t.self).pointee,
+    //       case .string_array = DataType(rawValue: UInt8(om_variable_get_type(variable).rawValue)) {
+    //        let lutOffset = meta.lut_offset
+    //        let lutSize = meta.lut_size
+    //        print("lutOffset \(lutOffset) lutSize \(lutSize)")
+    //        let lutPtr = self.fn.getData(offset: Int(lutOffset), count: Int(lutSize)).assumingMemoryBound(to: UInt64.self)
+    //        let buffer = UnsafeBufferPointer(start: lutPtr, count: Int(lutSize/8))
+    //        return Array(buffer)
+    //    }
+    //    return []
+    //}
 
     /// Read the entire string array
     public func read() throws -> [String] {
@@ -392,8 +416,6 @@ public struct OmFileReaderStringArray<Backend: OmFileReaderBackend> {
         let dimensions = self.getDimensions().map { Int($0) }
         let ranges = range.map { Range(uncheckedBounds: (Int($0.lowerBound), Int($0.upperBound))) }
         let totalCount = ranges.map { $0.count }.reduce(1, *)
-        let lutTable = self.getLutTable()
-        print("lutTable \(lutTable)")
 
         var strings = [String]()
         strings.reserveCapacity(Int(totalCount))
@@ -418,8 +440,8 @@ public struct OmFileReaderStringArray<Backend: OmFileReaderBackend> {
             // The LUT at the linear index contains the offset of the string
             // The next LUT entry contains the offset of the next string
             // The length of the string is the difference between the two offsets
-            let startOffset = lutTable[Int(linearIndex)]
-            let endOffset = lutTable[Int(linearIndex + 1)]
+            let startOffset = self.lutTable[Int(linearIndex)]
+            let endOffset = self.lutTable[Int(linearIndex + 1)]
 
 
             // Process current position
@@ -446,10 +468,9 @@ public struct OmFileReaderStringArray<Backend: OmFileReaderBackend> {
     /// Read a single string from the specified start and end offset
     public func readString(start: Int, end: Int) throws -> String {
         let stringData = self.fn.getData(offset: start, count: end - start)
-        let buffer = UnsafeRawBufferPointer(start: stringData, count: end - start)
 
-        // Convert to String using the buffer
-        return String(bytes: buffer, encoding: .utf8) ?? ""
+        let dataCopy = Data(bytes: stringData, count: end - start)
+        return String(data: dataCopy, encoding: .utf8) ?? ""
     }
 }
 
