@@ -225,7 +225,7 @@ public final class OmFileWriterArray<OmType: OmFileArrayDataTypeProtocol, FileHa
         /// How many chunks can be written to the output. This could be only a single one, or multiple
         let numberOfChunksInArray = om_encoder_count_chunks_in_array(&encoder, arrayCount)
 
-        /// Store data start address if this is the first time this read is called
+        // Store data start address if this is the first time this read is called
         if self.chunkIndex == 0 {
             lookUpTable[chunkIndex] = UInt64(buffer.totalBytesWritten)
         }

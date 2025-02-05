@@ -350,16 +350,16 @@ import Foundation
         defer { try? FileManager.default.removeItem(atPath: file) }
         let fileWriter = OmFileWriter(fn: fn, initialCapacity: 8)
 
-        let writer = try fileWriter.prepareStringArray(dimensions: [3,3])
+        let writer = try fileWriter.prepareStringArray(dimensions: [3, 2, 2])
 
-        let data = ["string1", "string2", "string3", "string4", "string5", "string6", "string7", "string8_äöüß¿¡!?", "string9____"]
+        let data = ["string1", "string2", "string3", "string4", "string5", "string6", "string7", "string8_äöüß¿¡!?", "", "string10____", "string11", "string12"]
         try writer.writeData(array: data)
         let variableMeta = try writer.finalise()
         let variable = try fileWriter.write(array: variableMeta, name: "data", children: [])
         try fileWriter.writeTrailer(rootVariable: variable)
 
         let readFn = try MmapFile(fn: FileHandle.openFileReading(file: file))
-        #expect(readFn.count == 280)
+        #expect(readFn.count == 336)
         let bytes = Data(bytesNoCopy: UnsafeMutableRawPointer(mutating: readFn.getData(offset: 0, count: readFn.count)), count: readFn.count, deallocator: .none).map{ UInt8($0) }
         #expect(bytes[0..<3] == [79, 77, 3])
         #expect(bytes[3..<3+7] == [115, 116, 114, 105, 110, 103, 49]) // string1
@@ -370,8 +370,11 @@ import Foundation
         #expect(bytes[38..<38+7] == [115, 116, 114, 105, 110, 103, 54]) // string6
         #expect(bytes[45..<45+7] == [115, 116, 114, 105, 110, 103, 55]) // string7
         #expect(bytes[52..<52+22] == [115, 116, 114, 105, 110, 103, 56, 95, 195, 164, 195, 182, 195, 188, 195, 159, 194, 191, 194, 161, 33, 63]) // string8_äöüß¿¡!?
-        #expect(bytes[74..<74+11] == [115, 116, 114, 105, 110, 103, 57, 95, 95, 95, 95]) // string9____
-        #expect(bytes[88..<88+80] == [
+        #expect(bytes[74..<74+0] == []) // empty string
+        #expect(bytes[74..<74+12] == [115, 116, 114, 105, 110, 103, 49, 48, 95, 95, 95, 95]) // string10____
+        #expect(bytes[86..<86+8] == [115, 116, 114, 105, 110, 103, 49, 49]) // string11
+        #expect(bytes[94..<94+8] == [115, 116, 114, 105, 110, 103, 49, 50]) // string12
+        #expect(bytes[104..<104+13*8] == [
             3, 0, 0, 0, 0, 0, 0, 0,
             10, 0, 0, 0, 0, 0, 0, 0,
             17, 0, 0, 0, 0, 0, 0, 0,
@@ -381,25 +384,30 @@ import Foundation
             45, 0, 0, 0, 0, 0, 0, 0,
             52, 0, 0, 0, 0, 0, 0, 0,
             74, 0, 0, 0, 0, 0, 0, 0,
-            85, 0, 0, 0, 0, 0, 0, 0
+            74, 0, 0, 0, 0, 0, 0, 0,
+            86, 0, 0, 0, 0, 0, 0, 0,
+            94, 0, 0, 0, 0, 0, 0, 0,
+            102, 0, 0, 0, 0, 0, 0, 0
         ]) // LUT
-        #expect(bytes[88+88..<88+88+76] == [
-            22, 4, 4, 0, 0, 0, 0, 0,
-            80, 0, 0, 0, 0, 0, 0, 0,
-            88, 0, 0, 0, 0, 0, 0, 0,
-            2, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0,
-            3, 0, 0, 0, 0, 0, 0, 0,
-            3, 0, 0, 0, 0, 0, 0, 0,
-            1, 0, 0, 0, 0, 0, 0, 0,
-            1, 0, 0, 0, 0, 0, 0, 0,
+        #expect(bytes[104+14*8..<104+14*8+92] == [ // FIXME: Why +14*8 and not +13*8?
+            22, 4, 4, 0, 0, 0, 0, 0, // data type (1), compression (1), size of name (2), number of children (4)
+            104, 0, 0, 0, 0, 0, 0, 0, // size of LUT
+            104, 0, 0, 0, 0, 0, 0, 0, // offset of LUT
+            3, 0, 0, 0, 0, 0, 0, 0, // number of dimensions
+            0, 0, 0, 0, 0, 0, 0, 0, // scale factor (4) and add offset (4), could be removed for string arrays
+            3, 0, 0, 0, 0, 0, 0, 0, // dimension1
+            2, 0, 0, 0, 0, 0, 0, 0, // dimension2
+            2, 0, 0, 0, 0, 0, 0, 0, // dimension3
+            1, 0, 0, 0, 0, 0, 0, 0, // chunk1, should be removed
+            1, 0, 0, 0, 0, 0, 0, 0, // chunk2, should be removed
+            1, 0, 0, 0, 0, 0, 0, 0, // chunk3, should be removed
             100, 97, 116, 97
         ]) // array meta
-        #expect(bytes[280-24..<280] == [79, 77, 3, 0, 0, 0, 0, 0, 176, 0, 0, 0, 0, 0, 0, 0, 76, 0, 0, 0, 0, 0, 0, 0]) // trailer
+        #expect(bytes[336-24..<336] == [79, 77, 3, 0, 0, 0, 0, 0, 216, 0, 0, 0, 0, 0, 0, 0, 92, 0, 0, 0, 0, 0, 0, 0]) // trailer
 
 
         let read = try OmFileReader(fn: readFn).asStringArray()!
-        let a = try read.read(range: [0..<3, 0..<3])
+        let a = try read.read(range: [0..<3, 0..<2, 0..<2])
         #expect(a == data)
     }
 
