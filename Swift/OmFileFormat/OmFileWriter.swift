@@ -310,33 +310,42 @@ public struct OmFileWriterArrayFinalised {
 /// Specialized string array writer
 public final class OmFileWriterStringArray<FileHandle: OmFileWriterBackend> {
     private var lookUpTable: [UInt64]
-    private var currentPosition: UInt64
+    private var currentIndex: Int
     private let buffer: OmBufferedWriter<FileHandle>
     private let dimensions: [UInt64]
+    private let totalNumberOfStrings: Int
 
     public init(dimensions: [UInt64], buffer: OmBufferedWriter<FileHandle>) {
         self.dimensions = dimensions
-        let numberOfStrings = dimensions.reduce(1, *)
+        self.totalNumberOfStrings = Int(dimensions.reduce(1, *))
         // Allocate space for a lookup table.
-        // Needs to be numberOfStrings+1 to store start of first string
+        // Needs to be totalNumberOfStrings+1 to store start of first string
         // as first element and for each string then the end address
-        self.lookUpTable = .init(repeating: 0, count: Int(numberOfStrings + 1))
-        self.currentPosition = 0
+        self.lookUpTable = .init(repeating: 0, count: self.totalNumberOfStrings + 1)
+        self.currentIndex = 0
         self.buffer = buffer
     }
 
-    /// Write all strings at once. The array must match the dimensions
-    public func writeData(array: [String]) throws {
-        // Verify array size matches dimensions
-        let expectedSize = dimensions.reduce(1, *)
-        guard array.count == expectedSize && self.currentPosition == 0 else {
-            throw OmFileFormatSwiftError.omEncoder(error: "String arrays need to be encoded all at once and must match the dimensions")
-        }
+    /// Write strings to file. Can be all, a single or multiple strings.
+    /// - Parameters:
+    ///   - array: Array of strings to write
+    ///   - arrayDimensions: The dimensions of the input array
+    ///   - arrayOffset: Starting position in the target array
+    ///   - arrayCount: Number of elements to write in each dimension
+    public func writeData(array: [String], arrayDimensions: [UInt64]? = nil, arrayOffset: [UInt64]? = nil, arrayCount: [UInt64]? = nil) throws {
+        let arrayDimensions = arrayDimensions ?? self.dimensions
+        let arrayCount = arrayCount ?? arrayDimensions
+        let arrayOffset = arrayOffset ?? [UInt64](repeating: 0, count: arrayDimensions.count)
+
+        // Verify parameters
+        assert(array.count == arrayCount.reduce(1, *))
+        assert(arrayDimensions.allSatisfy({$0 >= 0}))
+        assert(arrayOffset.allSatisfy({$0 >= 0}))
+        assert(zip(arrayDimensions, zip(arrayOffset, arrayCount)).allSatisfy { $1.0 + $1.1 <= $0 })
 
         // Store data start address if this is the first time this read is called
-        let lutOffset = UInt64(buffer.totalBytesWritten)
-        if self.currentPosition == 0 {
-            lookUpTable[0] = lutOffset
+        if self.currentIndex == 0 {
+            lookUpTable[self.currentIndex] = UInt64(buffer.totalBytesWritten)
         }
 
         // Pre-calculate total required capacity
@@ -344,19 +353,25 @@ public final class OmFileWriterStringArray<FileHandle: OmFileWriterBackend> {
         try buffer.reallocate(minimumCapacity: totalCapacity)
 
         // Write all strings consecutively
-        for (i, string) in array.enumerated() {
+        for string in array {
             string.utf8.withContiguousStorageIfAvailable { utf8 in
-                buffer.bufferAtWritePosition.advanced(by: Int(self.currentPosition))
-                    .copyMemory(from: utf8.baseAddress!, byteCount: utf8.count)
-                self.currentPosition += UInt64(utf8.count)
-                lookUpTable[i+1] = lutOffset + self.currentPosition
+                let writeByteCount = utf8.count
+
+                buffer.bufferAtWritePosition
+                    .copyMemory(from: utf8.baseAddress!, byteCount: writeByteCount)
+                buffer.incrementWritePosition(by: writeByteCount)
+
+                lookUpTable[self.currentIndex+1] = UInt64(buffer.totalBytesWritten)
+                self.currentIndex += 1
             }
         }
-
-        buffer.incrementWritePosition(by: Int(self.currentPosition))
     }
 
     public func finalise() throws -> OmFileWriterArrayFinalised {
+        guard self.currentIndex == self.totalNumberOfStrings else {
+            throw OmFileFormatSwiftError.omEncoder(error: "Not all strings have been written")
+        }
+
         try buffer.alignTo8Bytes()
         let lutOffset = buffer.totalBytesWritten
 
