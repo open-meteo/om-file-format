@@ -359,7 +359,7 @@ import Foundation
         try fileWriter.writeTrailer(rootVariable: variable)
 
         let readFn = try MmapFile(fn: FileHandle.openFileReading(file: file))
-        #expect(readFn.count == 336)
+        #expect(readFn.count == 328)
         let bytes = Data(bytesNoCopy: UnsafeMutableRawPointer(mutating: readFn.getData(offset: 0, count: readFn.count)), count: readFn.count, deallocator: .none).map{ UInt8($0) }
         #expect(bytes[0..<3] == [79, 77, 3])
         #expect(bytes[3..<3+7] == [115, 116, 114, 105, 110, 103, 49]) // string1
@@ -389,7 +389,7 @@ import Foundation
             94, 0, 0, 0, 0, 0, 0, 0,
             102, 0, 0, 0, 0, 0, 0, 0
         ]) // LUT
-        #expect(bytes[104+14*8..<104+14*8+92] == [ // FIXME: Why +14*8 and not +13*8?
+        #expect(bytes[104+13*8..<104+13*8+92] == [
             22, 4, 4, 0, 0, 0, 0, 0, // data type (1), compression (1), size of name (2), number of children (4)
             104, 0, 0, 0, 0, 0, 0, 0, // size of LUT
             104, 0, 0, 0, 0, 0, 0, 0, // offset of LUT
@@ -403,12 +403,15 @@ import Foundation
             1, 0, 0, 0, 0, 0, 0, 0, // chunk3, should be removed
             100, 97, 116, 97
         ]) // array meta
-        #expect(bytes[336-24..<336] == [79, 77, 3, 0, 0, 0, 0, 0, 216, 0, 0, 0, 0, 0, 0, 0, 92, 0, 0, 0, 0, 0, 0, 0]) // trailer
+        #expect(bytes[328-24..<328] == [79, 77, 3, 0, 0, 0, 0, 0, 208, 0, 0, 0, 0, 0, 0, 0, 92, 0, 0, 0, 0, 0, 0, 0]) // trailer
 
 
         let read = try OmFileReader(fn: readFn).asStringArray()!
-        let a = try read.read(range: [0..<3, 0..<2, 0..<2])
-        #expect(a == data)
+        let complete_array = try read.read()
+        #expect(complete_array == data)
+
+        let partial_array = try read.read(range: [0..<3, 0..<2, 0..<1])
+        #expect(partial_array == ["string1", "string3", "string5", "string7", "", "string11"])
     }
 
     @Test func writev3() throws {

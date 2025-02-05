@@ -35,7 +35,7 @@ public struct OmFileWriter<FileHandle: OmFileWriterBackend> {
             guard name.count <= UInt16.max else { fatalError() }
             guard children.count <= UInt32.max else { fatalError() }
             let type = OmType.dataTypeScalar.toC()
-            try buffer.alignTo64Bytes()
+            try buffer.alignTo8Bytes()
 
             let stringLength: UInt64
             if type == DATA_TYPE_STRING {
@@ -92,7 +92,7 @@ public struct OmFileWriter<FileHandle: OmFileWriterBackend> {
         var name = name
         return try name.withUTF8{ name in
             guard name.count <= UInt16.max else { fatalError() }
-            try buffer.alignTo64Bytes()
+            try buffer.alignTo8Bytes()
             let size = om_variable_write_numeric_array_size(UInt16(name.count), UInt32(children.count), UInt64(array.dimensions.count))
             let offset = UInt64(buffer.totalBytesWritten)
             try buffer.reallocate(minimumCapacity: Int(size))
@@ -106,7 +106,7 @@ public struct OmFileWriter<FileHandle: OmFileWriterBackend> {
 
     public func writeTrailer(rootVariable: OmOffsetSize) throws {
         try writeHeaderIfRequired()
-        try buffer.alignTo64Bytes()
+        try buffer.alignTo8Bytes()
 
         // write length of JSON
         let size = om_trailer_size()
@@ -316,12 +316,16 @@ public final class OmFileWriterStringArray<FileHandle: OmFileWriterBackend> {
 
     public init(dimensions: [UInt64], buffer: OmBufferedWriter<FileHandle>) {
         self.dimensions = dimensions
-        // Allocate space for a lookup table. Needs to be number_of_chunks+1 to store start address and for each chunk then end address
-        self.lookUpTable = .init(repeating: 0, count: Int(dimensions.reduce(1, *) + 1))
+        let numberOfStrings = dimensions.reduce(1, *)
+        // Allocate space for a lookup table.
+        // Needs to be numberOfStrings+1 to store start of first string
+        // as first element and for each string then the end address
+        self.lookUpTable = .init(repeating: 0, count: Int(numberOfStrings + 1))
         self.currentPosition = 0
         self.buffer = buffer
     }
 
+    /// Write all strings at once. The array must match the dimensions
     public func writeData(array: [String]) throws {
         // Verify array size matches dimensions
         let expectedSize = dimensions.reduce(1, *)
@@ -329,6 +333,7 @@ public final class OmFileWriterStringArray<FileHandle: OmFileWriterBackend> {
             throw OmFileFormatSwiftError.omEncoder(error: "String arrays need to be encoded all at once and must match the dimensions")
         }
 
+        // Store data start address if this is the first time this read is called
         let lutOffset = UInt64(buffer.totalBytesWritten)
         if self.currentPosition == 0 {
             lookUpTable[0] = lutOffset
@@ -352,7 +357,7 @@ public final class OmFileWriterStringArray<FileHandle: OmFileWriterBackend> {
     }
 
     public func finalise() throws -> OmFileWriterArrayFinalised {
-        try buffer.alignTo64Bytes()
+        try buffer.alignTo8Bytes()
         let lutOffset = buffer.totalBytesWritten
 
         // Write uncompressed LUT

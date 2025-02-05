@@ -121,7 +121,7 @@ public struct OmFileReader<Backend: OmFileReaderBackend> {
 
     /// Convert to string array reader if the variable is a string array
     public func asStringArray(io_size_max: UInt64 = 65536, io_size_merge: UInt64 = 512) -> OmFileReaderStringArray<Backend>? {
-        guard dataType == .string_array else {
+        guard self.dataType == .string_array else {
             return nil
         }
 
@@ -497,7 +497,7 @@ extension OmFileReaderBackend {
             /// The size to decode a single chunk
             let bufferSize = om_decoder_read_buffer_size(decoder)
 
-            /// Loop over index blocks and read index data
+            // Loop over index blocks and read index data
             while om_decoder_next_index_read(decoder, &indexRead) {
                 //print("Read index \(indexRead)")
                 let indexData = self.getData(offset: Int(indexRead.offset), count: Int(indexRead.count))
@@ -506,7 +506,7 @@ extension OmFileReaderBackend {
                 om_decoder_init_data_read(&dataRead, &indexRead)
 
                 var error: OmError_t = ERROR_OK
-                /// Loop over data blocks and read compressed data chunks
+                // Loop over data blocks and read compressed data chunks
                 while om_decoder_next_data_read(decoder, &dataRead, indexData, indexRead.count, &error) {
                     //print("ENQUEUE chunk index \(dataRead.chunkIndex)")
                     let dataReadOffset = dataRead.offset
