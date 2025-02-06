@@ -208,13 +208,6 @@ public final class OmFileWriterArray<OmType: OmFileArrayDataTypeProtocol, FileHa
         self.scale_factor = scale_factor
         self.add_offset = add_offset
 
-        if OmType.dataTypeArray == .string_array {
-            // string arrays need to have chunk dimensions of 1
-            if !chunkDimensions.allSatisfy({ $0 == 1 }) {
-                throw OmFileFormatSwiftError.omEncoder(error: "String arrays need to have chunk dimensions of 1")
-            }
-        }
-
         // Note: The encoder keeps the pointer to `&self.dimensions`. It is important that this array is not deallocated!
         self.encoder = OmEncoder_t()
         let error = om_encoder_init(&encoder, scale_factor, add_offset, compression.toC(), OmType.dataTypeArray.toC(), &self.dimensions, &self.chunks, UInt64(dimensions.count))
@@ -428,12 +421,12 @@ public final class OmFileWriterStringArray<FileHandle: OmFileWriterBackend> {
         buffer.incrementWritePosition(by: lutSize)
 
         return OmFileWriterArrayFinalised(
-            scale_factor: 0, // these are fake entries we don't really need, but wasting 4 bytes is fine
-            add_offset: 0, // these are fake entries we don't really need, but wasting 4 bytes is fine
+            scale_factor: 0, // these are fake entries we don't need, will not be written to the file for string arrays
+            add_offset: 0, // these are fake entries we don't need, will not be written to the file for string arrays
             compression: .none,
             datatype: .string_array,
             dimensions: dimensions,
-            chunks: dimensions.map { _ in 1 },  // one string per chunk
+            chunks: [], // this is a fake entry we don't need, will not be written to the file for string arrays
             lutSize: UInt64(lutSize),
             lutOffset: UInt64(lutOffset)
         )

@@ -63,8 +63,9 @@ uint8_t om_get_bytes_per_element(OmDataType_t data_type, OmError_t* error) {
             return 8;
 
         case DATA_TYPE_STRING_ARRAY:
-            return 0; // strings are variable length
-            break;
+        // NOTE: Strings are variable length and should not be used with this function!
+            *error = ERROR_INVALID_DATA_TYPE;
+            return 0;
 
         case DATA_TYPE_INT8:
         case DATA_TYPE_UINT8:
