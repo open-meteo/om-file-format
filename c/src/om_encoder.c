@@ -124,6 +124,16 @@ ALWAYS_INLINE uint64_t om_encode_compress(
             break;
 
         case COMPRESSION_NONE:
+            switch (data_type) {
+                case DATA_TYPE_STRING_ARRAY:
+                    // For string arrays, we just return the string length
+                    // The actual string data follows immediately after
+                    result = count;
+                    break;
+                default:
+                    // Other data types need to be compressed
+                    break;
+            }
             break;
     }
 

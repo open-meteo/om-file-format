@@ -314,7 +314,26 @@ import Foundation
         #expect(bytes[40..<40+17] == [5, 4, 5, 0, 0, 0, 0, 0, 82, 9, 188, 0, 105, 110, 116, 51, 50]) // scalar int32
         #expect(bytes[65..<65+22] == [4, 6, 0, 0, 0, 0, 0, 0, 0, 0, 64, 42, 129, 103, 65, 100, 111, 117, 98, 108, 101, 0]) // scalar double
         #expect(bytes[88..<88+34] == [11, 4, 6, 0, 0, 0, 0, 0, 12, 0, 0, 0, 0, 0, 0, 0, 109, 121, 95, 97, 116, 116, 114, 105, 98, 117, 116, 101, 115, 116, 114, 105, 110, 103]) // scalar string
-        #expect(bytes[128..<128+140] == [20, 0, 4, 0, 3, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 30, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 128, 63, 0, 0, 0, 0, 17, 0, 0, 0, 0, 0, 0, 0, 22, 0, 0, 0, 0, 0, 0, 0, 34, 0, 0, 0, 0, 0, 0, 0, 40, 0, 0, 0, 0, 0, 0, 0, 64, 0, 0, 0, 0, 0, 0, 0, 88, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 100, 97, 116, 97]) // array meta
+        #expect(bytes[128..<128+140] == [
+            20, 0, 4, 0, 3, 0, 0, 0,
+            5, 0, 0, 0, 0, 0, 0, 0,
+            30, 0, 0, 0, 0, 0, 0, 0,
+            3, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 128, 63, 0, 0, 0, 0,
+            17, 0, 0, 0, 0, 0, 0, 0,
+            22, 0, 0, 0, 0, 0, 0, 0,
+            34, 0, 0, 0, 0, 0, 0, 0,
+            40, 0, 0, 0, 0, 0, 0, 0,
+            64, 0, 0, 0, 0, 0, 0, 0,
+            88, 0, 0, 0, 0, 0, 0, 0,
+            3, 0, 0, 0, 0, 0, 0, 0,
+            3, 0, 0, 0, 0, 0, 0, 0,
+            3, 0, 0, 0, 0, 0, 0, 0,
+            2, 0, 0, 0, 0, 0, 0, 0,
+            2, 0, 0, 0, 0, 0, 0, 0,
+            2, 0, 0, 0, 0, 0, 0, 0,
+            100, 97, 116, 97
+        ]) // array meta
         #expect(bytes[272..<296] == [79, 77, 3, 0, 0, 0, 0, 0, 128, 0, 0, 0, 0, 0, 0, 0, 140, 0, 0, 0, 0, 0, 0, 0]) // trailer
 
         // Test interpolation
@@ -323,6 +342,72 @@ import Foundation
         #expect(try read.readInterpolated(dim0X: 0, dim0XFraction: 0.9, dim0Y: 0, dim0YFraction: 0.2, dim0Nx: 3, dim1: 0..<3) == [4.5, 5.5, 6.5])
         #expect(try read.readInterpolated(dim0X: 0, dim0XFraction: 0.1, dim0Y: 0, dim0YFraction: 0.9, dim0Nx: 3, dim1: 0..<3) == [8.4, 9.4, 10.400001])
         #expect(try read.readInterpolated(dim0X: 0, dim0XFraction: 0.8, dim0Y: 0, dim0YFraction: 0.9, dim0Nx: 3, dim1: 0..<3) == [10.5, 11.5, 12.5])
+    }
+
+    @Test func writeStringArray() throws {
+        let file = "writeStringArray.om"
+        let fn = try FileHandle.createNewFile(file: file, overwrite: true)
+        defer { try? FileManager.default.removeItem(atPath: file) }
+        let fileWriter = OmFileWriter(fn: fn, initialCapacity: 8)
+
+        let writer = try fileWriter.prepareStringArray(dimensions: [3, 2, 2])
+
+        let data = ["string1", "string2", "string3", "string4", "string5", "string6", "string7", "string8_äöüß¿¡!?", "", "string10____", "string11", "string12"]
+        try writer.writeData(array: data)
+        let variableMeta = try writer.finalise()
+        let variable = try fileWriter.write(array: variableMeta, name: "data", children: [])
+        try fileWriter.writeTrailer(rootVariable: variable)
+
+        let readFn = try MmapFile(fn: FileHandle.openFileReading(file: file))
+        #expect(readFn.count == 296)
+        let bytes = Data(bytesNoCopy: UnsafeMutableRawPointer(mutating: readFn.getData(offset: 0, count: readFn.count)), count: readFn.count, deallocator: .none).map{ UInt8($0) }
+        #expect(bytes[0..<3] == [79, 77, 3])
+        #expect(bytes[3..<3+7] == [115, 116, 114, 105, 110, 103, 49]) // string1
+        #expect(bytes[10..<10+7] == [115, 116, 114, 105, 110, 103, 50]) // string2
+        #expect(bytes[17..<17+7] == [115, 116, 114, 105, 110, 103, 51]) // string3
+        #expect(bytes[24..<24+7] == [115, 116, 114, 105, 110, 103, 52]) // string4
+        #expect(bytes[31..<31+7] == [115, 116, 114, 105, 110, 103, 53]) // string5
+        #expect(bytes[38..<38+7] == [115, 116, 114, 105, 110, 103, 54]) // string6
+        #expect(bytes[45..<45+7] == [115, 116, 114, 105, 110, 103, 55]) // string7
+        #expect(bytes[52..<52+22] == [115, 116, 114, 105, 110, 103, 56, 95, 195, 164, 195, 182, 195, 188, 195, 159, 194, 191, 194, 161, 33, 63]) // string8_äöüß¿¡!?
+        #expect(bytes[74..<74+0] == []) // empty string
+        #expect(bytes[74..<74+12] == [115, 116, 114, 105, 110, 103, 49, 48, 95, 95, 95, 95]) // string10____
+        #expect(bytes[86..<86+8] == [115, 116, 114, 105, 110, 103, 49, 49]) // string11
+        #expect(bytes[94..<94+8] == [115, 116, 114, 105, 110, 103, 49, 50]) // string12
+        #expect(bytes[104..<104+13*8] == [
+            3, 0, 0, 0, 0, 0, 0, 0,
+            10, 0, 0, 0, 0, 0, 0, 0,
+            17, 0, 0, 0, 0, 0, 0, 0,
+            24, 0, 0, 0, 0, 0, 0, 0,
+            31, 0, 0, 0, 0, 0, 0, 0,
+            38, 0, 0, 0, 0, 0, 0, 0,
+            45, 0, 0, 0, 0, 0, 0, 0,
+            52, 0, 0, 0, 0, 0, 0, 0,
+            74, 0, 0, 0, 0, 0, 0, 0,
+            74, 0, 0, 0, 0, 0, 0, 0,
+            86, 0, 0, 0, 0, 0, 0, 0,
+            94, 0, 0, 0, 0, 0, 0, 0,
+            102, 0, 0, 0, 0, 0, 0, 0
+        ]) // LUT
+        #expect(bytes[104+13*8..<104+13*8+60] == [
+            22, 4, 4, 0, 0, 0, 0, 0, // data type (1), compression (1), size of name (2), number of children (4)
+            104, 0, 0, 0, 0, 0, 0, 0, // size of LUT
+            104, 0, 0, 0, 0, 0, 0, 0, // offset of LUT
+            3, 0, 0, 0, 0, 0, 0, 0, // number of dimensions
+            3, 0, 0, 0, 0, 0, 0, 0, // dimension1
+            2, 0, 0, 0, 0, 0, 0, 0, // dimension2
+            2, 0, 0, 0, 0, 0, 0, 0, // dimension3
+            100, 97, 116, 97
+        ]) // array meta
+        #expect(bytes[296-24..<296] == [79, 77, 3, 0, 0, 0, 0, 0, 208, 0, 0, 0, 0, 0, 0, 0, 60, 0, 0, 0, 0, 0, 0, 0]) // trailer
+
+
+        let read = try OmFileReader(fn: readFn).asStringArray()!
+        let complete_array = try read.read()
+        #expect(complete_array == data)
+
+        let partial_array = try read.read(range: [0..<3, 0..<2, 0..<1])
+        #expect(partial_array == ["string1", "string3", "string5", "string7", "", "string11"])
     }
 
     @Test func writev3() throws {

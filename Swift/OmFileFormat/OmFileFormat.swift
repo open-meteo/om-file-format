@@ -63,8 +63,11 @@ public enum CompressionType: UInt8, Codable {
     /// PFor integer compression. Floating point values are scaled to 32 bit signed integers. Doubles are scaled to 64 bit signed integers.
     case pfor_delta2d = 2
 
-    ///  Similar to `pfor_delta2d_int16` but applies `log10(1+x)` before
+    /// Similar to `pfor_delta2d_int16` but applies `log10(1+x)` before
     case pfor_delta2d_int16_logarithmic = 3
+
+    /// No compression, currently only supported for string data
+    case none = 255
 
     func toC() -> OmCompression_t {
         switch self {
@@ -76,6 +79,8 @@ public enum CompressionType: UInt8, Codable {
             return COMPRESSION_PFOR_DELTA2D
         case .pfor_delta2d_int16_logarithmic:
             return COMPRESSION_PFOR_DELTA2D_INT16_LOGARITHMIC
+        case .none:
+            return COMPRESSION_NONE
         }
     }
 }
