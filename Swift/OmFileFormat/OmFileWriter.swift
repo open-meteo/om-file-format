@@ -86,19 +86,65 @@ public struct OmFileWriter<FileHandle: OmFileWriterBackend> {
 
     public func write(array: OmFileWriterArrayFinalised, name: String, children: [OmOffsetSize]) throws -> OmOffsetSize {
         try writeHeaderIfRequired()
-        guard array.dimensions.count == array.chunks.count else {
-            fatalError()
-        }
+
         var name = name
-        return try name.withUTF8{ name in
+        return try name.withUTF8 { name in
             guard name.count <= UInt16.max else { fatalError() }
             try buffer.alignTo8Bytes()
-            let size = om_variable_write_numeric_array_size(UInt16(name.count), UInt32(children.count), UInt64(array.dimensions.count))
             let offset = UInt64(buffer.totalBytesWritten)
-            try buffer.reallocate(minimumCapacity: Int(size))
-            let childrenOffsets = children.map {$0.offset}
-            let childrenSizes = children.map {$0.size}
-            om_variable_write_numeric_array(buffer.bufferAtWritePosition, UInt16(name.count), UInt32(children.count), childrenOffsets, childrenSizes, name.baseAddress, array.datatype.toC(), array.compression.toC(), array.scale_factor, array.add_offset, UInt64(array.dimensions.count), array.dimensions, array.chunks, UInt64(array.lutSize), UInt64(array.lutOffset))
+            let childrenOffsets = children.map { $0.offset }
+            let childrenSizes = children.map { $0.size }
+
+            let size: Int
+            if array.datatype == .string_array {
+                size = om_variable_write_string_array_size(
+                    UInt16(name.count),
+                    UInt32(children.count),
+                    UInt64(array.dimensions.count)
+                )
+                try buffer.reallocate(minimumCapacity: Int(size))
+                om_variable_write_string_array(
+                    buffer.bufferAtWritePosition,
+                    UInt16(name.count),
+                    UInt32(children.count),
+                    childrenOffsets,
+                    childrenSizes,
+                    name.baseAddress,
+                    array.datatype.toC(),
+                    array.compression.toC(),
+                    UInt64(array.dimensions.count),
+                    array.dimensions,
+                    array.lutSize,
+                    array.lutOffset
+                )
+            } else {
+                guard array.dimensions.count == array.chunks.count else {
+                    fatalError()
+                }
+                size = om_variable_write_numeric_array_size(
+                    UInt16(name.count),
+                    UInt32(children.count),
+                    UInt64(array.dimensions.count)
+                )
+                try buffer.reallocate(minimumCapacity: Int(size))
+                om_variable_write_numeric_array(
+                    buffer.bufferAtWritePosition,
+                    UInt16(name.count),
+                    UInt32(children.count),
+                    childrenOffsets,
+                    childrenSizes,
+                    name.baseAddress,
+                    array.datatype.toC(),
+                    array.compression.toC(),
+                    array.scale_factor,
+                    array.add_offset,
+                    UInt64(array.dimensions.count),
+                    array.dimensions,
+                    array.chunks,
+                    UInt64(array.lutSize),
+                    UInt64(array.lutOffset)
+                )
+            }
             buffer.incrementWritePosition(by: size)
             return OmOffsetSize(offset: offset, size: UInt64(size))
         }
@@ -382,8 +428,8 @@ public final class OmFileWriterStringArray<FileHandle: OmFileWriterBackend> {
         buffer.incrementWritePosition(by: lutSize)
 
         return OmFileWriterArrayFinalised(
-            scale_factor: 0,
-            add_offset: 0,
+            scale_factor: 0, // these are fake entries we don't really need, but wasting 4 bytes is fine
+            add_offset: 0, // these are fake entries we don't really need, but wasting 4 bytes is fine
             compression: .none,
             datatype: .string_array,
             dimensions: dimensions,

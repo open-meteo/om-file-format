@@ -11,11 +11,6 @@
 #include "om_common.h"
 #include "om_file.h"
 
-/**
- TODO:
- - String and String array support
- */
-
 /// =========== Structures describing the data layout ===============
 
 typedef struct {
@@ -25,14 +20,14 @@ typedef struct {
     uint32_t children_count;
 
     // Followed by payload
-    //uint32_t[children_count] children_length;
-    //uint32_t[children_count] children_offset;
+    // uint32_t[children_count] children_length;
+    // uint32_t[children_count] children_offset;
 
     // Scalars are now set
-    //void* value;
+    // void* value;
 
-    // name is always last
-    //char[name_size] name;
+    // Name is always last
+    // char[name_size] name;
 } OmVariableV3_t;
 
 typedef struct {
@@ -48,16 +43,36 @@ typedef struct {
     float add_offset;
 
     // Followed by payload: NOTE: Lets to try 64 bit align it somehow
-    //uint32_t[children_count] children_length;
-    //uint32_t[children_count] children_offset;
+    // uint32_t[children_count] children_length;
+    // uint32_t[children_count] children_offset;
 
     // Afterwards additional payload from value types
-    //uint64_t[dimension_count] dimensions;
-    //uint64_t[dimension_count] chunks;
+    // uint64_t[dimension_count] dimensions;
+    // uint64_t[dimension_count] chunks;
 
-    // name is always last
-    //char[name_size] name;
+    // Name is always last
+    // char[name_size] name;
 } OmVariableArrayV3_t;
+
+typedef struct {
+    uint8_t data_type; // OmDataType_t
+    uint8_t compression_type; // OmCompression_t
+    uint16_t name_size; // maximum 65k characters in name strings
+    uint32_t children_count;
+    uint64_t lut_size;
+    uint64_t lut_offset;
+    uint64_t dimension_count;
+
+    // Followed by payload: NOTE: Lets to try 64 bit align it somehow
+    // uint32_t[children_count] children_length;
+    // uint32_t[children_count] children_offset;
+
+    // Afterwards additional payload from value types
+    // uint64_t[dimension_count] dimensions;
+
+    // Name is always last
+    // char[name_size] name;
+} OmVariableStringArrayV3_t;
 
 typedef struct {
     uint8_t data_type; // OmDataType_t
@@ -146,7 +161,42 @@ void om_variable_write_scalar(void* dst, uint16_t name_size, uint32_t children_c
 size_t om_variable_write_numeric_array_size(uint16_t name_size, uint32_t children_count, uint64_t dimension_count);
 
 /// Write meta data for a numeric array to file
-void om_variable_write_numeric_array(void* dst, uint16_t name_size, uint32_t children_count, const uint64_t* children_offsets, const uint64_t* children_sizes, const char* name, OmDataType_t data_type, OmCompression_t compression_type, float scale_factor, float add_offset, uint64_t dimension_count, const uint64_t *dimensions, const uint64_t *chunks, uint64_t lut_size, uint64_t lut_offset);
+void om_variable_write_numeric_array(
+    void* dst,
+    uint16_t name_size,
+    uint32_t children_count,
+    const uint64_t* children_offsets,
+    const uint64_t* children_sizes,
+    const char* name,
+    OmDataType_t data_type,
+    OmCompression_t compression_type,
+    float scale_factor,
+    float add_offset,
+    uint64_t dimension_count,
+    const uint64_t *dimensions,
+    const uint64_t *chunks,
+    uint64_t lut_size,
+    uint64_t lut_offset
+);
+
+/// Get the size of meta attributes of a string array if written to a file. Does not contain any data. Only offsets for the actual data.
+size_t om_variable_write_string_array_size(uint16_t name_size, uint32_t children_count, uint64_t dimension_count);
+
+/// Write meta data for a string array to file
+void om_variable_write_string_array(
+    void* dst,
+    uint16_t name_size,
+    uint32_t children_count,
+    const uint64_t* children_offsets,
+    const uint64_t* children_sizes,
+    const char* name,
+    OmDataType_t data_type,
+    OmCompression_t compression_type,
+    uint64_t dimension_count,
+    const uint64_t *dimensions,
+    uint64_t lut_size,
+    uint64_t lut_offset
+);
 
 
 

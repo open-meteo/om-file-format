@@ -19,8 +19,8 @@ OmString_t om_variable_get_name(const OmVariable_t* variable) {
         }
         case OM_MEMORY_LAYOUT_STRING_ARRAY: {
             // 'Name' is after dimension array, but there are no chunk arrays
-            const OmVariableArrayV3_t* meta = (const OmVariableArrayV3_t*)variable;
-            const char* name = (void *)variable + sizeof(OmVariableArrayV3_t) + 16 * meta->children_count + 8 * meta->dimension_count;
+            const OmVariableStringArrayV3_t* meta = (const OmVariableStringArrayV3_t*)variable;
+            const char* name = (void *)variable + sizeof(OmVariableStringArrayV3_t) + 16 * meta->children_count + 8 * meta->dimension_count;
             return (OmString_t){.size = meta->name_size, .value = name};
         }
         case OM_MEMORY_LAYOUT_ARRAY: {
@@ -138,10 +138,14 @@ OmDimensions_t om_variable_get_dimensions(const OmVariable_t* variable) {
             const OmHeaderV1_t* meta = (const OmHeaderV1_t*)variable;
             return (OmDimensions_t){.count = 2, .values = &meta->dim0};
         }
-        case OM_MEMORY_LAYOUT_ARRAY:
-        case OM_MEMORY_LAYOUT_STRING_ARRAY: {
+        case OM_MEMORY_LAYOUT_ARRAY:{
             const OmVariableArrayV3_t* meta = (const OmVariableArrayV3_t*)variable;
             const uint64_t* dimensions = (const uint64_t*)((void *)variable + sizeof(OmVariableArrayV3_t) + 16 * meta->children_count);
+            return (OmDimensions_t){.count = meta->dimension_count, .values = dimensions};
+        }
+        case OM_MEMORY_LAYOUT_STRING_ARRAY: {
+            const OmVariableStringArrayV3_t* meta = (const OmVariableStringArrayV3_t*)variable;
+            const uint64_t* dimensions = (const uint64_t*)((void *)variable + sizeof(OmVariableStringArrayV3_t) + 16 * meta->children_count);
             return (OmDimensions_t){.count = meta->dimension_count, .values = dimensions};
         }
         case OM_MEMORY_LAYOUT_SCALAR:
@@ -183,6 +187,8 @@ bool om_variable_get_children(const OmVariable_t* variable, uint32_t child_offse
         case OM_MEMORY_LAYOUT_LEGACY:
             return false;
         case OM_MEMORY_LAYOUT_STRING_ARRAY:
+            sizeof_variable = sizeof(OmVariableStringArrayV3_t);
+            break;
         case OM_MEMORY_LAYOUT_ARRAY:
             sizeof_variable = sizeof(OmVariableArrayV3_t);
             break;
@@ -352,7 +358,23 @@ size_t om_variable_write_numeric_array_size(uint16_t name_size, uint32_t childre
     return sizeof(OmVariableArrayV3_t) + name_size + children_count * 16 + dimension_count * 16;
 }
 
-void om_variable_write_numeric_array(void* dst, uint16_t name_size, uint32_t children_count, const uint64_t* children_offsets, const uint64_t* children_sizes, const char* name, OmDataType_t data_type, OmCompression_t compression_type, float scale_factor, float add_offset, uint64_t dimension_count, const uint64_t *dimensions, const uint64_t *chunks, uint64_t lut_size, uint64_t lut_offset) {
+void om_variable_write_numeric_array(
+    void* dst,
+    uint16_t name_size,
+    uint32_t children_count,
+    const uint64_t* children_offsets,
+    const uint64_t* children_sizes,
+    const char* name,
+    OmDataType_t data_type,
+    OmCompression_t compression_type,
+    float scale_factor,
+    float add_offset,
+    uint64_t dimension_count,
+    const uint64_t *dimensions,
+    const uint64_t *chunks,
+    uint64_t lut_size,
+    uint64_t lut_offset
+) {
 
     *(OmVariableArrayV3_t*)dst = (OmVariableArrayV3_t){
         .data_type = (uint8_t)data_type,
@@ -378,6 +400,51 @@ void om_variable_write_numeric_array(void* dst, uint16_t name_size, uint32_t chi
     }
     /// Set name
     char* baseName = (char*)(dst + sizeof(OmVariableArrayV3_t) + 16 * children_count + 16 * dimension_count);
+    for (uint16_t i = 0; i<name_size; i++) {
+        baseName[i] = name[i];
+    }
+}
+
+size_t om_variable_write_string_array_size(uint16_t name_size, uint32_t children_count, uint64_t dimension_count) {
+    return sizeof(OmVariableStringArrayV3_t) + name_size + children_count * 16 + dimension_count * 8;
+}
+
+void om_variable_write_string_array(
+    void* dst,
+    uint16_t name_size,
+    uint32_t children_count,
+    const uint64_t* children_offsets,
+    const uint64_t* children_sizes,
+    const char* name,
+    OmDataType_t data_type,
+    OmCompression_t compression_type,
+    uint64_t dimension_count,
+    const uint64_t *dimensions,
+    uint64_t lut_size,
+    uint64_t lut_offset
+) {
+
+    *(OmVariableStringArrayV3_t*)dst = (OmVariableStringArrayV3_t){
+        .data_type = (uint8_t)data_type,
+        .compression_type = (uint8_t)compression_type,
+        .name_size = name_size,
+        .children_count = children_count,
+        .dimension_count = dimension_count,
+        .lut_size = lut_size,
+        .lut_offset = lut_offset
+    };
+
+    /// Set children
+    _om_variable_write_children(dst + sizeof(OmVariableStringArrayV3_t), children_count, children_offsets, children_sizes);
+
+    /// Set dimensions
+    uint64_t* baseDimensions = (uint64_t*)(dst + sizeof(OmVariableStringArrayV3_t) + 16 * children_count);
+    for (uint64_t i = 0; i<dimension_count; i++) {
+        baseDimensions[i] = dimensions[i];
+    }
+
+    /// Set name
+    char* baseName = (char*)(dst + sizeof(OmVariableStringArrayV3_t) + 16 * children_count + 8 * dimension_count);
     for (uint16_t i = 0; i<name_size; i++) {
         baseName[i] = name[i];
     }

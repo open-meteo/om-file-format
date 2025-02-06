@@ -359,7 +359,7 @@ import Foundation
         try fileWriter.writeTrailer(rootVariable: variable)
 
         let readFn = try MmapFile(fn: FileHandle.openFileReading(file: file))
-        #expect(readFn.count == 328)
+        #expect(readFn.count == 296)
         let bytes = Data(bytesNoCopy: UnsafeMutableRawPointer(mutating: readFn.getData(offset: 0, count: readFn.count)), count: readFn.count, deallocator: .none).map{ UInt8($0) }
         #expect(bytes[0..<3] == [79, 77, 3])
         #expect(bytes[3..<3+7] == [115, 116, 114, 105, 110, 103, 49]) // string1
@@ -389,21 +389,17 @@ import Foundation
             94, 0, 0, 0, 0, 0, 0, 0,
             102, 0, 0, 0, 0, 0, 0, 0
         ]) // LUT
-        #expect(bytes[104+13*8..<104+13*8+92] == [
+        #expect(bytes[104+13*8..<104+13*8+60] == [
             22, 4, 4, 0, 0, 0, 0, 0, // data type (1), compression (1), size of name (2), number of children (4)
             104, 0, 0, 0, 0, 0, 0, 0, // size of LUT
             104, 0, 0, 0, 0, 0, 0, 0, // offset of LUT
             3, 0, 0, 0, 0, 0, 0, 0, // number of dimensions
-            0, 0, 0, 0, 0, 0, 0, 0, // scale factor (4) and add offset (4), could be removed for string arrays
             3, 0, 0, 0, 0, 0, 0, 0, // dimension1
             2, 0, 0, 0, 0, 0, 0, 0, // dimension2
             2, 0, 0, 0, 0, 0, 0, 0, // dimension3
-            1, 0, 0, 0, 0, 0, 0, 0, // chunk1, should be removed
-            1, 0, 0, 0, 0, 0, 0, 0, // chunk2, should be removed
-            1, 0, 0, 0, 0, 0, 0, 0, // chunk3, should be removed
             100, 97, 116, 97
         ]) // array meta
-        #expect(bytes[328-24..<328] == [79, 77, 3, 0, 0, 0, 0, 0, 208, 0, 0, 0, 0, 0, 0, 0, 92, 0, 0, 0, 0, 0, 0, 0]) // trailer
+        #expect(bytes[296-24..<296] == [79, 77, 3, 0, 0, 0, 0, 0, 208, 0, 0, 0, 0, 0, 0, 0, 60, 0, 0, 0, 0, 0, 0, 0]) // trailer
 
 
         let read = try OmFileReader(fn: readFn).asStringArray()!

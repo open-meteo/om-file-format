@@ -367,17 +367,17 @@ public struct OmFileReaderStringArray<Backend: OmFileReaderBackend> {
         self.io_size_merge = io_size_merge
 
         guard let variable = self.variable,
-            case let meta = UnsafeRawPointer(variable).assumingMemoryBound(to: OmVariableArrayV3_t.self).pointee,
+            case let meta = UnsafeRawPointer(variable).assumingMemoryBound(to: OmVariableStringArrayV3_t.self).pointee,
             case .string_array = DataType(rawValue: UInt8(om_variable_get_type(variable).rawValue))
         else {
+            print("Variable is nil")
             fatalError("Variable is nil")
         }
 
-        let lutOffset = meta.lut_offset
-        let lutSize = meta.lut_size
-        print("lutOffset \(lutOffset) lutSize \(lutSize)")
-        let lutPtr = self.fn.getData(offset: Int(lutOffset), count: Int(lutSize)).assumingMemoryBound(to: UInt64.self)
-        let buffer = UnsafeBufferPointer(start: lutPtr, count: Int(lutSize/8))
+        // This implies that the memory is accessible
+        // TODO: Copy LUT for proper ownership?
+        let lutPtr = self.fn.getData(offset: Int(meta.lut_offset), count: Int(meta.lut_size)).assumingMemoryBound(to: UInt64.self)
+        let buffer = UnsafeBufferPointer(start: lutPtr, count: Int(meta.lut_size/8))
         self.lutTable = Array(buffer)
         print("lutTable \(lutTable)")
     }
@@ -387,22 +387,6 @@ public struct OmFileReaderStringArray<Backend: OmFileReaderBackend> {
         let dimensions = om_variable_get_dimensions(variable)
         return UnsafeBufferPointer<UInt64>(start: dimensions.values, count: Int(dimensions.count))
     }
-
-    //public func getLutTable() -> [UInt64] {
-    //    guard let variable = self.variable else {
-    //            fatalError("Variable is nil")
-    //    }
-    //    if case let meta = UnsafeRawPointer(variable).assumingMemoryBound(to: OmVariableArrayV3_t.self).pointee,
-    //       case .string_array = DataType(rawValue: UInt8(om_variable_get_type(variable).rawValue)) {
-    //        let lutOffset = meta.lut_offset
-    //        let lutSize = meta.lut_size
-    //        print("lutOffset \(lutOffset) lutSize \(lutSize)")
-    //        let lutPtr = self.fn.getData(offset: Int(lutOffset), count: Int(lutSize)).assumingMemoryBound(to: UInt64.self)
-    //        let buffer = UnsafeBufferPointer(start: lutPtr, count: Int(lutSize/8))
-    //        return Array(buffer)
-    //    }
-    //    return []
-    //}
 
     /// Read the entire string array
     public func read() throws -> [String] {
@@ -414,8 +398,13 @@ public struct OmFileReaderStringArray<Backend: OmFileReaderBackend> {
     /// Read a subset of the string array
     public func read(range: [Range<UInt64>]) throws -> [String] {
         let dimensions = self.getDimensions().map { Int($0) }
+        print("Dimensions \(dimensions)")
         let ranges = range.map { Range(uncheckedBounds: (Int($0.lowerBound), Int($0.upperBound))) }
         let totalCount = ranges.map { $0.count }.reduce(1, *)
+
+        guard dimensions.count == ranges.count else {
+            throw OmFileFormatSwiftError.omDecoder(error: "Dimension count mismatch")
+        }
 
         var strings = [String]()
         strings.reserveCapacity(Int(totalCount))

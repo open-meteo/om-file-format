@@ -454,7 +454,7 @@ bool om_decoder_next_index_read(const OmDecoder_t* decoder, OmDecoder_indexRead_
 
     const uint64_t readStart = (index_read->nextChunk.lowerBound - alignOffset) / lut_chunk_element_count * lut_chunk_length;
 
-    while (1) {
+    while (true) {
         const uint64_t maxRead = io_size_max / lut_chunk_length * lut_chunk_element_count;
         const uint64_t nextChunkCount = index_read->nextChunk.upperBound - index_read->nextChunk.lowerBound;
         const uint64_t nextIncrement = max(1, min(maxRead-1, nextChunkCount - 1));
