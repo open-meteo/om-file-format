@@ -11,6 +11,7 @@
 #include "conf.h"
 #include "delta2d.h"
 #include "om_decoder.h"
+#include "lz4.h"
 
 #pragma clang diagnostic error "-Wswitch"
 
@@ -201,6 +202,9 @@ ALWAYS_INLINE uint64_t om_decode_decompress(
                     break;
             }
             break;
+        case COMPRESSION_LZ4:
+            result = LZ4_decompress_safe((char*)input, (char*)output, (size_t)count, (int)1024); // FIXME: hardcoded output size
+            break;
     }
 
     return result;
@@ -253,6 +257,8 @@ ALWAYS_INLINE void om_decode_filter(
             break;
 
         case COMPRESSION_NONE:
+            break;
+        case COMPRESSION_LZ4:
             break;
     }
 }
@@ -315,6 +321,8 @@ ALWAYS_INLINE void om_decode_copy(
             }
             break;
         case COMPRESSION_NONE:
+            break;
+        case COMPRESSION_LZ4:
             break;
     }
 }

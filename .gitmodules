@@ -1,0 +1,3 @@
+[submodule "c/external/lz4"]
+	path = c/external/lz4
+	url = https://github.com/lz4/lz4.git

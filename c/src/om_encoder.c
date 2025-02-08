@@ -11,6 +11,7 @@
 #include "fp.h"
 #include "delta2d.h"
 #include "conf.h"
+#include "lz4.h"
 
 #pragma clang diagnostic error "-Wswitch"
 
@@ -123,6 +124,10 @@ ALWAYS_INLINE uint64_t om_encode_compress(
             }
             break;
 
+        case COMPRESSION_LZ4:
+            result = LZ4_compress_default((const char*)input, (char*)output, (int)count, (int)1024); // FIXME: hardcoded output size
+            break;
+
         case COMPRESSION_NONE:
             switch (data_type) {
                 case DATA_TYPE_STRING_ARRAY:
@@ -190,6 +195,8 @@ ALWAYS_INLINE void om_encode_filter(
             break;
         case COMPRESSION_NONE:
             break;
+        case COMPRESSION_LZ4:
+            break;
     }
 }
 
@@ -252,6 +259,8 @@ ALWAYS_INLINE void om_encode_copy(
             break;
 
         case COMPRESSION_NONE:
+            break;
+        case COMPRESSION_LZ4:
             break;
     }
 }

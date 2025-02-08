@@ -16,7 +16,7 @@ let swiftFlags: [PackageDescription.SwiftSetting] = [
 
 // Note: Fast math flags reduce performance for compression
 let cFlagsPFor2D = [PackageDescription.CSetting.unsafeFlags(["-O3"] + mArch)]
-let cFlagsPFor = [PackageDescription.CSetting.unsafeFlags(["-O3", "-Wall", "-Werror", "-Wimplicit-fallthrough", "-Wextra"] + mArch)]
+let cFlagsPFor = [PackageDescription.CSetting.unsafeFlags(["-O3", "-Wall", "-Werror", "-Wextra"] + mArch)]
 
 
 let package = Package(
@@ -40,7 +40,15 @@ let package = Package(
         .target(
             name: "OmFileFormatC",
             path: "c",
-            cSettings: cFlagsPFor,
+            sources: [
+                "src",
+                "external/lz4/lib/lz4.c",
+            ],
+            cSettings: cFlagsPFor + [
+                .headerSearchPath("external/lz4/lib"),
+                .define("LZ4"),
+                .unsafeFlags(["-Iexternal/lz4/lib"])
+            ],
             swiftSettings: swiftFlags
         ),
         .testTarget(
