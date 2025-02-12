@@ -86,7 +86,7 @@ public struct OmFileReader<Backend: OmFileReaderBackend> {
     }
 
     public func readScalar<OmType: OmFileScalarDataTypeProtocol>() -> OmType? {
-        guard OmType.dataTypeScalar == dataType else {
+        guard OmType.dataTypeScalar == self.dataType else {
             return nil
         }
         if OmType.dataTypeScalar == .string {
@@ -94,8 +94,8 @@ public struct OmFileReader<Backend: OmFileReaderBackend> {
             guard stringValue.size > 0 else {
                 return nil
             }
-            // Create a copy of the string buffer.
-            // It might be required that the string outlives the backend!
+            // Create a copy of the string buffer so that the data is
+            // always owned by the caller.
             let buffer = Data(bytes: stringValue.value, count: Int(stringValue.size))
             return String(data: buffer, encoding: .utf8) as? OmType
         }
