@@ -13,7 +13,7 @@
 
 /**
  TODO:
- - String and String array support
+ - String array support
  */
 
 /// =========== Structures describing the data layout ===============
@@ -58,18 +58,6 @@ typedef struct {
     // name is always last
     //char[name_size] name;
 } OmVariableArrayV3_t;
-
-typedef struct {
-    uint8_t data_type; // OmDataType_t
-    uint8_t compression_type; // OmCompression_t
-    uint16_t name_size; // maximum 65k characters in name strings
-    uint32_t children_count;
-    uint64_t string_size;
-    // followed by the string value
-    // name is always last
-    //char[name_size] name;
-} OmVariablStringV3_t;
-
 
 /// only expose an opague pointer
 typedef void* OmVariable_t;
@@ -139,13 +127,8 @@ OmString64_t om_variable_get_string_view(const OmVariable_t* variable);
 /// If the scalar is a string, we need to know the length of the string.
 size_t om_variable_write_scalar_size(uint16_t name_size, uint32_t children_count, OmDataType_t data_type, uint64_t string_length);
 
-/// Get the length of a string variable if written to a file.
-// size_t om_variable_write_string_size(uint16_t name_size, uint32_t children_count, uint64_t string_length);
-
 /// Write a scalar variable with name and children variables
 void om_variable_write_scalar(void* dst, uint16_t name_size, uint32_t children_count, const uint64_t* children_offsets, const uint64_t* children_sizes, const char* name, OmDataType_t data_type, const void* value, uint64_t string_length);
-
-// void om_variable_write_string(void* dst, uint16_t name_size, uint32_t children_count, const uint64_t* children_offsets, const uint64_t* children_sizes, const char* name, const char* value, uint64_t string_length);
 
 /// Get the size of meta attributes of a numeric array if written to a file. Does not contain any data. Only offsets for the actual data.
 size_t om_variable_write_numeric_array_size(uint16_t name_size, uint32_t children_count, uint64_t dimension_count);
@@ -162,7 +145,6 @@ typedef enum {
     OM_MEMORY_LAYOUT_LEGACY = 0,
     OM_MEMORY_LAYOUT_ARRAY = 1,
     OM_MEMORY_LAYOUT_SCALAR = 3,
-    //OM_MEMORY_LAYOUT_STRING = 4,
     //OM_MEMORY_LAYOUT_STRING_ARRAY = 5,
 } OmMemoryLayout_t;
 

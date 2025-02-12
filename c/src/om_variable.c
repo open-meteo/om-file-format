@@ -224,10 +224,17 @@ OmString64_t om_variable_get_string_view(const OmVariable_t* variable) {
         return (OmString64_t){.size = 0, .value = NULL};
     }
 
+    // Length of the string is stored in the first 8 bytes
     uint64_t string_length = *(uint64_t*)src;
-    // Get pointer to the string data which follows the length
-    const char* string_data = (const char*)src + sizeof(uint64_t);
-    return (OmString64_t){.size = string_length, .value = string_data};
+
+    // Pointer to the string data needs to start after the string length
+    uint64_t offset = sizeof(uint64_t);
+    const char* string_data = (const char*)src + offset;
+
+    return (OmString64_t){
+        .size = string_length,
+        .value = string_data
+    };
 }
 
 size_t om_variable_write_scalar_size(uint16_t name_size, uint32_t children_count, OmDataType_t data_type, uint64_t string_length) {
@@ -318,10 +325,11 @@ void om_variable_write_scalar(
             valueSize = 8;
             break;
         case DATA_TYPE_STRING:
-            // Strings are written as uint16_t string_length + string data
+            // Strings are written as uint64_t string_length + string data
             *(uint64_t*)destValue = string_length; // write string length to the first two bytes
+            const uint64_t offset = sizeof(uint64_t);
             for (uint64_t i = 0; i < string_length; i++) {
-                ((char*)destValue)[sizeof(uint64_t) + i] = ((const char*)value)[i];
+                ((char*)destValue)[offset + i] = ((const char*)value)[i];
             }
 
             valueSize = sizeof(uint64_t) + string_length;

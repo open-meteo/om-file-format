@@ -28,7 +28,7 @@ This library implements the format in C, with a high-level Swift abstraction int
 ### ToDo:
 - Document Swift functions
 - Document C functions
-- Support for string attributes and string-arrays
+- Support for string-arrays
 - Build Python library
 - Examples how to use Python FSSPEC with cache to access OM-Files on S3
 - Build web-interface to make the entire Open-Meteo weather database accessible with automatic Python code generation
@@ -56,7 +56,6 @@ A `Variable` be be of different types:
 - `None`: Does not contain any value. Useful to define a group
 - `Scalar` or types Int8, Int16, Int32, Int64, Float, Double, etc
 - `Array` of type Int8, Int16, etc with dimensions, chunks and compression type information
-- `String` to be implemented
 - `String Array` to be implemented
 
 ### Examples
