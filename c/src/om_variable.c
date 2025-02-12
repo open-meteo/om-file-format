@@ -259,6 +259,10 @@ void om_variable_write_scalar(void* dst, uint16_t name_size, uint32_t children_c
     char* destValue = (char*)(dst + sizeof(OmVariableV3_t) + 16 * children_count);
     uint8_t valueSize = 0;
     switch (data_type) {
+        case DATA_TYPE_NONE:
+            // No value to write for DATA_TYPE_NONE
+            valueSize = 0;
+            break;
         case DATA_TYPE_INT8:
         case DATA_TYPE_UINT8:
             *(int8_t *)destValue = *(int8_t*)value;

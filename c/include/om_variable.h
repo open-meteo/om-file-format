@@ -130,7 +130,29 @@ OmError_t om_variable_get_scalar(const OmVariable_t* variable, void* value);
 /// Get the length of a scalar variable if written to a file
 size_t om_variable_write_scalar_size(uint16_t name_size, uint32_t children_count, OmDataType_t data_type);
 
-/// Write a scalar variable with name and children variables
+/// Write a scalar variable with name and children variables to a destination buffer
+///
+/// This function supports the following data types:
+/// - DATA_TYPE_NONE: No value storage (passing a NULL pointer to value is allowed)
+/// - DATA_TYPE_INT8/UINT8: 8-bit integer value
+/// - DATA_TYPE_INT16/UINT16: 16-bit integer value
+/// - DATA_TYPE_INT32/UINT32: 32-bit integer value
+/// - DATA_TYPE_INT64/UINT64: 64-bit integer value
+/// - DATA_TYPE_FLOAT: 32-bit floating point value
+/// - DATA_TYPE_DOUBLE: 64-bit floating point value
+///
+/// @param dst Destination buffer to write the variable to
+/// @param name_size Length of the variable name in bytes
+/// @param children_count Number of child variables
+/// @param children_offsets Array of offsets to child variables (can be NULL if children_count is 0)
+/// @param children_sizes Array of sizes of child variables (can be NULL if children_count is 0)
+/// @param name Pointer to the variable name string
+/// @param data_type Type of the data to be stored (see OmDataType_t)
+/// @param value Pointer to the value to be stored. For DATA_TYPE_NONE, this should be NULL.
+///             For other types, this should point to a value of the corresponding C type.
+///
+/// @note The destination buffer must be large enough to hold the variable.
+///       Use om_variable_write_scalar_size() to calculate the required size.
 void om_variable_write_scalar(void* dst, uint16_t name_size, uint32_t children_count, const uint64_t* children_offsets, const uint64_t* children_sizes, const char* name, OmDataType_t data_type, const void* value);
 
 /// Get the size of meta attributes of a numeric array if written to a file. Does not contain any data. Only offsets for the actual data.
