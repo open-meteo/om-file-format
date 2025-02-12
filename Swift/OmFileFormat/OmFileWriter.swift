@@ -40,7 +40,10 @@ public struct OmFileWriter<FileHandle: OmFileWriterBackend> {
             let stringLength: UInt64
             if type == DATA_TYPE_STRING {
                 // For strings, pass the string length
-                stringLength = UInt64((value as! String).utf8.count) // TODO: safely init?
+                guard let stringValue = value as? String else {
+                    throw OmFileFormatSwiftError.omEncoder(error: "Expected string value")
+                }
+                stringLength = UInt64(stringValue.utf8.count)
             } else {
                 stringLength = 0
             }
