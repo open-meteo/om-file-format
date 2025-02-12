@@ -128,7 +128,17 @@ OmString64_t om_variable_get_string_view(const OmVariable_t* variable);
 size_t om_variable_write_scalar_size(uint16_t name_size, uint32_t children_count, OmDataType_t data_type, uint64_t string_length);
 
 /// Write a scalar variable with name and children variables
-void om_variable_write_scalar(void* dst, uint16_t name_size, uint32_t children_count, const uint64_t* children_offsets, const uint64_t* children_sizes, const char* name, OmDataType_t data_type, const void* value, uint64_t string_length);
+void om_variable_write_scalar(
+    void* dst,
+    uint16_t name_size,
+    uint32_t children_count,
+    const uint64_t* children_offsets,
+    const uint64_t* children_sizes,
+    const char* name,
+    OmDataType_t data_type,
+    const void* value,
+    uint64_t string_length
+);
 
 /// Get the size of meta attributes of a numeric array if written to a file. Does not contain any data. Only offsets for the actual data.
 size_t om_variable_write_numeric_array_size(uint16_t name_size, uint32_t children_count, uint64_t dimension_count);

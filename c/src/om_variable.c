@@ -42,9 +42,12 @@ OmString_t om_variable_get_name(const OmVariable_t* variable) {
                 case DATA_TYPE_UINT64:
                 case DATA_TYPE_DOUBLE:
                     return (OmString_t){.size = meta->name_size, .value = base+8};
-                case DATA_TYPE_STRING:{
-                    uint16_t string_length = *(uint64_t*)base;
-                    return (OmString_t){.size = meta->name_size, .value = base + sizeof(uint64_t) + string_length};
+                case DATA_TYPE_STRING: {
+                    uint64_t string_length = *(uint64_t*)base;
+                    // The payload of a string is a uint64_t `string length` followed by the
+                    // string data bytes. After that, the variable name is stored.
+                    const char* name_ptr = base + sizeof(uint64_t) + string_length;
+                    return (OmString_t){.size = meta->name_size, .value = name_ptr};
                 }
                 default:
                     return (OmString_t){.size = 0, .value = NULL};
