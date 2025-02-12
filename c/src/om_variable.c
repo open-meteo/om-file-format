@@ -213,21 +213,21 @@ OmError_t om_variable_get_scalar(const OmVariable_t* variable, void* value) {
     }
 }
 
-OmString_t om_variable_get_string(const OmVariable_t* variable) {
+OmString64_t om_variable_get_string(const OmVariable_t* variable) {
     if (_om_variable_memory_layout(variable) != OM_MEMORY_LAYOUT_SCALAR) {
-        return (OmString_t){.size = 0, .value = NULL};
+        return (OmString64_t){.size = 0, .value = NULL};
     }
 
     const OmVariableV3_t* meta = (const OmVariableV3_t*)variable;
     const void* src = (const void*)((char *)variable + sizeof(OmVariableV3_t) + 16 * meta->children_count);
     if (meta->data_type != DATA_TYPE_STRING) {
-        return (OmString_t){.size = 0, .value = NULL};
+        return (OmString64_t){.size = 0, .value = NULL};
     }
 
     uint64_t string_length = *(uint64_t*)src;
     // Get pointer to the string data which follows the length
     const char* string_data = (const char*)src + sizeof(uint64_t);
-    return (OmString_t){.size = string_length, .value = string_data};
+    return (OmString64_t){.size = string_length, .value = string_data};
 }
 
 size_t om_variable_write_scalar_size(uint16_t name_size, uint32_t children_count, OmDataType_t data_type, uint64_t string_length) {
@@ -268,7 +268,17 @@ void _om_variable_write_children(void *dst, uint32_t children_count, const uint6
 }
 
 
-void om_variable_write_scalar(void* dst, uint16_t name_size, uint32_t children_count, const uint64_t* children_offsets, const uint64_t* children_sizes, const char* name, OmDataType_t data_type, const void* value, uint64_t string_length) {
+void om_variable_write_scalar(
+    void* dst,
+    uint16_t name_size,
+    uint32_t children_count,
+    const uint64_t* children_offsets,
+    const uint64_t* children_sizes,
+    const char* name,
+    OmDataType_t data_type,
+    const void* value,
+    uint64_t string_length
+) {
     *(OmVariableV3_t*)dst = (OmVariableV3_t){
         .data_type = (uint8_t)data_type,
         .compression_type = COMPRESSION_NONE,

@@ -89,6 +89,11 @@ typedef struct {
     const uint64_t* values;
 } OmDimensions_t;
 
+typedef struct {
+    const uint64_t size;
+    const char* value;
+} OmString64_t;
+
 
 
 /// After reading data for the variable, initlise it. This is literally a simple cast to an opague pointer. Source memory must remain accessible!
@@ -123,7 +128,7 @@ bool om_variable_get_children(const OmVariable_t* variable, uint32_t children_of
 OmError_t om_variable_get_scalar(const OmVariable_t* variable, void* value);
 
 /// Read a variable as a string
-OmString_t om_variable_get_string(const OmVariable_t* variable);
+OmString64_t om_variable_get_string(const OmVariable_t* variable);
 
 
 
