@@ -90,11 +90,13 @@ public struct OmFileReader<Backend: OmFileReaderBackend> {
             return nil
         }
         if OmType.dataTypeScalar == .string {
-            let stringValue = om_variable_get_string(variable)
+            let stringValue = om_variable_get_string_view(variable)
             guard stringValue.size > 0 else {
                 return nil
             }
-            let buffer = Data(bytesNoCopy: UnsafeMutableRawPointer(mutating: stringValue.value), count: Int(stringValue.size), deallocator: .none)
+            // Create a copy of the string buffer.
+            // It might be required that the string outlives the backend!
+            let buffer = Data(bytes: stringValue.value, count: Int(stringValue.size))
             return String(data: buffer, encoding: .utf8) as? OmType
         }
         var value = OmType()

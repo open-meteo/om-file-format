@@ -128,7 +128,7 @@ bool om_variable_get_children(const OmVariable_t* variable, uint32_t children_of
 OmError_t om_variable_get_scalar(const OmVariable_t* variable, void* value);
 
 /// Read a variable as a string
-OmString64_t om_variable_get_string(const OmVariable_t* variable);
+OmString64_t om_variable_get_string_view(const OmVariable_t* variable);
 
 
 

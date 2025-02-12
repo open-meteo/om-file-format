@@ -213,7 +213,7 @@ OmError_t om_variable_get_scalar(const OmVariable_t* variable, void* value) {
     }
 }
 
-OmString64_t om_variable_get_string(const OmVariable_t* variable) {
+OmString64_t om_variable_get_string_view(const OmVariable_t* variable) {
     if (_om_variable_memory_layout(variable) != OM_MEMORY_LAYOUT_SCALAR) {
         return (OmString64_t){.size = 0, .value = NULL};
     }
