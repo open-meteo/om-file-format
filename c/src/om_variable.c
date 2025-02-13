@@ -330,10 +330,12 @@ void om_variable_write_scalar(
             break;
         case DATA_TYPE_STRING:
             // String format: uint64_t string_length + string data
-            *(uint64_t*)destValue = string_length; // write string length to the first two bytes
-            const uint64_t offset = sizeof(uint64_t);
+            *(uint64_t*)destValue = string_length; // write string length to the first 64bits
+
+            const char* srcString = (const char*)value;
+            char* destString = destValue + sizeof(uint64_t);
             for (uint64_t i = 0; i < string_length; i++) {
-                ((char*)destValue)[offset + i] = ((const char*)value)[i];
+                destString[i] = srcString[i];
             }
 
             valueSize = sizeof(uint64_t) + string_length;
