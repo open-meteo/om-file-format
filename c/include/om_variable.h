@@ -147,7 +147,6 @@ size_t om_variable_write_scalar_size(uint16_t name_size, uint32_t children_count
 /// @param data_type Type of the data to be stored (see OmDataType_t)
 /// @param value Pointer to the value to be stored. For DATA_TYPE_NONE, this should be NULL.
 ///             For other types, this should point to a value of the corresponding C type.
-/// @param string_length Length of the string if the data type is DATA_TYPE_STRING
 ///
 /// @note The destination buffer must be large enough to hold the variable.
 ///       Use om_variable_write_scalar_size() to calculate the required size.
@@ -159,8 +158,7 @@ void om_variable_write_scalar(
     const uint64_t* children_sizes,
     const char* name,
     OmDataType_t data_type,
-    const void* value,
-    uint64_t string_length
+    const void* value
 );
 
 /// Get the size of meta attributes of a numeric array if written to a file. Does not contain any data. Only offsets for the actual data.

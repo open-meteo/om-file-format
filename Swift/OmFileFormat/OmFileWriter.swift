@@ -40,10 +40,10 @@ public struct OmFileWriter<FileHandle: OmFileWriterBackend> {
             let stringLength: UInt64
             if type == DATA_TYPE_STRING {
                 // For strings, pass the string length
-                guard let stringValue = value as? String else {
+                guard let stringValue = value as? OmString64_t else {
                     throw OmFileFormatSwiftError.omEncoder(error: "Expected string value")
                 }
-                stringLength = UInt64(stringValue.utf8.count)
+                stringLength = stringValue.size
             } else {
                 stringLength = 0
             }
@@ -68,8 +68,7 @@ public struct OmFileWriter<FileHandle: OmFileWriterBackend> {
                     childrenSizes,
                     name.baseAddress,
                     type,
-                    value,
-                    stringLength
+                    value
                 )
             })
             buffer.incrementWritePosition(by: size)

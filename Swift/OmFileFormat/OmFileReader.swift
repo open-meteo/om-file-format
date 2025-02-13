@@ -94,10 +94,11 @@ public struct OmFileReader<Backend: OmFileReaderBackend> {
             guard stringValue.size > 0 else {
                 return nil
             }
-            // Create a copy of the string buffer so that the data is
-            // always owned by the caller.
-            let buffer = Data(bytes: stringValue.value, count: Int(stringValue.size))
-            return String(data: buffer, encoding: .utf8) as? OmType
+            return stringValue as? OmType
+            //// Create a copy of the string buffer so that the data is
+            //// always owned by the caller.
+            //let buffer = Data(bytes: stringValue.value, count: Int(stringValue.size))
+            //return String(data: buffer, encoding: .utf8) as? OmType
         }
         var value = OmType()
         guard withUnsafeMutablePointer(to: &value, { om_variable_get_scalar(variable, $0) }) == ERROR_OK else {

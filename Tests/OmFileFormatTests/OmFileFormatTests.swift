@@ -44,7 +44,7 @@ import Foundation
 
             var data = [UInt8](repeating: 255, count: sizeScalar)
             var value = UInt8(177)
-            om_variable_write_scalar(&data, UInt16(name.count), 0, nil, nil, name.baseAddress, DATA_TYPE_INT8, &value, stringSize)
+            om_variable_write_scalar(&data, UInt16(name.count), 0, nil, nil, name.baseAddress, DATA_TYPE_INT8, &value)
             #expect(data == [1, 4, 4, 0, 0, 0, 0, 0, 177, 110, 97, 109, 101])
 
             let omvariable = om_variable_init(data)
@@ -58,17 +58,14 @@ import Foundation
 
     @Test func variableString() {
         var name: String = "name"
-        let value: String = "Hello, World!"
-        let stringSize = UInt64(value.utf8.count)
+        var value: OmString64_t = "Hello, World!"
         name.withUTF8({ name in
-            let sizeScalar = om_variable_write_scalar_size(UInt16(name.count), 0, DATA_TYPE_STRING, stringSize)
+            let sizeScalar = om_variable_write_scalar_size(UInt16(name.count), 0, DATA_TYPE_STRING, value.size)
             #expect(sizeScalar == 33)
 
             var data = [UInt8](repeating: 255, count: sizeScalar)
 
-            value.utf8.withContiguousStorageIfAvailable { string in
-                om_variable_write_scalar(&data, UInt16(name.count), 0, nil, nil, name.baseAddress, DATA_TYPE_STRING, UnsafeRawPointer(string.baseAddress), stringSize)
-            }
+            om_variable_write_scalar(&data, UInt16(name.count), 0, nil, nil, name.baseAddress, DATA_TYPE_STRING, &value)
 
             #expect(data == [
                 11, // OmDataType_t: 11 = DATA_TYPE_STRING
@@ -105,7 +102,7 @@ import Foundation
 
             var data = [UInt8](repeating: 255, count: sizeScalar)
             // No value parameter needed for DATA_TYPE_NONE
-            om_variable_write_scalar(&data, UInt16(name.count), 0, nil, nil, name.baseAddress, DATA_TYPE_NONE, nil, stringSize)
+            om_variable_write_scalar(&data, UInt16(name.count), 0, nil, nil, name.baseAddress, DATA_TYPE_NONE, nil)
             #expect(data == [0, 4, 4, 0, 0, 0, 0, 0, 110, 97, 109, 101])
 
             let omvariable = om_variable_init(data)
@@ -285,7 +282,7 @@ import Foundation
 
         let int32Attribute = try fileWriter.write(value: Int32(12323154), name: "int32", children: [])
         let doubleAttribute = try fileWriter.write(value: Double(12323154), name: "double", children: [])
-        let stringAttribute = try fileWriter.write(value: "my_attribute", name: "string", children: [])
+        let stringAttribute = try fileWriter.write(value: OmString64_t("my_attribute"), name: "string", children: [])
         let variable = try fileWriter.write(array: variableMeta, name: "data", children: [int32Attribute, doubleAttribute, stringAttribute])
 
         try fileWriter.writeTrailer(rootVariable: variable)
@@ -302,7 +299,8 @@ import Foundation
         #expect(child2.readScalar() == Double(12323154))
         #expect(child2.getName() == "double")
         let child3 = readFile.getChild(2)!
-        #expect(child3.readScalar() == "my_attribute")
+        let targetString: OmString64_t = "my_attribute"
+        #expect(child3.readScalar() == targetString)
         #expect(child3.getName() == "string")
         #expect(readFile.getChild(3) == nil)
 

@@ -283,8 +283,7 @@ void om_variable_write_scalar(
     const uint64_t* children_sizes,
     const char* name,
     OmDataType_t data_type,
-    const void* value,
-    uint64_t string_length
+    const void* value
 ) {
     *(OmVariableV3_t*)dst = (OmVariableV3_t){
         .data_type = (uint8_t)data_type,
@@ -328,18 +327,21 @@ void om_variable_write_scalar(
             *(int64_t *)destValue = *(int64_t*)value;
             valueSize = 8;
             break;
-        case DATA_TYPE_STRING:
+        case DATA_TYPE_STRING: {
+            const OmString64_t* stringValue = (const OmString64_t*)value;
+
             // String format: uint64_t string_length + string data
+            const uint64_t string_length = stringValue->size;
             *(uint64_t*)destValue = string_length; // write string length to the first 64bits
 
-            const char* srcString = (const char*)value;
             char* destString = destValue + sizeof(uint64_t);
             for (uint64_t i = 0; i < string_length; i++) {
-                destString[i] = srcString[i];
+                destString[i] = stringValue->value[i];
             }
 
             valueSize = sizeof(uint64_t) + string_length;
             break;
+        }
         default:
             break;
     }
