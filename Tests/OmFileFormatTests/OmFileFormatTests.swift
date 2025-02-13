@@ -80,7 +80,7 @@ import Foundation
             let omvariable = om_variable_init(data)
             #expect(om_variable_get_type(omvariable) == DATA_TYPE_STRING)
             #expect(om_variable_get_children_count(omvariable) == 0)
-            let stringResult = om_variable_get_string_view(omvariable)
+            let stringResult = om_variable_get_scalar_string(omvariable)
 
             guard stringResult.size > 0 else {
                 Issue.record("String is empty")

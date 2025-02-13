@@ -115,8 +115,8 @@ bool om_variable_get_children(const OmVariable_t* variable, uint32_t children_of
 /// Read a variable as a scalar
 OmError_t om_variable_get_scalar(const OmVariable_t* variable, void* value);
 
-/// Read a variable as a string
-OmString64_t om_variable_get_string_view(const OmVariable_t* variable);
+/// Read a variable as a string. The returned value does not take ownership of the string data.
+OmString64_t om_variable_get_scalar_string(const OmVariable_t* variable);
 
 
 
@@ -125,7 +125,7 @@ OmString64_t om_variable_get_string_view(const OmVariable_t* variable);
 
 /// Get the length of a scalar variable if written to a file.
 /// If the scalar is a string, we need to know the length of the string.
-size_t om_variable_write_scalar_size(uint16_t name_size, uint32_t children_count, OmDataType_t data_type, uint64_t string_length);
+size_t om_variable_write_scalar_size(uint16_t name_size, uint32_t children_count, OmDataType_t data_type, uint64_t string_size);
 
 /// Write a scalar variable with name and children variables to a destination buffer
 ///

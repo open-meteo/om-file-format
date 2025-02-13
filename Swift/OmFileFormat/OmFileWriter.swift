@@ -37,21 +37,21 @@ public struct OmFileWriter<FileHandle: OmFileWriterBackend> {
             let type = OmType.dataTypeScalar.toC()
             try buffer.alignTo64Bytes()
 
-            let stringLength: UInt64
+            let stringSize: UInt64
             if type == DATA_TYPE_STRING {
                 // For strings, pass the string length
                 guard let stringValue = value as? OmString64_t else {
                     throw OmFileFormatSwiftError.omEncoder(error: "Expected string value")
                 }
-                stringLength = stringValue.size
+                stringSize = stringValue.size
             } else {
-                stringLength = 0
+                stringSize = 0
             }
             let size = om_variable_write_scalar_size(
                 UInt16(name.count),
                 UInt32(children.count),
                 type,
-                stringLength
+                stringSize
             )
 
             let offset = UInt64(buffer.totalBytesWritten)

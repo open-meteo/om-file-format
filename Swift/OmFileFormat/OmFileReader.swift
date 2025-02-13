@@ -90,7 +90,7 @@ public struct OmFileReader<Backend: OmFileReaderBackend> {
             return nil
         }
         if OmType.dataTypeScalar == .string {
-            let stringValue = om_variable_get_string_view(variable)
+            let stringValue = om_variable_get_scalar_string(variable)
             guard stringValue.size > 0 else {
                 return nil
             }
