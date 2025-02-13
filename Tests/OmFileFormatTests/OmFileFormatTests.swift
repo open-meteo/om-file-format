@@ -93,7 +93,28 @@ import Foundation
             let buffer = Data(bytesNoCopy: UnsafeMutableRawPointer(mutating: stringResult.value), count: Int(stringResult.size), deallocator: .none)
             let outString = String(data: buffer, encoding: .utf8)
             #expect(outString == "Hello, World!")
+        })
+    }
 
+    @Test func variableNone() {
+        var name = "name"
+        let stringSize: UInt64 = 0
+        name.withUTF8({ name in
+            let sizeScalar = om_variable_write_scalar_size(UInt16(name.count), 0, DATA_TYPE_NONE, stringSize)
+            #expect(sizeScalar == 12) // 8 (header) + 4 (name length) + 0 (no value)
+
+            var data = [UInt8](repeating: 255, count: sizeScalar)
+            // No value parameter needed for DATA_TYPE_NONE
+            om_variable_write_scalar(&data, UInt16(name.count), 0, nil, nil, name.baseAddress, DATA_TYPE_NONE, nil, stringSize)
+            #expect(data == [0, 4, 4, 0, 0, 0, 0, 0, 110, 97, 109, 101])
+
+            let omvariable = om_variable_init(data)
+            #expect(om_variable_get_type(omvariable) == DATA_TYPE_NONE)
+            #expect(om_variable_get_children_count(omvariable) == 0)
+
+            // For DATA_TYPE_NONE, attempting to get scalar value should return ERROR_INVALID_DATA_TYPE
+            var dummyValue = UInt8(0)
+            #expect(om_variable_get_scalar(omvariable, &dummyValue) == ERROR_INVALID_DATA_TYPE)
         })
     }
 

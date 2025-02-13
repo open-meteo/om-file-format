@@ -102,7 +102,7 @@ OmError_t om_decoder_init(
 
     // Correctly calculate number of chunks
     if (lut_chunk_length > 0) {
-        const uint64_t nLutChunks = divide_rounded_up(nChunks, LUT_CHUNK_COUNT);
+        const uint64_t nLutChunks = divide_rounded_up(nChunks+1, LUT_CHUNK_COUNT);
         lut_chunk_length = lut_size / nLutChunks;
     }
 
