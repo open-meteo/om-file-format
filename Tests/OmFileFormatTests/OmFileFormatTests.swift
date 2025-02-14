@@ -58,14 +58,16 @@ import Foundation
 
     @Test func variableString() {
         var name: String = "name"
-        var value: OmString64_t = "Hello, World!"
+        let value: OmString = "Hello, World!"
         name.withUTF8({ name in
-            let sizeScalar = om_variable_write_scalar_size(UInt16(name.count), 0, DATA_TYPE_STRING, value.size)
+            let sizeScalar = om_variable_write_scalar_size(UInt16(name.count), 0, DATA_TYPE_STRING, value.byteCount)
             #expect(sizeScalar == 33)
 
             var data = [UInt8](repeating: 255, count: sizeScalar)
 
-            om_variable_write_scalar(&data, UInt16(name.count), 0, nil, nil, name.baseAddress, DATA_TYPE_STRING, &value)
+            value.withOmString64 { stringValue in
+                om_variable_write_scalar(&data, UInt16(name.count), 0, nil, nil, name.baseAddress, DATA_TYPE_STRING, &stringValue)
+            }
 
             #expect(data == [
                 11, // OmDataType_t: 11 = DATA_TYPE_STRING
@@ -282,7 +284,7 @@ import Foundation
 
         let int32Attribute = try fileWriter.write(value: Int32(12323154), name: "int32", children: [])
         let doubleAttribute = try fileWriter.write(value: Double(12323154), name: "double", children: [])
-        let stringAttribute = try fileWriter.write(value: OmString64_t("my_attribute"), name: "string", children: [])
+        let stringAttribute = try fileWriter.write(value: OmString("my_attribute"), name: "string", children: [])
         let variable = try fileWriter.write(array: variableMeta, name: "data", children: [int32Attribute, doubleAttribute, stringAttribute])
 
         try fileWriter.writeTrailer(rootVariable: variable)
@@ -299,7 +301,7 @@ import Foundation
         #expect(child2.readScalar() == Double(12323154))
         #expect(child2.getName() == "double")
         let child3 = readFile.getChild(2)!
-        let targetString: OmString64_t = "my_attribute"
+        let targetString: OmString = "my_attribute"
         #expect(child3.readScalar() == targetString)
         #expect(child3.getName() == "string")
         #expect(readFile.getChild(3) == nil)

@@ -1,38 +1,65 @@
-import struct OmFileFormatC.OmString64_t
+@_implementationOnly import struct OmFileFormatC.OmString64_t
+import Foundation
 
-extension OmFileFormatC.OmString64_t: Swift.CustomStringConvertible {
-    public var description: String {
-        // Create a String from the raw buffer with specified size
-        return String(bytes: UnsafeRawBufferPointer(start: self.value, count: Int(self.size)), encoding: .utf8) ?? ""
+/// A string type that guarantees UTF-8 storage for compatibility with C APIs
+public struct OmString {
+    // The raw UTF-8 bytes stored in an array
+    private let storage: ContiguousArray<UInt8>
+
+    // Needed for conformance with OmFileScalarDataTypeProtocol
+    public init() {
+        self.storage = []
+    }
+
+    public init(_ string: String) {
+        self.storage = ContiguousArray(string.utf8)
+    }
+
+    /// Creates a string from an OmString64_t by copying the bytes
+    init(_ omString: OmString64_t) {
+        let buffer = UnsafeRawBufferPointer(
+            start: omString.value,
+            count: Int(omString.size)
+        )
+        self.storage = ContiguousArray(buffer)
     }
 }
 
-extension OmFileFormatC.OmString64_t: Swift.ExpressibleByStringLiteral {
+// MARK: - String Literal Convertible
+extension OmString: ExpressibleByStringLiteral {
     public init(stringLiteral value: String) {
-        // Get the UTF-8 representation of the string
-        let utf8Data = Array(value.utf8)
-        let size = UInt64(utf8Data.count)
-
-        // Allocate memory that will persist
-        let buffer = UnsafeMutablePointer<UInt8>.allocate(capacity: utf8Data.count)
-        // Copy the string data into the buffer
-        buffer.initialize(from: utf8Data, count: utf8Data.count)
-
-        // Reinterpret the UInt8 pointer as CChar
-        let charPtr = unsafeBitCast(buffer, to: UnsafePointer<CChar>.self)
-
-        // Create OmString64_t with the size and pointer
-        self.init(size: size, value: charPtr)
+        self.init(value)
     }
 }
 
-extension OmFileFormatC.OmString64_t: Equatable {
-    public static func == (lhs: OmFileFormatC.OmString64_t, rhs: OmFileFormatC.OmString64_t) -> Bool {
-        guard lhs.size == rhs.size else { return false }
+// MARK: - Custom String Convertible
+extension OmString: CustomStringConvertible {
+    public var description: String {
+        String(decoding: self.storage, as: UTF8.self)
+    }
+}
 
-        let lhsString = String(bytes: UnsafeRawBufferPointer(start: lhs.value, count: Int(lhs.size)), encoding: .utf8)
-        let rhsString = String(bytes: UnsafeRawBufferPointer(start: rhs.value, count: Int(rhs.size)), encoding: .utf8)
+// MARK: - Equatable
+extension OmString: Equatable {
+    public static func == (lhs: OmString, rhs: OmString) -> Bool {
+        return lhs.storage == rhs.storage
+    }
+}
 
-        return lhsString == rhsString
+// MARK: - C Interop
+extension OmString {
+    /// Provides temporary access to an OmString64_t representation without copying data
+    func withOmString64<T>(_ body: ((inout OmString64_t)) throws -> T) rethrows -> T {
+        try storage.withUnsafeBytes { buffer in
+            var omString = OmString64_t(
+                size: UInt64(storage.count),
+                value: buffer.baseAddress!.assumingMemoryBound(to: CChar.self)
+            )
+            return try body(&omString)
+        }
+    }
+
+    var byteCount: UInt64 {
+        UInt64(self.storage.count)
     }
 }
