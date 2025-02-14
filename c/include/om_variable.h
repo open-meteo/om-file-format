@@ -13,7 +13,7 @@
 
 /**
  TODO:
- - String and String array support
+ - String array support
  */
 
 /// =========== Structures describing the data layout ===============
@@ -21,7 +21,7 @@
 typedef struct {
     uint8_t data_type; // OmDataType_t
     uint8_t compression_type; // OmCompression_t
-    uint16_t name_size; // maximum 65k name strings
+    uint16_t name_size; // maximum 65k characters in name strings
     uint32_t children_count;
 
     // Followed by payload
@@ -38,7 +38,7 @@ typedef struct {
 typedef struct {
     uint8_t data_type; // OmDataType_t
     uint8_t compression_type; // OmCompression_t
-    uint16_t name_size; // maximum 65k name strings
+    uint16_t name_size; // maximum 65k characters in name strings
     uint32_t children_count;
     uint64_t lut_size;
     uint64_t lut_offset;
@@ -59,18 +59,6 @@ typedef struct {
     //char[name_size] name;
 } OmVariableArrayV3_t;
 
-typedef struct {
-    uint8_t data_type; // OmDataType_t
-    uint8_t compression_type; // OmCompression_t
-    uint16_t name_size; // maximum 65k name strings
-    uint32_t children_count;
-    uint64_t string_size;
-    // followed by the string value
-    // name is always last
-    //char[name_size] name;
-} OmVariablStringV3_t;
-
-
 /// only expose an opague pointer
 typedef void* OmVariable_t;
 
@@ -88,6 +76,11 @@ typedef struct {
     const uint64_t count;
     const uint64_t* values;
 } OmDimensions_t;
+
+typedef struct {
+    const uint64_t size;
+    const char* value;
+} OmString64_t;
 
 
 
@@ -122,13 +115,17 @@ bool om_variable_get_children(const OmVariable_t* variable, uint32_t children_of
 /// Read a variable as a scalar
 OmError_t om_variable_get_scalar(const OmVariable_t* variable, void* value);
 
+/// Read a variable as a string. The returned value does not take ownership of the string data.
+OmString64_t om_variable_get_scalar_string(const OmVariable_t* variable);
+
 
 
 
 /// =========== Functions for writing ===============
 
-/// Get the length of a scalar variable if written to a file
-size_t om_variable_write_scalar_size(uint16_t name_size, uint32_t children_count, OmDataType_t data_type);
+/// Get the length of a scalar variable if written to a file.
+/// If the scalar is a string, we need to know the length of the string.
+size_t om_variable_write_scalar_size(uint16_t name_size, uint32_t children_count, OmDataType_t data_type, uint64_t string_size);
 
 /// Write a scalar variable with name and children variables to a destination buffer
 ///
@@ -153,7 +150,16 @@ size_t om_variable_write_scalar_size(uint16_t name_size, uint32_t children_count
 ///
 /// @note The destination buffer must be large enough to hold the variable.
 ///       Use om_variable_write_scalar_size() to calculate the required size.
-void om_variable_write_scalar(void* dst, uint16_t name_size, uint32_t children_count, const uint64_t* children_offsets, const uint64_t* children_sizes, const char* name, OmDataType_t data_type, const void* value);
+void om_variable_write_scalar(
+    void* dst,
+    uint16_t name_size,
+    uint32_t children_count,
+    const uint64_t* children_offsets,
+    const uint64_t* children_sizes,
+    const char* name,
+    OmDataType_t data_type,
+    const void* value
+);
 
 /// Get the size of meta attributes of a numeric array if written to a file. Does not contain any data. Only offsets for the actual data.
 size_t om_variable_write_numeric_array_size(uint16_t name_size, uint32_t children_count, uint64_t dimension_count);
@@ -170,7 +176,6 @@ typedef enum {
     OM_MEMORY_LAYOUT_LEGACY = 0,
     OM_MEMORY_LAYOUT_ARRAY = 1,
     OM_MEMORY_LAYOUT_SCALAR = 3,
-    //OM_MEMORY_LAYOUT_STRING = 4,
     //OM_MEMORY_LAYOUT_STRING_ARRAY = 5,
 } OmMemoryLayout_t;
 

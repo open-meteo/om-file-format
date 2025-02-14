@@ -37,7 +37,7 @@ public struct OmFileReader<Backend: OmFileReaderBackend> {
             guard om_trailer_read(trailerData, &offset, &size) else {
                 throw OmFileFormatSwiftError.notAnOpenMeteoFile
             }
-            /// Read data from root.offset by root.size. Important: data must remain accessible throughout the use of this variable!!
+            // Read data from root.offset by root.size. Important: data must remain accessible throughout the use of this variable!!
             let dataVariable = fn.getData(offset: Int(offset), count: Int(size))
             self.variable = om_variable_init(dataVariable)
         case OM_HEADER_INVALID:
@@ -86,14 +86,24 @@ public struct OmFileReader<Backend: OmFileReaderBackend> {
     }
 
     public func readScalar<OmType: OmFileScalarDataTypeProtocol>() -> OmType? {
-        guard OmType.dataTypeScalar == dataType else {
+        guard OmType.dataTypeScalar == self.dataType else {
             return nil
         }
-        var value = OmType()
-        guard withUnsafeMutablePointer(to: &value, { om_variable_get_scalar(variable, $0) }) == ERROR_OK else {
-            return nil
+        if OmType.dataTypeScalar == .string {
+            let stringValue = om_variable_get_scalar_string(variable)
+            guard stringValue.size > 0 else {
+                return nil
+            }
+
+            // This returns a copy of the String
+            return OmString(stringValue) as? OmType
+        } else {
+            var value = OmType()
+            guard withUnsafeMutablePointer(to: &value, { om_variable_get_scalar(variable, $0) }) == ERROR_OK else {
+                return nil
+            }
+            return value
         }
-        return value
     }
 
     /// If it is an array of specified type. Return a type safe reader for this type
