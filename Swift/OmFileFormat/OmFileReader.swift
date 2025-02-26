@@ -89,21 +89,12 @@ public struct OmFileReader<Backend: OmFileReaderBackend> {
         guard OmType.dataTypeScalar == self.dataType else {
             return nil
         }
-        if OmType.dataTypeScalar == .string {
-            let stringValue = om_variable_get_scalar_string(variable)
-            guard stringValue.size > 0 else {
-                return nil
-            }
-
-            // This returns a copy of the String
-            return OmString(stringValue) as? OmType
-        } else {
-            var value = OmType()
-            guard withUnsafeMutablePointer(to: &value, { om_variable_get_scalar(variable, $0) }) == ERROR_OK else {
-                return nil
-            }
-            return value
+        var ptr = UnsafeMutableRawPointer(bitPattern: 0)
+        var size: UInt64 = 0
+        guard om_variable_get_scalar(variable, &ptr, &size) == ERROR_OK, let ptr else {
+            return nil
         }
+        return OmType(unsafeFrom: UnsafeRawBufferPointer(start: ptr, count: Int(size)))
     }
 
     /// If it is an array of specified type. Return a type safe reader for this type

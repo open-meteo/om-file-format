@@ -112,11 +112,8 @@ uint32_t om_variable_get_children_count(const OmVariable_t* variable);
 /// Get the file offset where a specified child or chilrden can be read
 bool om_variable_get_children(const OmVariable_t* variable, uint32_t children_offset, uint32_t children_count, uint64_t* children_offsets, uint64_t* children_sizes);
 
-/// Read a variable as a scalar
-OmError_t om_variable_get_scalar(const OmVariable_t* variable, void* value);
-
-/// Read a variable as a string. The returned value does not take ownership of the string data.
-OmString64_t om_variable_get_scalar_string(const OmVariable_t* variable);
+/// Read a variable as a scalar. Returns the size and value into the value and size field. `value` needs to be a pointer that then points to the value
+OmError_t om_variable_get_scalar(const OmVariable_t* variable, void** value, uint64_t* size);
 
 
 
@@ -158,7 +155,8 @@ void om_variable_write_scalar(
     const uint64_t* children_sizes,
     const char* name,
     OmDataType_t data_type,
-    const void* value
+    const void* value,
+    size_t string_size
 );
 
 /// Get the size of meta attributes of a numeric array if written to a file. Does not contain any data. Only offsets for the actual data.

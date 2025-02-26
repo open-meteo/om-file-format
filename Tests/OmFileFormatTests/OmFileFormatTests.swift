@@ -44,29 +44,30 @@ import Foundation
 
             var data = [UInt8](repeating: 255, count: sizeScalar)
             var value = UInt8(177)
-            om_variable_write_scalar(&data, UInt16(name.count), 0, nil, nil, name.baseAddress, DATA_TYPE_INT8, &value)
+            om_variable_write_scalar(&data, UInt16(name.count), 0, nil, nil, name.baseAddress, DATA_TYPE_INT8, &value, 0)
             #expect(data == [1, 4, 4, 0, 0, 0, 0, 0, 177, 110, 97, 109, 101])
 
             let omvariable = om_variable_init(data)
             #expect(om_variable_get_type(omvariable) == DATA_TYPE_INT8)
             #expect(om_variable_get_children_count(omvariable) == 0)
-            var valueOut = UInt8(255)
-            #expect(om_variable_get_scalar(omvariable, &valueOut) == ERROR_OK)
-            #expect(valueOut == 177)
+            var ptr = UnsafeMutableRawPointer(bitPattern: 0)
+            var size: UInt64 = 0
+            #expect(om_variable_get_scalar(omvariable, &ptr, &size) == ERROR_OK)
+            #expect(ptr?.assumingMemoryBound(to: UInt8.self).pointee == 177)
         })
     }
 
     @Test func variableString() {
         var name: String = "name"
-        let value: OmString = "Hello, World!"
+        let value: String = "Hello, World!"
         name.withUTF8({ name in
-            let sizeScalar = om_variable_write_scalar_size(UInt16(name.count), 0, DATA_TYPE_STRING, value.byteCount)
+            let sizeScalar = om_variable_write_scalar_size(UInt16(name.count), 0, DATA_TYPE_STRING, UInt64(value.utf8.count))
             #expect(sizeScalar == 33)
 
             var data = [UInt8](repeating: 255, count: sizeScalar)
 
-            value.withOmString64 { stringValue in
-                om_variable_write_scalar(&data, UInt16(name.count), 0, nil, nil, name.baseAddress, DATA_TYPE_STRING, &stringValue)
+            value.withOmBytes {
+                om_variable_write_scalar(&data, UInt16(name.count), 0, nil, nil, name.baseAddress, DATA_TYPE_STRING, $0.baseAddress, $0.count)
             }
 
             #expect(data == [
@@ -82,14 +83,11 @@ import Foundation
             let omvariable = om_variable_init(data)
             #expect(om_variable_get_type(omvariable) == DATA_TYPE_STRING)
             #expect(om_variable_get_children_count(omvariable) == 0)
-            let stringResult = om_variable_get_scalar_string(omvariable)
+            var ptr = UnsafeMutableRawPointer(bitPattern: 0)
+            var size: UInt64 = 0
+            #expect(om_variable_get_scalar(omvariable, &ptr, &size) == ERROR_OK)
 
-            guard stringResult.size > 0 else {
-                Issue.record("String is empty")
-                return
-            }
-
-            let buffer = Data(bytesNoCopy: UnsafeMutableRawPointer(mutating: stringResult.value), count: Int(stringResult.size), deallocator: .none)
+            let buffer = Data(bytesNoCopy: UnsafeMutableRawPointer(mutating: ptr!), count: Int(size), deallocator: .none)
             let outString = String(data: buffer, encoding: .utf8)
             #expect(outString == "Hello, World!")
         })
@@ -104,7 +102,7 @@ import Foundation
 
             var data = [UInt8](repeating: 255, count: sizeScalar)
             // No value parameter needed for DATA_TYPE_NONE
-            om_variable_write_scalar(&data, UInt16(name.count), 0, nil, nil, name.baseAddress, DATA_TYPE_NONE, nil)
+            om_variable_write_scalar(&data, UInt16(name.count), 0, nil, nil, name.baseAddress, DATA_TYPE_NONE, nil, 0)
             #expect(data == [0, 4, 4, 0, 0, 0, 0, 0, 110, 97, 109, 101])
 
             let omvariable = om_variable_init(data)
@@ -112,8 +110,9 @@ import Foundation
             #expect(om_variable_get_children_count(omvariable) == 0)
 
             // For DATA_TYPE_NONE, attempting to get scalar value should return ERROR_INVALID_DATA_TYPE
-            var dummyValue = UInt8(0)
-            #expect(om_variable_get_scalar(omvariable, &dummyValue) == ERROR_INVALID_DATA_TYPE)
+            var ptr = UnsafeMutableRawPointer(bitPattern: 0)
+            var size: UInt64 = 0
+            #expect(om_variable_get_scalar(omvariable, &ptr, &size) == ERROR_INVALID_DATA_TYPE)
         })
     }
 
@@ -284,7 +283,7 @@ import Foundation
 
         let int32Attribute = try fileWriter.write(value: Int32(12323154), name: "int32", children: [])
         let doubleAttribute = try fileWriter.write(value: Double(12323154), name: "double", children: [])
-        let stringAttribute = try fileWriter.write(value: OmString("my_attribute"), name: "string", children: [])
+        let stringAttribute = try fileWriter.write(value: String("my_attribute"), name: "string", children: [])
         let variable = try fileWriter.write(array: variableMeta, name: "data", children: [int32Attribute, doubleAttribute, stringAttribute])
 
         try fileWriter.writeTrailer(rootVariable: variable)
@@ -301,7 +300,7 @@ import Foundation
         #expect(child2.readScalar() == Double(12323154))
         #expect(child2.getName() == "double")
         let child3 = readFile.getChild(2)!
-        let targetString: OmString = "my_attribute"
+        let targetString: String = "my_attribute"
         #expect(child3.readScalar() == targetString)
         #expect(child3.getName() == "string")
         #expect(readFile.getChild(3) == nil)

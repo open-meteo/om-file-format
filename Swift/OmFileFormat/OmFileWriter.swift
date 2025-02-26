@@ -41,62 +41,29 @@ public struct OmFileWriter<FileHandle: OmFileWriterBackend> {
             try buffer.alignTo64Bytes()
             let offset = UInt64(buffer.totalBytesWritten)
 
-            // size of written variable in bytes
-            let size: Int
-
-            if type == DATA_TYPE_STRING {
-                // Strings need special treatment because can only determine
-                // because we can only determine their size once we have
-                // casted them to the correct type.
-                guard let value = value as? OmString else {
-                    throw OmFileFormatSwiftError.omEncoder(error: "Expected string value")
-                }
-
-                size = om_variable_write_scalar_size(
+            let size = value.withOmBytes(body: { value in
+                return om_variable_write_scalar_size(
                     UInt16(name.count),
                     UInt32(children.count),
                     type,
-                    value.byteCount // string size in utf8 bytes
+                    UInt64(value.count)
                 )
+            })
 
-                try buffer.reallocate(minimumCapacity: Int(size))
-                value.withOmString64 { stringValue in
-                    om_variable_write_scalar(
-                        buffer.bufferAtWritePosition,
-                        UInt16(name.count),
-                        UInt32(children.count),
-                        childrenOffsets,
-                        childrenSizes,
-                        name.baseAddress,
-                        type,
-                        &stringValue
-                    )
-                }
-            } else {
-                // Normal Scalar types
-                var value = value
-
-                size = om_variable_write_scalar_size(
+            try buffer.reallocate(minimumCapacity: Int(size))
+            value.withOmBytes(body: { value in
+                om_variable_write_scalar(
+                    buffer.bufferAtWritePosition,
                     UInt16(name.count),
                     UInt32(children.count),
+                    childrenOffsets,
+                    childrenSizes,
+                    name.baseAddress,
                     type,
-                    UInt64(0) // string size 0 if no string
+                    value.baseAddress,
+                    value.count
                 )
-
-                try buffer.reallocate(minimumCapacity: Int(size))
-                withUnsafePointer(to: &value, { value in
-                    om_variable_write_scalar(
-                        buffer.bufferAtWritePosition,
-                        UInt16(name.count),
-                        UInt32(children.count),
-                        childrenOffsets,
-                        childrenSizes,
-                        name.baseAddress,
-                        type,
-                        value
-                    )
-                })
-            }
+            })
             buffer.incrementWritePosition(by: size)
             return OmOffsetSize(offset: offset, size: UInt64(size))
         }
