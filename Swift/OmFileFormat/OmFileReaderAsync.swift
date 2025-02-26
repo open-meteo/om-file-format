@@ -101,11 +101,12 @@ public struct OmFileReaderAsync<Backend: OmFileReaderBackendAsync> {
         }
         return variable.withUnsafeBytes({
             let variable = om_variable_init($0.baseAddress)
-            var value = OmType()
-            guard withUnsafeMutablePointer(to: &value, { om_variable_get_scalar(variable, $0) }) == ERROR_OK else {
+            var ptr = UnsafeMutableRawPointer(bitPattern: 0)
+            var size: UInt64 = 0
+            guard om_variable_get_scalar(variable, &ptr, &size) == ERROR_OK, let ptr else {
                 return nil
             }
-            return value
+            return OmType(unsafeFrom: UnsafeRawBufferPointer(start: ptr, count: Int(size)))
         })
     }
 
