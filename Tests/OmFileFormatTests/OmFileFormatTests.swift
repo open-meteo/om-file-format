@@ -37,9 +37,8 @@ import Foundation
 
     @Test func variable() {
         var name: String = "name"
-        let stringSize: UInt64 = 0
         name.withUTF8({ name in
-            let sizeScalar = om_variable_write_scalar_size(UInt16(name.count), 0, DATA_TYPE_INT8, stringSize)
+            let sizeScalar = om_variable_write_scalar_size(UInt16(name.count), 0, DATA_TYPE_INT8, 0)
             #expect(sizeScalar == 13)
 
             var data = [UInt8](repeating: 255, count: sizeScalar)
@@ -95,9 +94,8 @@ import Foundation
 
     @Test func variableNone() {
         var name = "name"
-        let stringSize: UInt64 = 0
         name.withUTF8({ name in
-            let sizeScalar = om_variable_write_scalar_size(UInt16(name.count), 0, DATA_TYPE_NONE, stringSize)
+            let sizeScalar = om_variable_write_scalar_size(UInt16(name.count), 0, DATA_TYPE_NONE, 0)
             #expect(sizeScalar == 12) // 8 (header) + 4 (name length) + 0 (no value)
 
             var data = [UInt8](repeating: 255, count: sizeScalar)
