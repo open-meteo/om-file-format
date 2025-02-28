@@ -59,7 +59,7 @@ typedef struct {
     //char[name_size] name;
 } OmVariableArrayV3_t;
 
-/// only expose an opague pointer
+/// only expose an opaque pointer
 typedef void* OmVariable_t;
 
 
@@ -77,14 +77,8 @@ typedef struct {
     const uint64_t* values;
 } OmDimensions_t;
 
-typedef struct {
-    const uint64_t size;
-    const char* value;
-} OmString64_t;
 
-
-
-/// After reading data for the variable, initlise it. This is literally a simple cast to an opague pointer. Source memory must remain accessible!
+/// After reading data for the variable, initialize it. This is literally a simple cast to an opaque pointer. Source memory must remain accessible!
 const OmVariable_t* om_variable_init(const void* src);
 
 /// Get the name of of a given variable. No guarantee for zero termination!
@@ -106,10 +100,10 @@ OmDimensions_t om_variable_get_dimensions(const OmVariable_t* variable);
 /// Get a pointer to the chunk dimensions of an OM Variable
 OmDimensions_t om_variable_get_chunks(const OmVariable_t* variable);
 
-/// Return how many chilrden are available for a given variable
+/// Return how many children are available for a given variable
 uint32_t om_variable_get_children_count(const OmVariable_t* variable);
 
-/// Get the file offset where a specified child or chilrden can be read
+/// Get the file offset where a specified child or children can be read
 bool om_variable_get_children(const OmVariable_t* variable, uint32_t children_offset, uint32_t children_count, uint64_t* children_offsets, uint64_t* children_sizes);
 
 /// Read a variable as a scalar. Returns the size and value into the value and size field. `value` needs to be a pointer that then points to the value
