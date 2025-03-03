@@ -114,13 +114,57 @@ import Foundation
         })
     }
 
-    /*@Test func inMemory() throws {
+    @Test func testReadNoneVariable() throws {
+        let inMemoryBackend = DataAsClass(data: Data())
+        let fileWriter = OmFileWriter(fn: inMemoryBackend, initialCapacity: 8)
+
+        // Write a regular variable
+        let intVar = try fileWriter.write(value: Int32(42), name: "attribute", children: [])
+
+        // Write a None type to indicate some type of group
+        let groupVar = try fileWriter.writeNone(name: "group", children: [intVar])
+
+        try fileWriter.writeTrailer(rootVariable: groupVar)
+
+        // Read the file
+        let read = try OmFileReader(fn: inMemoryBackend)
+
+        // Verify the group variable
+        #expect(read.getName() == "group")
+        #expect(read.dataType == .none)
+
+        // Get the child variable, which is an attribute
+        let child = read.getChild(0)!
+        #expect(child.getName() == "attribute")
+        #expect(child.dataType == .int32)
+        #expect(child.readScalar() == Int32(42))
+    }
+
+    @Test func inMemory() throws {
+        let inMemoryBackend = DataAsClass(data: Data())
+        let fileWriter = OmFileWriter(fn: inMemoryBackend, initialCapacity: 8)
+
         let data: [Float] = [0.0, 5.0, 2.0, 3.0, 2.0, 5.0, 6.0, 2.0, 8.0, 3.0, 10.0, 14.0, 12.0, 15.0, 14.0, 15.0, 66.0, 17.0, 12.0, 19.0, 20.0, 21.0, 22.0, 23.0, 24.0]
-        let compressed = try OmFileWriter(dim0: 1, dim1: data.count, chunk0: 1, chunk1: 10).writeInMemory(compressionType: .pfor_delta2d_int16, scalefactor: 1, all: data)
-        #expect(compressed.count == 212)
-        let uncompressed = try OmFileReader(fn: DataAsClass(data: compressed)).readAll()
-        #expect(data == uncompressed)
-    }*/
+
+        let writer = try fileWriter.prepareArray(
+            type: Float.self,
+            dimensions: [1,UInt64(data.count)],
+            chunkDimensions: [1,10],
+            compression: .pfor_delta2d_int16,
+            scale_factor: 1,
+            add_offset: 0
+        )
+
+        try writer.writeData(array: data)
+        let variableMeta = try writer.finalise()
+        let variable = try fileWriter.write(array: variableMeta, name: "data", children: [])
+        try fileWriter.writeTrailer(rootVariable: variable)
+
+        #expect(inMemoryBackend.count == 136)
+        let read = try OmFileReader(fn: inMemoryBackend).asArray(of: Float.self)!
+        let a = try read.read(range: [0..<1, 0..<UInt64(data.count)])
+        #expect(a == data)
+    }
 
     /// Make sure the last chunk has the correct number of chunks
     /*@Test func writeMoreDataThenExpected() throws {

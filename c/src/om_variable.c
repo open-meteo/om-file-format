@@ -28,6 +28,8 @@ OmString_t om_variable_get_name(const OmVariable_t* variable) {
             const OmVariableV3_t* meta = (const OmVariableV3_t*)variable;
             char* base = (char*)((void *)variable + sizeof(OmVariableV3_t) + 16 * meta->children_count);
             switch (meta->data_type) {
+                case DATA_TYPE_NONE:
+                    return (OmString_t){.size = meta->name_size, .value = base};
                 case DATA_TYPE_INT8:
                 case DATA_TYPE_UINT8:
                     return (OmString_t){.size = meta->name_size, .value = base+1};

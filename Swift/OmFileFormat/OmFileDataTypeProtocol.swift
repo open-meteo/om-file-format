@@ -247,3 +247,20 @@ extension String: OmFileScalarDataTypeProtocol {
         return .string
     }
 }
+
+/// A zero-sized type that represents the absence of a value.
+public struct OmNone: OmFileScalarDataTypeProtocol {
+    // MARK: - Init empty
+    public init() { }
+
+    // MARK: - OmFileScalarDataTypeProtocol
+    public func withOmBytes<T>(body: (UnsafeRawBufferPointer) -> (T)) -> T {
+        return withUnsafeBytes(of: self, body)
+    }
+
+    public init(unsafeFrom: UnsafeRawBufferPointer) { }
+
+    public static var dataTypeScalar: DataType {
+        return .none
+    }
+}

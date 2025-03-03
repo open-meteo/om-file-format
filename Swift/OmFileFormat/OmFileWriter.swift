@@ -69,6 +69,10 @@ public struct OmFileWriter<FileHandle: OmFileWriterBackend> {
         }
     }
 
+    public func writeNone(name: String, children: [OmOffsetSize]) throws -> OmOffsetSize {
+        return try write(value: OmNone(), name: name, children: children)
+    }
+
     public func prepareArray<OmType: OmFileArrayDataTypeProtocol>(type: OmType.Type, dimensions: [UInt64], chunkDimensions: [UInt64], compression: CompressionType, scale_factor: Float, add_offset: Float) throws -> OmFileWriterArray<OmType, FileHandle> {
         try writeHeaderIfRequired()
         return try .init(dimensions: dimensions, chunkDimensions: chunkDimensions, compression: compression, scale_factor: scale_factor, add_offset: add_offset, buffer: buffer)
