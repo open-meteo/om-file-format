@@ -37,7 +37,7 @@ jobs:
         shell: bash
       - name: Cache resolved dependencies
         id: cache-resolved-dependencies
-        uses: actions/cache@v2
+        uses: actions/cache@v4
         with:
           path: |
             .build
@@ -72,7 +72,7 @@ jobs:
       - uses: actions/checkout@master
       - name: Cache resolved dependencies
         id: cache-resolved-dependencies
-        uses: actions/cache@v2
+        uses: actions/cache@v4
         with:
           path: |
             .build
