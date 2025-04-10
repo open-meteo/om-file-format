@@ -149,6 +149,9 @@ public final class OmFileWriterArray<OmType: OmFileArrayDataTypeProtocol, FileHa
     public init(dimensions: [UInt64], chunkDimensions: [UInt64], compression: CompressionType, scale_factor: Float, add_offset: Float, buffer: OmBufferedWriter<FileHandle>) throws {
 
         assert(dimensions.count == chunkDimensions.count)
+        
+        var chunks = chunkDimensions
+        var dimensions = dimensions
 
         self.chunks = chunkDimensions
         self.dimensions = dimensions
@@ -158,7 +161,7 @@ public final class OmFileWriterArray<OmType: OmFileArrayDataTypeProtocol, FileHa
 
         // Note: The encoder keeps the pointer to `&self.dimensions`. It is important that this array is not deallocated!
         self.encoder = OmEncoder_t()
-        let error = om_encoder_init(&encoder, scale_factor, add_offset, compression.toC(), OmType.dataTypeArray.toC(), &self.dimensions, &self.chunks, UInt64(dimensions.count))
+        let error = om_encoder_init(&encoder, scale_factor, add_offset, compression.toC(), OmType.dataTypeArray.toC(), &dimensions, &chunks, UInt64(dimensions.count))
 
         guard error == ERROR_OK else {
             throw OmFileFormatSwiftError.omEncoder(error: String(cString: om_error_string(error)))
