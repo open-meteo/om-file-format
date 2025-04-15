@@ -497,7 +497,116 @@ bool om_decoder_next_index_read(const OmDecoder_t* decoder, OmDecoder_indexRead_
     return true;
 }
 
-bool om_decoder_next_data_read(const OmDecoder_t *decoder, OmDecoder_dataRead_t* data_read, const void* index_data, uint64_t index_data_size, OmError_t* error) {
+// Helper function to get a single LUT value by chunk index
+ALWAYS_INLINE uint64_t om_decoder_get_lut_value(
+    const OmDecoder_t *decoder,
+    const void* index_data,
+    uint64_t index_data_size,
+    uint64_t chunk_index,
+    uint64_t index_range_lower_bound,
+    uint64_t* uncompressedLut,
+    uint64_t* current_lut_chunk,
+    OmError_t* error
+) {
+    // Version 1 case
+    if (decoder->lut_chunk_length == 0) {
+        const uint64_t* data = (const uint64_t*)index_data;
+        const bool isOffset0 = (index_range_lower_bound == 0);
+        const uint64_t startOffset = isOffset0 ? 1 : 0;
+
+        uint64_t readPos = chunk_index - index_range_lower_bound - startOffset;
+        if (!isOffset0 && (readPos + 1) * sizeof(int64_t) > index_data_size) {
+            (*error) = ERROR_OUT_OF_BOUND_READ;
+            return 0;
+        }
+
+        // Special case for first element in V1 format
+        if (isOffset0 && chunk_index == 0) {
+            return 0;
+        }
+
+        return data[readPos];
+    }
+    // Version 3 case
+    else {
+        const uint64_t lut_chunk_index = chunk_index / LUT_CHUNK_COUNT;
+
+        // Check if we need to load a different LUT chunk
+        if (lut_chunk_index != *current_lut_chunk) {
+            const uint64_t lutChunkLength = decoder->lut_chunk_length;
+
+            // Calculate how many elements are in this chunk
+            const size_t thisLutChunkElementCount = min(
+                (lut_chunk_index + 1) * LUT_CHUNK_COUNT,
+                decoder->number_of_chunks + 1
+            ) - lut_chunk_index * LUT_CHUNK_COUNT;
+
+            // Calculate byte offset in the index data
+            const uint64_t lutOffset = index_range_lower_bound / LUT_CHUNK_COUNT * lutChunkLength;
+            const uint64_t start = lut_chunk_index * lutChunkLength - lutOffset;
+
+            if (start + lutChunkLength > index_data_size || thisLutChunkElementCount > LUT_CHUNK_COUNT) {
+                (*error) = ERROR_OUT_OF_BOUND_READ;
+                return 0;
+            }
+
+            // Decompress LUT chunk
+            p4nddec64((uint8_t*)index_data + start, thisLutChunkElementCount, uncompressedLut);
+            *current_lut_chunk = lut_chunk_index;
+        }
+
+        return uncompressedLut[chunk_index % LUT_CHUNK_COUNT];
+    }
+}
+
+/// Retrieve a partial LUT as an Int64 array
+OmError_t om_decoder_get_partial_lut(
+    const OmDecoder_t* decoder,
+    const void* index_data,
+    uint64_t index_data_size,
+    uint64_t* lut_out,
+    uint64_t lut_out_size,
+    uint64_t start_chunk_index,
+    uint64_t index_range_lower_bound,
+    uint64_t num_chunks
+) {
+    if (lut_out_size < num_chunks) {
+        return ERROR_OUT_OF_BOUND_READ; // TODO: Better error type
+    }
+
+    // For LUT decompression state
+    uint64_t uncompressedLut[LUT_CHUNK_COUNT] = {0};
+    uint64_t current_lut_chunk = UINT64_MAX;  // Initialize to invalid value to force first load
+    OmError_t error = ERROR_OK;
+
+    for (uint64_t i = 0; i < num_chunks; i++) {
+        uint64_t chunkIndex = start_chunk_index + i;
+        lut_out[i] = om_decoder_get_lut_value(
+            decoder,
+            index_data,
+            index_data_size,
+            chunkIndex,
+            index_range_lower_bound,
+            uncompressedLut,
+            &current_lut_chunk,
+            &error
+        );
+
+        if (error != ERROR_OK) {
+            return error;
+        }
+    }
+
+    return ERROR_OK;
+}
+
+bool om_decoder_next_data_read(
+    const OmDecoder_t *decoder,
+    OmDecoder_dataRead_t* data_read,
+    const void* index_data,
+    uint64_t index_data_size,
+    OmError_t* error
+) {
     if (data_read->nextChunk.lowerBound >= data_read->nextChunk.upperBound) {
         return false;
     }
@@ -505,123 +614,52 @@ bool om_decoder_next_data_read(const OmDecoder_t *decoder, OmDecoder_dataRead_t*
     uint64_t chunkIndex = data_read->nextChunk.lowerBound;
     data_read->chunkIndex.lowerBound = chunkIndex;
 
-    const uint64_t number_of_chunks = decoder->number_of_chunks;
-
-    // Version 1 case
-    if (decoder->lut_chunk_length == 0) {
-        // index is a flat Int64 array
-        const uint64_t* data = (const uint64_t*)index_data;
-
-        const bool isOffset0 = (data_read->indexRange.lowerBound == 0);
-        const uint64_t startOffset = isOffset0 ? 1 : 0;
-
-
-        uint64_t readPos = chunkIndex - data_read->indexRange.lowerBound - startOffset;
-        //printf("chunkIndex %llu lowerBound %llu readPos %llu \n", chunkIndex, data_read->indexRange.lowerBound, readPos);
-        if (!isOffset0 && (readPos + 1) * sizeof(int64_t) > index_data_size) {
-            (*error) = ERROR_OUT_OF_BOUND_READ;
-            return false;
-        }
-
-        const uint64_t startPos = isOffset0 && chunkIndex == 0 ? 0 : data[readPos];
-        uint64_t endPos = startPos;
-
-        // Loop to the next chunk until the end is reached
-        while (true) {
-            readPos = data_read->nextChunk.lowerBound - data_read->indexRange.lowerBound - startOffset + 1;
-            if ((readPos + 1) * sizeof(int64_t) > index_data_size) {
-                (*error) = ERROR_OUT_OF_BOUND_READ;
-                return false;
-            }
-            const uint64_t dataEndPos = data[readPos];
-
-            // Merge and split IO requests, ensuring at least one IO request is sent
-            if (startPos != endPos && (dataEndPos - startPos > decoder->io_size_max || dataEndPos - endPos > decoder->io_size_merge)) {
-                break;
-            }
-            endPos = dataEndPos;
-            chunkIndex = data_read->nextChunk.lowerBound;
-
-            if (data_read->nextChunk.lowerBound + 1 >= data_read->nextChunk.upperBound) {
-                if (!_om_decoder_next_chunk_position(decoder, &data_read->nextChunk)) {
-                    // No next chunk, finish processing the current one and stop
-                    break;
-                }
-            } else {
-                data_read->nextChunk.lowerBound += 1;
-            }
-
-            if (data_read->nextChunk.lowerBound >= data_read->indexRange.upperBound) {
-                data_read->nextChunk.lowerBound = 0;
-                data_read->nextChunk.upperBound = 0;
-                break;
-            }
-        }
-
-        // Old files do not compress LUT and data is after LUT
-        // V1 header size
-        const uint64_t om_header_v1_length = sizeof(OmHeaderV1_t);
-        const uint64_t dataStart = om_header_v1_length + number_of_chunks * sizeof(int64_t);
-
-        data_read->offset = startPos + dataStart;
-        data_read->count = endPos - startPos;
-        data_read->chunkIndex.upperBound = chunkIndex + 1;
-        return true;
-    }
-
-    uint8_t* indexDataPtr = (uint8_t*)index_data;
-
+    // State for LUT access
     uint64_t uncompressedLut[LUT_CHUNK_COUNT] = {0};
+    uint64_t current_lut_chunk = UINT64_MAX;  // Initialize to invalid value to force first load
 
-    // Which LUT chunk is currently loaded into `uncompressedLut`
-    uint64_t lutChunk = chunkIndex / LUT_CHUNK_COUNT;
+    // Get the first chunk's start position
+    uint64_t startPos = om_decoder_get_lut_value(
+        decoder,
+        index_data,
+        index_data_size,
+        chunkIndex,
+        data_read->indexRange.lowerBound,
+        uncompressedLut,
+        &current_lut_chunk,
+        error
+    );
 
-    const uint64_t lutChunkLength = decoder->lut_chunk_length;
-
-    // Offset byte in LUT relative to the index range
-    const uint64_t lutOffset = data_read->indexRange.lowerBound / LUT_CHUNK_COUNT * lutChunkLength;
-
-    // Uncompress the first LUT index chunk and check the length
-    {
-        const size_t thisLutChunkElementCount = min((lutChunk + 1) * LUT_CHUNK_COUNT, number_of_chunks+1) - lutChunk * LUT_CHUNK_COUNT;
-        const uint64_t start = lutChunk * lutChunkLength - lutOffset;
-        if (start + lutChunkLength > index_data_size || thisLutChunkElementCount > LUT_CHUNK_COUNT) {
-            (*error) = ERROR_OUT_OF_BOUND_READ;
-            return false;
-        }
-
-        // Decompress LUT chunk
-        p4nddec64(indexDataPtr + start, thisLutChunkElementCount, uncompressedLut);
+    if (*error != ERROR_OK) {
+        return false;
     }
 
-    // Index data relative to start index
-    const uint64_t startPos = uncompressedLut[chunkIndex % LUT_CHUNK_COUNT];
     uint64_t endPos = startPos;
 
     // Loop to the next chunk until the end is reached
     while (true) {
-        const uint64_t nextLutChunk = (data_read->nextChunk.lowerBound + 1) / LUT_CHUNK_COUNT;
+        // Get the end position for the current chunk
+        uint64_t dataEndPos = om_decoder_get_lut_value(
+            decoder,
+            index_data,
+            index_data_size,
+            data_read->nextChunk.lowerBound + 1,
+            data_read->indexRange.lowerBound,
+            uncompressedLut,
+            &current_lut_chunk,
+            error
+        );
 
-        // Maybe the next LUT chunk needs to be uncompressed
-        if (nextLutChunk != lutChunk) {
-            const size_t nextLutChunkElementCount = min((nextLutChunk + 1) * LUT_CHUNK_COUNT, number_of_chunks+1) - nextLutChunk * LUT_CHUNK_COUNT;
-            const uint64_t start = nextLutChunk * lutChunkLength - lutOffset;
-            if (start + lutChunkLength > index_data_size || nextLutChunkElementCount > LUT_CHUNK_COUNT) {
-                (*error) = ERROR_OUT_OF_BOUND_READ;
-                return false;
-            }
-
-            // Decompress LUT chunk
-            p4nddec64(indexDataPtr + start, nextLutChunkElementCount, uncompressedLut);
-            lutChunk = nextLutChunk;
+        if (*error != ERROR_OK) {
+            return false;
         }
-
-        const uint64_t dataEndPos = uncompressedLut[(data_read->nextChunk.lowerBound + 1) % LUT_CHUNK_COUNT];
 
         // Merge and split IO requests, ensuring at least one IO request is sent
-        if (startPos != endPos && (dataEndPos - startPos > decoder->io_size_max || dataEndPos - endPos > decoder->io_size_merge)) {
+        if (startPos != endPos && (dataEndPos - startPos > decoder->io_size_max ||
+                                  dataEndPos - endPos > decoder->io_size_merge)) {
             break;
         }
+
         endPos = dataEndPos;
         chunkIndex = data_read->nextChunk.lowerBound;
 
@@ -641,7 +679,17 @@ bool om_decoder_next_data_read(const OmDecoder_t *decoder, OmDecoder_dataRead_t*
         }
     }
 
-    data_read->offset = (uint64_t)startPos;
+    // For legacy V1 format, adjust the offset to account for header and LUT
+    if (decoder->lut_chunk_length == 0) {
+        // Old files do not compress LUT and data is after LUT
+        // V1 header size
+        const uint64_t om_header_v1_length = sizeof(OmHeaderV1_t);
+        const uint64_t dataStart = om_header_v1_length + decoder->number_of_chunks * sizeof(int64_t);
+        data_read->offset = startPos + dataStart;
+    } else {
+        data_read->offset = (uint64_t)startPos;
+    }
+
     data_read->count = (uint64_t)endPos - (uint64_t)startPos;
     data_read->chunkIndex.upperBound = chunkIndex + 1;
     return true;
