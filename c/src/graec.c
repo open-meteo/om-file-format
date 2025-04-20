@@ -34,7 +34,7 @@
  * CLI frontend for Adaptive Entropy Coding library
  *
  */
-
+/*
 #include <libaec.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -265,3 +265,4 @@ DESTRUCT:
         free(out);
     return status;
 }
+*/
