@@ -205,7 +205,7 @@ import Foundation
         let fileWriter = OmFileWriter(fn: fn, initialCapacity: 8)
         let dims = Array(referenceData.getDimensions())
         print(dims)
-        let writer = try fileWriter.prepareArray(type: Float.self, dimensions: dims, chunkDimensions: dims, compression: .aec, scale_factor: 20, add_offset: referenceData.scaleFactor)
+        let writer = try fileWriter.prepareArray(type: Float.self, dimensions: dims, chunkDimensions: dims, compression: .aec, scale_factor: referenceData.scaleFactor, add_offset: referenceData.addOffset)
 
         try writer.writeData(array: data)
         let variableMeta = try writer.finalise()
@@ -216,12 +216,19 @@ import Foundation
         let read = try OmFileReader(fn: readFn).asArray(of: Float.self)!
 
         let a1 = try read.read(range: [50..<51, 20..<21])
-        #expect(a1 == [201.0])
+        #expect(a1 == [-16.55])
 
         //let a = try await read.read()
         //#expect(a == data)
 
-        #expect(readFn.count == 580648)
+        #expect(readFn.count == 580288)
+        // om file 684k
+        // rsi 128, block 64 = 580528 w 507 blocks
+        // no delta2d = 580304 -> even slightly better
+        // 32 bit => 589392
+        // 32 bit unsigned => 712424 (AEC_DATA_SIGNED means that data is signed, then libaec does zigzag encoding)
+        // 32 bit signed by add 100K, remove AEC_DATA_SIGNED => 589376
+        // No difference in file size if +100 on values versus AES_DATA_SIGNED
         //let hex = Data(bytesNoCopy: UnsafeMutableRawPointer(mutating: readFn.getData(offset: 0, count: readFn.count)), count: readFn.count, deallocator: .none)
         //XCTAssertEqual(hex, "awfawf")
     }

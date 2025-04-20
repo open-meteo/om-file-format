@@ -157,16 +157,24 @@ ALWAYS_INLINE uint64_t om_encode_compress(
             if (aec_encode_init(&strm) != AEC_OK)
                 return 1;
 
+            /*if (aec_encode_enable_offsets(&strm) != AEC_OK)
+                return 1;*/
+
             /* Perform encoding in one call and flush output. */
             /* In this example you must be sure that the output */
             /* buffer is large enough for all compressed output */
             if (aec_encode(&strm, AEC_FLUSH) != AEC_OK)
                 return 1;
+            
+            /*size_t count_offsets;
+            if (aec_encode_count_offsets(&strm, &count_offsets) != AEC_OK)
+                return 1;
+            printf("count_offsets %zu\n", count_offsets);*/
 
             /* free all resources used by encoder */
-            aec_encode_end(&strm);
             result = strm.total_out;
-            printf("strm.total_out %zu\n", strm.total_out);
+            aec_encode_end(&strm);
+            //printf("strm.total_out %zu\n", strm.total_out);
             break;
         }
     }
@@ -226,8 +234,8 @@ ALWAYS_INLINE void om_encode_filter(
             break;
         case COMPRESSION_AEC:
             // The initializer should have ensured that the data type is float
-            assert(data_type == DATA_TYPE_FLOAT_ARRAY && "Expecting float array");
-            delta2d_encode16((size_t)(length_in_chunk / length_last), (size_t)length_last, (int16_t*)data);
+            //assert(data_type == DATA_TYPE_FLOAT_ARRAY && "Expecting float array");
+            //delta2d_encode16((size_t)(length_in_chunk / length_last), (size_t)length_last, (int16_t*)data);
             break;
     }
 }

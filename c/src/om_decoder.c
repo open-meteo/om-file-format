@@ -225,9 +225,9 @@ ALWAYS_INLINE uint64_t om_decode_decompress(
                 assert(0);
                 return -99;
             }
-            aec_decode_end(&strm);
             result = data_size;
-            printf("decoder strm.total_out %zu\n", strm.total_out);
+            //printf("decoder strm.total_out %zu\n", strm.total_out);
+            aec_decode_end(&strm);
             break;
         }
     }
@@ -284,8 +284,8 @@ ALWAYS_INLINE void om_decode_filter(
         case COMPRESSION_NONE:
             break;
         case COMPRESSION_AEC:
-            assert(data_type == DATA_TYPE_FLOAT_ARRAY && "Expecting float array");
-            delta2d_decode16((size_t)(length_in_chunk / length_last), (size_t)length_last, (int16_t*)data);
+            //assert(data_type == DATA_TYPE_FLOAT_ARRAY && "Expecting float array");
+            //delta2d_decode16((size_t)(length_in_chunk / length_last), (size_t)length_last, (int16_t*)data);
             break;
     }
 }
