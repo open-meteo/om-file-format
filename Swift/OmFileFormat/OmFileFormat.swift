@@ -65,6 +65,8 @@ public enum CompressionType: UInt8, Codable {
 
     ///  Similar to `pfor_delta2d_int16` but applies `log10(1+x)` before
     case pfor_delta2d_int16_logarithmic = 3
+    
+    case aec = 5
 
     func toC() -> OmCompression_t {
         switch self {
@@ -76,6 +78,8 @@ public enum CompressionType: UInt8, Codable {
             return COMPRESSION_PFOR_DELTA2D
         case .pfor_delta2d_int16_logarithmic:
             return COMPRESSION_PFOR_DELTA2D_INT16_LOGARITHMIC
+        case .aec:
+            return COMPRESSION_AEC
         }
     }
 }

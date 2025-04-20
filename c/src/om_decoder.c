@@ -11,6 +11,7 @@
 #include "conf.h"
 #include "delta2d.h"
 #include "om_decoder.h"
+#include "libaec.h"
 
 #pragma clang diagnostic error "-Wswitch"
 
@@ -133,6 +134,7 @@ ALWAYS_INLINE uint64_t om_decode_decompress(
     OmDataType_t data_type,
     OmCompression_t compression_type,
     const void* input,
+    uint64_t data_size,
     uint64_t count,
     void* output
 ) {
@@ -203,6 +205,31 @@ ALWAYS_INLINE uint64_t om_decode_decompress(
 
         case COMPRESSION_NONE:
             break;
+        case COMPRESSION_AEC: {
+            struct aec_stream strm;
+            strm.bits_per_sample = 16;
+            strm.block_size = 16;
+            strm.rsi = 128;
+            strm.flags = AEC_DATA_SIGNED | AEC_DATA_PREPROCESS;
+            strm.next_in = (unsigned char*)input;
+            strm.avail_in = data_size; //count * sizeof(int16_t);
+            strm.next_out = (unsigned char *)output;
+            strm.avail_out = 9999999 * sizeof(int16_t);
+            if (aec_decode_init(&strm) != AEC_OK) {
+                printf("aec init failed \n");
+                assert(0);
+                return -99;
+            }
+            if (aec_decode(&strm, AEC_FLUSH) != AEC_OK) {
+                printf("aec decode failed \n");
+                assert(0);
+                return -99;
+            }
+            aec_decode_end(&strm);
+            result = data_size;
+            printf("decoder strm.total_out %zu\n", strm.total_out);
+            break;
+        }
     }
 
     return result;
@@ -255,6 +282,10 @@ ALWAYS_INLINE void om_decode_filter(
             break;
 
         case COMPRESSION_NONE:
+            break;
+        case COMPRESSION_AEC:
+            assert(data_type == DATA_TYPE_FLOAT_ARRAY && "Expecting float array");
+            delta2d_decode16((size_t)(length_in_chunk / length_last), (size_t)length_last, (int16_t*)data);
             break;
     }
 }
@@ -317,6 +348,10 @@ ALWAYS_INLINE void om_decode_copy(
             }
             break;
         case COMPRESSION_NONE:
+            break;
+        case COMPRESSION_AEC:
+            assert(data_type == DATA_TYPE_FLOAT_ARRAY && "Expecting float array");
+            om_common_copy_int16_to_float(count, scale_factor, add_offset, input, output);
             break;
     }
 }
@@ -652,6 +687,7 @@ uint64_t _om_decoder_decode_chunk(
     const OmDecoder_t *decoder,
     uint64_t chunkIndex,
     const void *data,
+    uint64_t data_size,
     void *into,
     void *chunk_buffer
 ) {
@@ -731,6 +767,7 @@ uint64_t _om_decoder_decode_chunk(
         decoder->data_type,
         decoder->compression,
         data,
+                                                            data_size,
         lengthInChunk,
         chunk_buffer
     );
@@ -832,7 +869,7 @@ bool om_decoder_decode_chunks(const OmDecoder_t *decoder, OmRange_t chunk, const
         if (*error != ERROR_OK) {
             return false;
         }
-        uint64_t uncompressedBytes = _om_decoder_decode_chunk(decoder, chunkNum, (const uint8_t *)data + pos, into, chunkBuffer);
+        uint64_t uncompressedBytes = _om_decoder_decode_chunk(decoder, chunkNum, (const uint8_t *)data + pos, data_size, into, chunkBuffer);
         pos += uncompressedBytes;
     }
     // printf("%lu %lu \n", pos, data_size);

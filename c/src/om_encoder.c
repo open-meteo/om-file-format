@@ -11,6 +11,7 @@
 #include "fp.h"
 #include "delta2d.h"
 #include "conf.h"
+#include "libaec.h"
 
 #pragma clang diagnostic error "-Wswitch"
 
@@ -125,6 +126,49 @@ ALWAYS_INLINE uint64_t om_encode_compress(
 
         case COMPRESSION_NONE:
             break;
+        case COMPRESSION_AEC: {
+            struct aec_stream strm;
+
+            /* input data is 16 bits wide */
+            strm.bits_per_sample = 16;
+
+            /* define a block size of 16 */
+            strm.block_size = 16;
+
+            /* the reference sample interval is set to 128 blocks */
+            strm.rsi = 128;
+
+            /* input data is signed and needs to be preprocessed */
+            strm.flags = AEC_DATA_SIGNED | AEC_DATA_PREPROCESS;
+
+            /* pointer to input */
+            strm.next_in = (unsigned char *)input;
+
+            /* length of input in bytes */
+            strm.avail_in = count * sizeof(int16_t);
+
+            /* pointer to output buffer */
+            strm.next_out = (unsigned char*)output;
+
+            /* length of output buffer in bytes */
+            strm.avail_out = 99999999;
+
+            /* initialize encoding */
+            if (aec_encode_init(&strm) != AEC_OK)
+                return 1;
+
+            /* Perform encoding in one call and flush output. */
+            /* In this example you must be sure that the output */
+            /* buffer is large enough for all compressed output */
+            if (aec_encode(&strm, AEC_FLUSH) != AEC_OK)
+                return 1;
+
+            /* free all resources used by encoder */
+            aec_encode_end(&strm);
+            result = strm.total_out;
+            printf("strm.total_out %zu\n", strm.total_out);
+            break;
+        }
     }
 
     return result;
@@ -179,6 +223,11 @@ ALWAYS_INLINE void om_encode_filter(
             }
             break;
         case COMPRESSION_NONE:
+            break;
+        case COMPRESSION_AEC:
+            // The initializer should have ensured that the data type is float
+            assert(data_type == DATA_TYPE_FLOAT_ARRAY && "Expecting float array");
+            delta2d_encode16((size_t)(length_in_chunk / length_last), (size_t)length_last, (int16_t*)data);
             break;
     }
 }
@@ -242,6 +291,10 @@ ALWAYS_INLINE void om_encode_copy(
             break;
 
         case COMPRESSION_NONE:
+            break;
+        case COMPRESSION_AEC:
+            assert(data_type == DATA_TYPE_FLOAT_ARRAY && "Expecting float array");
+            om_common_copy_float_to_int16(count, scale_factor, add_offset, input, output);
             break;
     }
 }

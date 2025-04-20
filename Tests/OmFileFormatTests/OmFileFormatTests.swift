@@ -165,6 +165,66 @@ import Foundation
         let a = try read.read(range: [0..<1, 0..<UInt64(data.count)])
         #expect(a == data)
     }
+    
+    @Test func aec() throws {
+        let inMemoryBackend = DataAsClass(data: Data())
+        let fileWriter = OmFileWriter(fn: inMemoryBackend, initialCapacity: 8)
+
+        let data: [Float] = [0.0, 5.0, 2.0, 3.0, 2.0, 5.0, 6.0, 2.0, 8.0, 3.0, 10.0, 14.0, 12.0, 15.0, 14.0, 15.0, 66.0, 17.0, 12.0, 19.0, 20.0, 21.0, 22.0, 23.0, 24.0]
+
+        let writer = try fileWriter.prepareArray(
+            type: Float.self,
+            dimensions: [1,UInt64(data.count)],
+            chunkDimensions: [1,UInt64(data.count)],
+            compression: .aec,
+            scale_factor: 1,
+            add_offset: 0
+        )
+
+        try writer.writeData(array: data)
+        let variableMeta = try writer.finalise()
+        let variable = try fileWriter.write(array: variableMeta, name: "data", children: [])
+        try fileWriter.writeTrailer(rootVariable: variable)
+
+        #expect(inMemoryBackend.count == 136)
+        let read = try OmFileReader(fn: inMemoryBackend).asArray(of: Float.self)!
+        let a = try read.read(range: [0..<1, 0..<UInt64(data.count)])
+        #expect(a == data)
+    }
+    
+    @Test func writeLargeAec() async throws {
+        let referenceFile = "/Volumes/2TB_1GBs/data/download-ecmwf_ifs025/temperature_2m_2025041700.om"
+        let referenceFn = try MmapFile(fn: FileHandle.openFileReading(file: referenceFile))
+        let referenceData = try OmFileReader(fn: referenceFn).asArray(of: Float.self)!
+        let data = try referenceData.read()
+        
+        let file = "writeLarge.om"
+        let fn = try FileHandle.createNewFile(file: file, overwrite: true)
+        defer { try? FileManager.default.removeItem(atPath: file) }
+
+        let fileWriter = OmFileWriter(fn: fn, initialCapacity: 8)
+        let dims = Array(referenceData.getDimensions())
+        print(dims)
+        let writer = try fileWriter.prepareArray(type: Float.self, dimensions: dims, chunkDimensions: dims, compression: .aec, scale_factor: 20, add_offset: referenceData.scaleFactor)
+
+        try writer.writeData(array: data)
+        let variableMeta = try writer.finalise()
+        let variable = try fileWriter.write(array: variableMeta, name: "data", children: [])
+        try fileWriter.writeTrailer(rootVariable: variable)
+
+        let readFn = try MmapFile(fn: FileHandle.openFileReading(file: file))
+        let read = try OmFileReader(fn: readFn).asArray(of: Float.self)!
+
+        let a1 = try read.read(range: [50..<51, 20..<21])
+        #expect(a1 == [201.0])
+
+        //let a = try await read.read()
+        //#expect(a == data)
+
+        #expect(readFn.count == 580648)
+        //let hex = Data(bytesNoCopy: UnsafeMutableRawPointer(mutating: readFn.getData(offset: 0, count: readFn.count)), count: readFn.count, deallocator: .none)
+        //XCTAssertEqual(hex, "awfawf")
+    }
 
     /// Make sure the last chunk has the correct number of chunks
     /*@Test func writeMoreDataThenExpected() throws {

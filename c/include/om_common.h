@@ -66,7 +66,8 @@ typedef enum {
     COMPRESSION_FPX_XOR2D = 1, // Lossless float/double compression using 2D xor coding.
     COMPRESSION_PFOR_DELTA2D = 2, // PFor integer compression. Floating point values are scaled to 32 bit signed integers. Doubles are scaled to 64 bit signed integers.
     COMPRESSION_PFOR_DELTA2D_INT16_LOGARITHMIC = 3, // Similar to `COMPRESSION_PFOR_DELTA2D_INT16` but applies `log10(1+x)` before.
-    COMPRESSION_NONE = 4
+    COMPRESSION_NONE = 4,
+    COMPRESSION_AEC = 5
 } OmCompression_t;
 
 /// Get the number of bytes per element.

@@ -105,6 +105,13 @@ uint8_t om_get_bytes_per_element_compressed(OmDataType_t data_type, OmCompressio
             return om_get_bytes_per_element(data_type, error);
         case COMPRESSION_PFOR_DELTA2D:
             return om_get_bytes_per_element(data_type, error);
+            
+        case COMPRESSION_AEC:
+            if (data_type != DATA_TYPE_FLOAT_ARRAY) {
+                *error = ERROR_INVALID_DATA_TYPE;
+                break;
+            }
+            return 2;
 
         default:
             *error = ERROR_INVALID_COMPRESSION_TYPE;

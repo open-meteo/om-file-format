@@ -16,7 +16,7 @@ let swiftFlags: [PackageDescription.SwiftSetting] = [
 
 // Note: Fast math flags reduce performance for compression
 let cFlagsPFor2D = [PackageDescription.CSetting.unsafeFlags(["-O3"] + mArch)]
-let cFlagsPFor = [PackageDescription.CSetting.unsafeFlags(["-O3", "-Wall", "-Werror", "-Wimplicit-fallthrough", "-Wextra"] + mArch)]
+let cFlagsPFor = [PackageDescription.CSetting.unsafeFlags(["-O3"] + mArch)]
 
 
 let package = Package(
