@@ -456,23 +456,25 @@ bool om_decoder_next_index_read(const OmDecoder_t* decoder, OmDecoder_indexRead_
 
     const uint64_t readStart = (index_read->nextChunk.lowerBound - alignOffset) / lut_chunk_element_count * lut_chunk_length;
 
-    while (1) {
+    while (true) {
         const uint64_t maxRead = io_size_max / lut_chunk_length * lut_chunk_element_count;
         const uint64_t nextChunkCount = index_read->nextChunk.upperBound - index_read->nextChunk.lowerBound;
-        const uint64_t nextIncrement = max(1, min(maxRead-1, nextChunkCount - 1));
+        const uint64_t nextIncrement = max(1, min(maxRead - 1, nextChunkCount - 1));
 
         if (index_read->nextChunk.lowerBound + nextIncrement >= index_read->nextChunk.upperBound) {
             if (!_om_decoder_next_chunk_position(decoder, &index_read->nextChunk)) {
                 break;
             }
-            const uint64_t readEndNext = (index_read->nextChunk.lowerBound + endAlignOffset) / lut_chunk_element_count * lut_chunk_length;
+            const uint64_t readEndNext = divide_rounded_up(index_read->nextChunk.lowerBound + endAlignOffset, lut_chunk_element_count) * lut_chunk_length;
             const uint64_t readStartNext = readEndNext - lut_chunk_length;
             const uint64_t readEndPrevious = chunkIndex / lut_chunk_element_count * lut_chunk_length;
+            printf("readEndNext: %lu, readStartNext: %lu, readEndPrevious: %lu, lut_chunk_length: %lu\n", readEndNext, readStartNext, readEndPrevious, lut_chunk_length);
 
             if (readEndNext - readStart > io_size_max) {
                 break;
             }
             if (readStartNext - readEndPrevious > decoder->io_size_merge) {
+                printf("breaking due to exceeding io_size_merge\n");
                 break;
             }
         } else {
