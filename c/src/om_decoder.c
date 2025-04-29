@@ -468,13 +468,11 @@ bool om_decoder_next_index_read(const OmDecoder_t* decoder, OmDecoder_indexRead_
             const uint64_t readEndNext = divide_rounded_up(index_read->nextChunk.lowerBound + endAlignOffset, lut_chunk_element_count) * lut_chunk_length;
             const uint64_t readStartNext = readEndNext - lut_chunk_length;
             const uint64_t readEndPrevious = chunkIndex / lut_chunk_element_count * lut_chunk_length;
-            printf("readEndNext: %lu, readStartNext: %lu, readEndPrevious: %lu, lut_chunk_length: %lu\n", readEndNext, readStartNext, readEndPrevious, lut_chunk_length);
 
             if (readEndNext - readStart > io_size_max) {
                 break;
             }
             if (readStartNext - readEndPrevious > decoder->io_size_merge) {
-                printf("breaking due to exceeding io_size_merge\n");
                 break;
             }
         } else {
