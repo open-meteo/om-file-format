@@ -1,4 +1,4 @@
-@_implementationOnly import OmFileFormatC
+import OmFileFormatC
 import Foundation
 
 

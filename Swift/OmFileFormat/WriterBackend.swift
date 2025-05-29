@@ -7,7 +7,7 @@ public protocol OmFileWriterBackend {
 }
 
 /// Need to maintain a strong reference
-public final class DataAsClass {
+public final class DataAsClass: @unchecked Sendable {
     public var data: Data
 
     public init(data: Data) {

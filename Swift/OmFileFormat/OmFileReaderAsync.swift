@@ -1,41 +1,45 @@
 import Foundation
-@_implementationOnly import OmFileFormatC
+import OmFileFormatC
 
 /// High level implementation to read an OpenMeteo file
 /// Decodes meta data which may include JSON
 /// Handles actual file reads. The current implementation just uses MMAP or plain memory.
 /// Later implementations may use async read operations
-public struct OmFileReaderAsync<Backend: OmFileReaderBackendAsync> {
+public struct OmFileReaderAsync<Backend: OmFileReaderBackendAsync>: Sendable {
     /// Points to the underlying memory. Needs to remain in scope to keep memory accessible
     public let fn: Backend
 
     /// Underlaying memory for the variable. Could just be a pointer or a reference counted allocated memory region
-    let variable: Backend.DataType
+    let variable: Data
 
     /// Open a file and decode om file meta data. In this case  fn is typically mmap or just plain memory
     public init(fn: Backend) async throws {
         self.fn = fn
 
         let headerSize = om_header_size()
-        let headerData = try await fn.getData(offset: 0, count: headerSize)
-        let headerType = headerData.withUnsafeBytes {
-            om_header_type($0.baseAddress)
+        let headerType = try await fn.withData(offset: 0, count: headerSize) {
+            om_header_type($0)
         }
 
         switch headerType {
         case OM_HEADER_LEGACY:
-            self.variable = headerData
+            self.variable = try await fn.withData(offset: 0, count: headerSize) {
+                Data(bytes: $0, count: headerSize)
+            }
         case OM_HEADER_READ_TRAILER:
             let fileSize = try await fn.getCount()
             let trailerSize = om_trailer_size()
-            let trailerData = try await fn.getData(offset: Int(fileSize) - trailerSize, count: trailerSize)
             var offset: UInt64 = 0
             var size: UInt64 = 0
-            guard trailerData.withUnsafeBytes({om_trailer_read($0.baseAddress, &offset, &size)}) else {
-                throw OmFileFormatSwiftError.notAnOpenMeteoFile
+            try await fn.withData(offset: Int(fileSize) - trailerSize, count: trailerSize) { trailerData in
+                guard om_trailer_read(trailerData, &offset, &size) else {
+                    throw OmFileFormatSwiftError.notAnOpenMeteoFile
+                }
             }
             /// Read data from root.offset by root.size. Important: data must remain accessible throughout the use of this variable!!
-            let dataVariable = try await fn.getData(offset: Int(offset), count: Int(size))
+            let dataVariable = try await fn.withData(offset: Int(offset), count: Int(size)) {
+                Data(bytes: $0, count: Int(size))
+            }
             self.variable = dataVariable
         case OM_HEADER_INVALID:
             fallthrough
@@ -44,15 +48,15 @@ public struct OmFileReaderAsync<Backend: OmFileReaderBackendAsync> {
         }
     }
 
-    init(fn: Backend, variable: Backend.DataType) {
+    init(fn: Backend, variable: Data) {
         self.fn = fn
         self.variable = variable
     }
 
     public func isLegacyFormat() async throws -> Bool {
-        return try await fn.getData(offset: 0, count: om_header_size()).withUnsafeBytes({
-            return om_header_type($0.baseAddress) == OM_HEADER_LEGACY
-        })
+        return try await fn.withData(offset: 0, count: om_header_size()) {
+            return om_header_type($0) == OM_HEADER_LEGACY
+        }
     }
 
     public var dataType: DataType {
@@ -91,7 +95,9 @@ public struct OmFileReaderAsync<Backend: OmFileReaderBackendAsync> {
             return nil
         }
         /// Read data from child.offset by child.size
-        let dataChild = try await fn.getData(offset: Int(offset), count: Int(size))
+        let dataChild = try await fn.withData(offset: Int(offset), count: Int(size)) {
+            Data(bytes: $0, count: Int(size))
+        }
         return OmFileReaderAsync(fn: fn, variable: dataChild)
     }
 
@@ -132,7 +138,7 @@ public struct OmFileReaderAsyncArray<Backend: OmFileReaderBackendAsync, OmType: 
     /// Points to the underlying memory. Needs to remain in scope to keep memory accessible
     public let fn: Backend
 
-    let variable: Backend.DataType
+    let variable: Data
 
     let io_size_max: UInt64
 
@@ -379,27 +385,26 @@ extension OmFileReaderBackendAsync {
 
         /// Loop over index blocks and read index data
         while om_decoder_next_index_read(decoder, &indexRead) {
+            var indexRead = indexRead
             //print("Read index \(indexRead)")
-            let indexData = try await self.getData(offset: Int(indexRead.offset), count: Int(indexRead.count))
-
-            var dataRead = OmDecoder_dataRead_t()
-            om_decoder_init_data_read(&dataRead, &indexRead)
-
-            var error: OmError_t = ERROR_OK
+            try await self.withData(offset: Int(indexRead.offset), count: Int(indexRead.count)) { indexData in
+                var dataRead = OmDecoder_dataRead_t()
+                om_decoder_init_data_read(&dataRead, &indexRead)
+                var error: OmError_t = ERROR_OK
                 /// Loop over data blocks and read compressed data chunks
-            while indexData.withUnsafeBytes({ om_decoder_next_data_read(decoder, &dataRead, $0.baseAddress, indexRead.count, &error) }) {
-                //print("Read data \(dataRead) for chunk index \(dataRead.chunkIndex)")
-                let dataData = try await self.getData(offset: Int(dataRead.offset), count: Int(dataRead.count))
-                try dataData.withUnsafeBytes({ dataData in
-                    try withUnsafeTemporaryAllocation(byteCount: Int(bufferSize), alignment: 1) { buffer in
-                        guard om_decoder_decode_chunks(decoder, dataRead.chunkIndex, dataData.baseAddress, dataRead.count, into, buffer.baseAddress, &error) else {
-                            throw OmFileFormatSwiftError.omDecoder(error: String(cString: om_error_string(error)))
+                while om_decoder_next_data_read(decoder, &dataRead, indexData, indexRead.count, &error){
+                    //print("Read data \(dataRead) for chunk index \(dataRead.chunkIndex)")
+                    try await self.withData(offset: Int(dataRead.offset), count: Int(dataRead.count)) { dataData in
+                        try withUnsafeTemporaryAllocation(byteCount: Int(bufferSize), alignment: 1) { buffer in
+                            guard om_decoder_decode_chunks(decoder, dataRead.chunkIndex, dataData, dataRead.count, into, buffer.baseAddress, &error) else {
+                                throw OmFileFormatSwiftError.omDecoder(error: String(cString: om_error_string(error)))
+                            }
                         }
                     }
-                })
-            }
-            guard error == ERROR_OK else {
-                throw OmFileFormatSwiftError.omDecoder(error: String(cString: om_error_string(error)))
+                }
+                guard error == ERROR_OK else {
+                    throw OmFileFormatSwiftError.omDecoder(error: String(cString: om_error_string(error)))
+                }
             }
         }
     }
@@ -418,35 +423,34 @@ extension OmFileReaderBackendAsync {
             /// Loop over index blocks and read index data
             while om_decoder_next_index_read(decoder, &indexRead) {
                 //print("Read index \(indexRead)")
-                let indexData = try await self.getData(offset: Int(indexRead.offset), count: Int(indexRead.count))
-
-                var dataRead = OmDecoder_dataRead_t()
-                om_decoder_init_data_read(&dataRead, &indexRead)
-
-                var error: OmError_t = ERROR_OK
-                indexData.withUnsafeBytes({ indexData in
+                try await self.withData(offset: Int(indexRead.offset), count: Int(indexRead.count)) { indexData in
+                    
+                    var dataRead = OmDecoder_dataRead_t()
+                    om_decoder_init_data_read(&dataRead, &indexRead)
+                    
+                    var error: OmError_t = ERROR_OK
                     /// Loop over data blocks and read compressed data chunks
-                    while om_decoder_next_data_read(decoder, &dataRead, indexData.baseAddress, indexRead.count, &error) {
+                    while om_decoder_next_data_read(decoder, &dataRead, indexData, indexRead.count, &error) {
                         //print("ENQUEUE chunk index \(dataRead.chunkIndex)")
                         let dataReadOffset = dataRead.offset
                         let dataReadCount = dataRead.count
                         let chunkIndex = dataRead.chunkIndex
                         group.addTask {
                             //print("Read data chunk index \(chunkIndex), count=\(dataReadCount)")
-                            let dataData = try await self.getData(offset: Int(dataReadOffset), count: Int(dataReadCount))
-                            try withUnsafeTemporaryAllocation(byteCount: Int(bufferSize), alignment: 8) { buffer in
-                                try dataData.withUnsafeBytes({ dataData in
+                            print(dataReadOffset, dataReadCount)
+                            try await self.withData(offset: Int(dataReadOffset), count: Int(dataReadCount)) { dataData in
+                                try withUnsafeTemporaryAllocation(byteCount: Int(bufferSize), alignment: 8) { buffer in
                                     var error: OmError_t = ERROR_OK
-                                    guard om_decoder_decode_chunks(decoder, chunkIndex, dataData.baseAddress, dataReadCount, into, buffer.baseAddress, &error) else {
+                                    guard om_decoder_decode_chunks(decoder, chunkIndex, dataData, dataReadCount, into, buffer.baseAddress, &error) else {
                                         throw OmFileFormatSwiftError.omDecoder(error: String(cString: om_error_string(error)))
                                     }
-                                })
+                                }
                             }
                         }
                     }
-                })
-                guard error == ERROR_OK else {
-                    throw OmFileFormatSwiftError.omDecoder(error: String(cString: om_error_string(error)))
+                    guard error == ERROR_OK else {
+                        throw OmFileFormatSwiftError.omDecoder(error: String(cString: om_error_string(error)))
+                    }
                 }
             }
             try await group.waitForAll()
@@ -475,3 +479,12 @@ extension OmFileReaderBackendAsync {
         }
     }*/
 }
+
+extension UnsafeMutableRawPointer: @unchecked @retroactive Sendable {
+    
+}
+
+extension UnsafePointer: @unchecked @retroactive Sendable {
+    
+}
+

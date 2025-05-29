@@ -1,7 +1,7 @@
 import Foundation
 
 /// `Mmap` all pages for a file
-public final class MmapFile {
+public final class MmapFile: @unchecked Sendable {
     public let data: UnsafeBufferPointer<UInt8>
     public let file: FileHandle
 

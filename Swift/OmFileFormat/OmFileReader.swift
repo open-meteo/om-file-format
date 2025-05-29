@@ -6,7 +6,7 @@
 //
 
 import Foundation
-@_implementationOnly import OmFileFormatC
+import OmFileFormatC
 
 /// High level implementation to read an OpenMeteo file
 /// Decodes meta data which may include JSON
@@ -391,6 +391,7 @@ extension OmFileReaderBackend {
                     group.addTask {
                         try withUnsafeTemporaryAllocation(byteCount: Int(bufferSize), alignment: 1) { buffer in
                             //print("Read data chunk index \(chunkIndex), count=\(dataReadCount)")
+                            var error: OmError_t = ERROR_OK
                             let dataData = self.getData(offset: Int(dataReadOffset), count: Int(dataReadCount))
                             guard om_decoder_decode_chunks(decoder, chunkIndex, dataData, dataReadCount, into, buffer.baseAddress, &error) else {
                                 throw OmFileFormatSwiftError.omDecoder(error: String(cString: om_error_string(error)))

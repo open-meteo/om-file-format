@@ -1,7 +1,7 @@
 import Testing
 import Foundation
 @testable import OmFileFormat
-@_implementationOnly import OmFileFormatC
+import OmFileFormatC
 
 @Suite struct OmFileFormatTests {
     @Test func headerAndTrailer() {

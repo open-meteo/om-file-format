@@ -6,7 +6,7 @@
 //
 
 import Foundation
-@_implementationOnly import OmFileFormatC
+import OmFileFormatC
 
 
 /// Writes om file header and trailer
