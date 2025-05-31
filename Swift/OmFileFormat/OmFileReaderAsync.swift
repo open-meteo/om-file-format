@@ -129,7 +129,7 @@ public struct OmFileReaderAsync<Backend: OmFileReaderBackendAsync>: Sendable {
 
 /// Represents a variable that is an array of a given type.
 /// The previous function `asArray(of: T)` instantiates this struct and ensures it is the correct type (e.g. a float array)
-public struct OmFileReaderAsyncArray<Backend: OmFileReaderBackendAsync, OmType: OmFileArrayDataTypeProtocol> {
+public struct OmFileReaderAsyncArray<Backend: OmFileReaderBackendAsync, OmType: OmFileArrayDataTypeProtocol>: Sendable {
     /// Points to the underlying memory. Needs to remain in scope to keep memory accessible
     public let fn: Backend
 

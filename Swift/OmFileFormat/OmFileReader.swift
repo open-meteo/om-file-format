@@ -5,7 +5,7 @@ import OmFileFormatC
 /// Decodes meta data which may include JSON
 /// Handles actual file reads. The current implementation just uses MMAP or plain memory.
 /// Later implementations may use async read operations
-public struct OmFileReader<Backend: OmFileReaderBackend> {
+public struct OmFileReader<Backend: OmFileReaderBackend>: Sendable {
     /// Points to the underlying memory. Needs to remain in scope to keep memory accessible
     public let fn: Backend
 
@@ -118,7 +118,7 @@ extension OmFileReader where Backend == MmapFile {
 
 /// Represents a variable that is an array of a given type.
 /// The previous function `asArray(of: T)` instantiates this struct and ensures it is the correct type (e.g. a float array)
-public struct OmFileReaderArray<Backend: OmFileReaderBackend, OmType: OmFileArrayDataTypeProtocol> {
+public struct OmFileReaderArray<Backend: OmFileReaderBackend, OmType: OmFileArrayDataTypeProtocol>: Sendable {
     /// Points to the underlying memory. Needs to remain in scope to keep memory accessible
     public let fn: Backend
 
