@@ -28,8 +28,5 @@ extension DataAsClass: OmFileWriterBackend {
 
 /// Make `FileHandle` work as writer
 extension FileHandle: OmFileWriterBackend {
-    public func write<T>(contentsOf data: T, atOffset: Int) throws where T : DataProtocol {
-        try seek(toOffset: UInt64(atOffset))
-        try write(contentsOf: data)
-    }
+    
 }

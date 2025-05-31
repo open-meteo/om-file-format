@@ -1,10 +1,3 @@
-//
-//  OmFileDataTypeProtocol.swift
-//  OpenMeteoApi
-//
-//  Created by Patrick Zippenfenig on 30.10.2024.
-//
-
 /// Allowed data types for reading and writing
 public protocol OmFileArrayDataTypeProtocol {
     static var dataTypeArray: DataType { get }

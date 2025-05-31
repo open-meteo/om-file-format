@@ -77,6 +77,14 @@ extension MmapFile: OmFileReaderBackendAsync {
     
     public func getData(offset: Int, count: Int) -> UnsafeRawBufferPointer {
         assert(offset + count <= data.count)
-        return UnsafeRawBufferPointer(data)
+        return UnsafeRawBufferPointer(start: data.baseAddress?.advanced(by: offset), count: count)
+    }
+}
+
+extension OmFileReaderAsync where Backend == MmapFile {
+    public init(mmapFile: String) async throws {
+        let fn = try FileHandle.openFileReading(file: mmapFile)
+        let mmap = try MmapFile(fn: fn)
+        try await self.init(fn: mmap)
     }
 }

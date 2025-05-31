@@ -1,10 +1,3 @@
-//
-//  OmFileReader2.swift
-//  OpenMeteoApi
-//
-//  Created by Patrick Zippenfenig on 19.10.2024.
-//
-
 import Foundation
 import OmFileFormatC
 

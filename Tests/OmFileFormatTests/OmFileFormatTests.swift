@@ -228,8 +228,9 @@ import OmFileFormatC
         let variable = try fileWriter.write(array: variableMeta, name: "data", children: [])
         try fileWriter.writeTrailer(rootVariable: variable)
 
-        let readFn = try FileHandleWithCount(try FileHandle.openFileReading(file: file))
-        let read = try await OmFileReaderAsync(fn: readFn).asArray(of: Float.self)!
+        /// Note: The mmap and file backends do not use asynchronous IO
+        let read = try await OmFileReaderAsync(file: file).asArray(of: Float.self)!
+        // let read = try await OmFileReaderAsync(mmapFile: file).asArray(of: Float.self)!
 
         let a1 = try await read.read(range: [50..<51, 20..<21, 1..<2])
         #expect(a1 == [201.0])
@@ -237,7 +238,7 @@ import OmFileFormatC
         let a = try await read.readConcurrent(range: [0..<100, 0..<100, 0..<10])
         #expect(a == data)
 
-        #expect(try await readFn.count == 154176)
+        #expect(try await read.fn.count == 154176)
         //let hex = Data(bytesNoCopy: UnsafeMutableRawPointer(mutating: readFn.getData(offset: 0, count: readFn.count)), count: readFn.count, deallocator: .none)
         //XCTAssertEqual(hex, "awfawf")
     }

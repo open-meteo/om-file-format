@@ -44,3 +44,11 @@ extension FileHandleWithCount: OmFileReaderBackendAsync {
         return try await fn(UnsafeRawPointer(data))
     }
 }
+
+extension OmFileReaderAsync where Backend == FileHandleWithCount {
+    public init(file: String) async throws {
+        let fn = try FileHandle.openFileReading(file: file)
+        let mmap = try FileHandleWithCount(fn)
+        try await self.init(fn: mmap)
+    }
+}
