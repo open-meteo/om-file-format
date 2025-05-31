@@ -29,7 +29,7 @@ public struct OmFileReaderAsync<Backend: OmFileReaderBackendAsync>: Sendable {
             let trailerSize = om_trailer_size()
             var offset: UInt64 = 0
             var size: UInt64 = 0
-            try await fn.withData(offset: Int(fileSize) - trailerSize, count: trailerSize) { trailerData in
+            try await fn.withData(offset: fileSize - trailerSize, count: trailerSize) { trailerData in
                 guard om_trailer_read(trailerData, &offset, &size) else {
                     throw OmFileFormatSwiftError.notAnOpenMeteoFile
                 }
@@ -472,13 +472,5 @@ extension OmFileReaderBackendAsync {
             })
         }
     }*/
-}
-
-extension UnsafeMutableRawPointer: @unchecked @retroactive Sendable {
-    
-}
-
-extension UnsafePointer: @unchecked @retroactive Sendable {
-    
 }
 

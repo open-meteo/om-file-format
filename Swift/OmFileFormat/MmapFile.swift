@@ -1,7 +1,7 @@
 import Foundation
 
 /// `Mmap` all pages for a file
-public final class MmapFile: @unchecked Sendable {
+public final class MmapFile: Sendable {
     public let data: UnsafeBufferPointer<UInt8>
     public let file: FileHandle
 
@@ -66,5 +66,17 @@ public final class MmapFile: @unchecked Sendable {
         guard munmap(UnsafeMutableRawPointer(mutating: data.baseAddress!), len) == 0 else {
             fatalError("munmap failed")
         }
+    }
+}
+
+extension MmapFile: OmFileReaderBackendAsync {
+    public func withData<T>(offset: Int, count: Int, fn: (UnsafeRawPointer) async throws -> T) async throws -> T {
+        assert(offset + count <= data.count)
+        return try await fn(UnsafeRawPointer(data.baseAddress!.advanced(by: offset)))
+    }
+    
+    public func getData(offset: Int, count: Int) -> UnsafeRawBufferPointer {
+        assert(offset + count <= data.count)
+        return UnsafeRawBufferPointer(data)
     }
 }
