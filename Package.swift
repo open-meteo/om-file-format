@@ -1,6 +1,7 @@
 // swift-tools-version: 6.0
 
 import PackageDescription
+import Foundation
 
 #if arch(x86_64)
 // Docker and Ubuntu release system uses `march=skylake`
