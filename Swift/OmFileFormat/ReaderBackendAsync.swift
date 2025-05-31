@@ -11,9 +11,9 @@ public protocol OmFileReaderBackendAsync: Sendable {
     /// Prefect data for future access. E.g. madvice on memory mapped files
     func prefetchData(offset: Int, count: Int) async throws
     
-    /// Read data. Data will be retined of type `DataType`. Reads must be thread safe.
+    /// Read data. Data will be retained of type `DataType`. Reads must be thread safe.
     func getData(offset: Int, count: Int) async throws -> DataType
     
-    /// Read data. Data is only temporarily read inside the callback
-    func withData<T>(offset: Int, count: Int, fn: (UnsafeRawPointer) async throws -> T) async throws -> T
+    /// Read data. Data is only temporarily read inside the callback without async
+    func withData<T>(offset: Int, count: Int, fn: (UnsafeRawBufferPointer) throws -> T) async throws -> T
 }

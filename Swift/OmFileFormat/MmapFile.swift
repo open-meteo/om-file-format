@@ -70,14 +70,16 @@ public final class MmapFile: Sendable {
 }
 
 extension MmapFile: OmFileReaderBackendAsync {
-    public func withData<T>(offset: Int, count: Int, fn: (UnsafeRawPointer) async throws -> T) async throws -> T {
+    public func withData<T>(offset: Int, count: Int, fn: (UnsafeRawBufferPointer) throws -> T) async throws -> T {
         assert(offset + count <= data.count)
-        return try await fn(UnsafeRawPointer(data.baseAddress!.advanced(by: offset)))
+        let ptr = UnsafeRawBufferPointer(UnsafeBufferPointer(rebasing: data[offset ..< offset+count]))
+        return try fn(ptr)
     }
     
     public func getData(offset: Int, count: Int) -> UnsafeRawBufferPointer {
         assert(offset + count <= data.count)
-        return UnsafeRawBufferPointer(start: data.baseAddress?.advanced(by: offset), count: count)
+        let ptr = UnsafeRawBufferPointer(UnsafeBufferPointer(rebasing: data[offset ..< offset+count]))
+        return ptr
     }
 }
 

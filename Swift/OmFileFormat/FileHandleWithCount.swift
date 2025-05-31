@@ -32,16 +32,8 @@ extension FileHandleWithCount: OmFileReaderBackendAsync {
         return data
     }
     
-    public func withData<T>(offset: Int, count: Int, fn: (UnsafeRawPointer) async throws -> T) async throws -> T {
-        let data = UnsafeMutableRawPointer.allocate(byteCount: count, alignment: 1)
-        defer { data.deallocate() }
-        /// Pread is thread safe
-        let err = pread(fileHandle.fileDescriptor, data, count, off_t(offset))
-        guard err == count else {
-            let error = String(cString: strerror(errno))
-            throw OmFileFormatSwiftError.cannotReadFile(errno: errno, error: error)
-        }
-        return try await fn(UnsafeRawPointer(data))
+    public func withData<T>(offset: Int, count: Int, fn: (UnsafeRawBufferPointer) throws -> T) async throws -> T {
+        return try await getData(offset: offset, count: count).withUnsafeBytes(fn)
     }
 }
 
