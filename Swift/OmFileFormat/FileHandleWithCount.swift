@@ -20,7 +20,7 @@ extension FileHandleWithCount: OmFileReaderBackendAsync {
     }
     
     public func getData(offset: Int, count: Int) async throws -> Data {
-        var data = Data(capacity: count)
+        var data = Data(repeating: 0, count: count)
         let err = data.withUnsafeMutableBytes({ data in
             /// Pread is thread safe
             pread(fileHandle.fileDescriptor, data.baseAddress, count, off_t(offset))
