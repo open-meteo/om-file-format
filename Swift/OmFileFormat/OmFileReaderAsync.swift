@@ -27,12 +27,13 @@ public struct OmFileReaderAsync<Backend: OmFileReaderBackendAsync>: Sendable {
         case OM_HEADER_READ_TRAILER:
             let fileSize = fn.count
             let trailerSize = om_trailer_size()
-            var offset: UInt64 = 0
-            var size: UInt64 = 0
-            try await fn.withData(offset: fileSize - trailerSize, count: trailerSize) { trailerData in
+            let (offset, size) = try await fn.withData(offset: fileSize - trailerSize, count: trailerSize) { trailerData in
+                var offset: UInt64 = 0
+                var size: UInt64 = 0
                 guard om_trailer_read(trailerData.baseAddress, &offset, &size) else {
                     throw OmFileFormatSwiftError.notAnOpenMeteoFile
                 }
+                return (offset, size)
             }
             /// Read data from root.offset by root.size. Important: data must remain accessible throughout the use of this variable!!
             let dataVariable = try await fn.getData(offset: Int(offset), count: Int(size))
@@ -383,11 +384,13 @@ extension OmFileReaderBackendAsync {
             om_decoder_init_data_read(&dataRead, &indexRead)
             var error: OmError_t = ERROR_OK
             /// Loop over data blocks and read compressed data chunks
-            while indexData.withUnsafeBytes({ om_decoder_next_data_read(decoder, &dataRead, $0.baseAddress, indexRead.count, &error) }) {
+            while indexData.withUnsafeBytes({ om_decoder_next_data_read(decoder, &dataRead, $0.baseAddress, UInt64($0.count), &error) }) {
                 //print("Read data \(dataRead) for chunk index \(dataRead.chunkIndex)")
+                let chunkIndex = dataRead.chunkIndex
                 try await self.withData(offset: Int(dataRead.offset), count: Int(dataRead.count)) { dataData in
                     try withUnsafeTemporaryAllocation(byteCount: Int(bufferSize), alignment: 1) { buffer in
-                        guard om_decoder_decode_chunks(decoder, dataRead.chunkIndex, dataData.baseAddress, dataRead.count, into, buffer.baseAddress, &error) else {
+                        var error: OmError_t = ERROR_OK
+                        guard om_decoder_decode_chunks(decoder, chunkIndex, dataData.baseAddress, UInt64(dataData.count), into, buffer.baseAddress, &error) else {
                             throw OmFileFormatSwiftError.omDecoder(error: String(cString: om_error_string(error)))
                         }
                     }
@@ -421,7 +424,7 @@ extension OmFileReaderBackendAsync {
                 
                 var error: OmError_t = ERROR_OK
                 /// Loop over data blocks and read compressed data chunks
-                while indexData.withUnsafeBytes({ om_decoder_next_data_read(decoder, &dataRead, $0.baseAddress, indexRead.count, &error) }) {
+                while indexData.withUnsafeBytes({ om_decoder_next_data_read(decoder, &dataRead, $0.baseAddress, UInt64($0.count), &error) }) {
                     //print("ENQUEUE chunk index \(dataRead.chunkIndex)")
                     let dataReadOffset = dataRead.offset
                     let dataReadCount = dataRead.count
@@ -432,7 +435,7 @@ extension OmFileReaderBackendAsync {
                         try await self.withData(offset: Int(dataReadOffset), count: Int(dataReadCount)) { dataData in
                             try withUnsafeTemporaryAllocation(byteCount: Int(bufferSize), alignment: 8) { buffer in
                                 var error: OmError_t = ERROR_OK
-                                guard om_decoder_decode_chunks(decoder, chunkIndex, dataData.baseAddress, dataReadCount, into, buffer.baseAddress, &error) else {
+                                guard om_decoder_decode_chunks(decoder, chunkIndex, dataData.baseAddress, UInt64(dataData.count), into, buffer.baseAddress, &error) else {
                                     throw OmFileFormatSwiftError.omDecoder(error: String(cString: om_error_string(error)))
                                 }
                             }
@@ -462,7 +465,7 @@ extension OmFileReaderBackendAsync {
             om_decoder_init_data_read(&dataRead, &indexRead)
             var error: OmError_t = ERROR_OK
             /// Loop over data blocks and read compressed data chunks
-            while indexData.withUnsafeBytes({ om_decoder_next_data_read(decoder, &dataRead, $0.baseAddress, indexRead.count, &error) }) {
+            while indexData.withUnsafeBytes({ om_decoder_next_data_read(decoder, &dataRead, $0.baseAddress, UInt64($0.count), &error) }) {
                 try await self.prefetchData(offset: Int(dataRead.offset), count: Int(dataRead.count))
             }
             guard error == ERROR_OK else {

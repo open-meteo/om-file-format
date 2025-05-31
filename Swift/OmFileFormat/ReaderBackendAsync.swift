@@ -15,5 +15,5 @@ public protocol OmFileReaderBackendAsync: Sendable {
     func getData(offset: Int, count: Int) async throws -> DataType
     
     /// Read data. Data is only temporarily read inside the callback without async
-    func withData<T>(offset: Int, count: Int, fn: (UnsafeRawBufferPointer) throws -> T) async throws -> T
+    func withData<T>(offset: Int, count: Int, fn: @Sendable (UnsafeRawBufferPointer) throws -> T) async throws -> T
 }
