@@ -1,10 +1,3 @@
-//
-//  OmBufferedWriter.swift
-//  OpenMeteoApi
-//
-//  Created by Patrick Zippenfenig on 30.10.2024.
-//
-
 import Foundation
 
 /// All data is written to a buffer before flushed to a backend

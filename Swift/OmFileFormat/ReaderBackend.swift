@@ -1,7 +1,7 @@
 import Foundation
 
 /// OmFileReader can read data from this backend
-public protocol OmFileReaderBackend {
+public protocol OmFileReaderBackend: Sendable {
     /// Length in bytes
     var count: Int { get }
 

@@ -1,12 +1,5 @@
-//
-//  OmFileWriter2.swift
-//  OpenMeteoApi
-//
-//  Created by Patrick Zippenfenig on 29.10.2024.
-//
-
 import Foundation
-@_implementationOnly import OmFileFormatC
+import OmFileFormatC
 
 
 /// Writes om file header and trailer

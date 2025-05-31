@@ -7,7 +7,7 @@ public protocol OmFileWriterBackend {
 }
 
 /// Need to maintain a strong reference
-public final class DataAsClass {
+public final class DataAsClass: @unchecked Sendable {
     public var data: Data
 
     public init(data: Data) {
@@ -28,8 +28,5 @@ extension DataAsClass: OmFileWriterBackend {
 
 /// Make `FileHandle` work as writer
 extension FileHandle: OmFileWriterBackend {
-    public func write<T>(contentsOf data: T, atOffset: Int) throws where T : DataProtocol {
-        try seek(toOffset: UInt64(atOffset))
-        try write(contentsOf: data)
-    }
+    
 }
