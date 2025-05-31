@@ -228,7 +228,7 @@ import OmFileFormatC
         let variable = try fileWriter.write(array: variableMeta, name: "data", children: [])
         try fileWriter.writeTrailer(rootVariable: variable)
 
-        let readFn = FileHandleWithCount(fileHandle: try FileHandle.openFileReading(file: file))
+        let readFn = try FileHandleWithCount(try FileHandle.openFileReading(file: file))
         let read = try await OmFileReaderAsync(fn: readFn).asArray(of: Float.self)!
 
         let a1 = try await read.read(range: [50..<51, 20..<21, 1..<2])
