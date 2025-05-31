@@ -10,7 +10,7 @@ public struct OmFileReaderAsync<Backend: OmFileReaderBackendAsync>: Sendable {
     public let fn: Backend
 
     /// Underlaying memory for the variable. Could just be a pointer or a reference counted allocated memory region
-    let variable: Data
+    let variable: Backend.DataType
 
     /// Open a file and decode om file meta data. In this case  fn is typically mmap or just plain memory
     public init(fn: Backend) async throws {
@@ -23,11 +23,9 @@ public struct OmFileReaderAsync<Backend: OmFileReaderBackendAsync>: Sendable {
 
         switch headerType {
         case OM_HEADER_LEGACY:
-            self.variable = try await fn.withData(offset: 0, count: headerSize) {
-                Data(bytes: $0, count: headerSize)
-            }
+            self.variable = try await fn.getData(offset: 0, count: headerSize)
         case OM_HEADER_READ_TRAILER:
-            let fileSize = try await fn.getCount()
+            let fileSize = fn.count
             let trailerSize = om_trailer_size()
             var offset: UInt64 = 0
             var size: UInt64 = 0
@@ -37,9 +35,7 @@ public struct OmFileReaderAsync<Backend: OmFileReaderBackendAsync>: Sendable {
                 }
             }
             /// Read data from root.offset by root.size. Important: data must remain accessible throughout the use of this variable!!
-            let dataVariable = try await fn.withData(offset: Int(offset), count: Int(size)) {
-                Data(bytes: $0, count: Int(size))
-            }
+            let dataVariable = try await fn.getData(offset: Int(offset), count: Int(size))
             self.variable = dataVariable
         case OM_HEADER_INVALID:
             fallthrough
@@ -48,7 +44,7 @@ public struct OmFileReaderAsync<Backend: OmFileReaderBackendAsync>: Sendable {
         }
     }
 
-    init(fn: Backend, variable: Data) {
+    init(fn: Backend, variable: Backend.DataType) {
         self.fn = fn
         self.variable = variable
     }
@@ -95,9 +91,7 @@ public struct OmFileReaderAsync<Backend: OmFileReaderBackendAsync>: Sendable {
             return nil
         }
         /// Read data from child.offset by child.size
-        let dataChild = try await fn.withData(offset: Int(offset), count: Int(size)) {
-            Data(bytes: $0, count: Int(size))
-        }
+        let dataChild = try await fn.getData(offset: Int(offset), count: Int(size))
         return OmFileReaderAsync(fn: fn, variable: dataChild)
     }
 
@@ -138,7 +132,7 @@ public struct OmFileReaderAsyncArray<Backend: OmFileReaderBackendAsync, OmType: 
     /// Points to the underlying memory. Needs to remain in scope to keep memory accessible
     public let fn: Backend
 
-    let variable: Data
+    let variable: Backend.DataType
 
     let io_size_max: UInt64
 
