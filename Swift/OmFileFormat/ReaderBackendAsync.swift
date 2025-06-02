@@ -17,3 +17,25 @@ public protocol OmFileReaderBackendAsync: Sendable {
     /// Read data. Data is only temporarily read inside the callback without async
     func withData<T>(offset: Int, count: Int, fn: @Sendable (UnsafeRawBufferPointer) throws -> T) async throws -> T
 }
+
+extension DataAsClass: OmFileReaderBackendAsync {
+    public typealias DataType = Data.SubSequence
+    
+    public var count: Int {
+        return data.count
+    }
+    
+    public func prefetchData(offset: Int, count: Int) async throws {
+        // nothing to do here
+    }
+    
+    public func withData<T>(offset: Int, count: Int, fn: @Sendable (UnsafeRawBufferPointer) throws -> T) async throws -> T {
+        try data[offset..<offset+count].withUnsafeBytes({
+            try fn($0)
+        })
+    }
+    
+    public func getData(offset: Int, count: Int) async throws -> Data.SubSequence {
+        return data[offset..<offset+count]
+    }
+}

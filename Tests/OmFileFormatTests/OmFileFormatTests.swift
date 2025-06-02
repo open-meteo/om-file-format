@@ -114,7 +114,7 @@ import OmFileFormatC
         })
     }
 
-    @Test func testReadNoneVariable() throws {
+    @Test func testReadNoneVariable() async throws {
         let inMemoryBackend = DataAsClass(data: Data())
         let fileWriter = OmFileWriter(fn: inMemoryBackend, initialCapacity: 8)
 
@@ -127,20 +127,20 @@ import OmFileFormatC
         try fileWriter.writeTrailer(rootVariable: groupVar)
 
         // Read the file
-        let read = try OmFileReader(fn: inMemoryBackend)
+        let read = try await OmFileReaderAsync(fn: inMemoryBackend)
 
         // Verify the group variable
         #expect(read.getName() == "group")
         #expect(read.dataType == .none)
 
         // Get the child variable, which is an attribute
-        let child = read.getChild(0)!
+        let child = try await read.getChild(0)!
         #expect(child.getName() == "attribute")
         #expect(child.dataType == .int32)
         #expect(child.readScalar() == Int32(42))
     }
 
-    @Test func inMemory() throws {
+    @Test func inMemory() async throws {
         let inMemoryBackend = DataAsClass(data: Data())
         let fileWriter = OmFileWriter(fn: inMemoryBackend, initialCapacity: 8)
 
@@ -161,8 +161,8 @@ import OmFileFormatC
         try fileWriter.writeTrailer(rootVariable: variable)
 
         #expect(inMemoryBackend.count == 136)
-        let read = try OmFileReader(fn: inMemoryBackend).asArray(of: Float.self)!
-        let a = try read.read(range: [0..<1, 0..<UInt64(data.count)])
+        let read = try await OmFileReaderAsync(fn: inMemoryBackend).asArray(of: Float.self)!
+        let a = try await read.read(range: [0..<1, 0..<UInt64(data.count)])
         #expect(a == data)
     }
 
@@ -201,9 +201,9 @@ import OmFileFormatC
         try fileWriter.writeTrailer(rootVariable: variable)
 
         let readFn = try MmapFile(fn: FileHandle.openFileReading(file: file))
-        let read = try OmFileReader(fn: readFn).asArray(of: Float.self)!
+        let read = try await OmFileReaderAsync(fn: readFn).asArray(of: Float.self)!
 
-        let a1 = try read.read(range: [50..<51, 20..<21, 1..<2])
+        let a1 = try await read.read(range: [50..<51, 20..<21, 1..<2])
         #expect(a1 == [201.0])
 
         let a = try await read.readConcurrent(range: [0..<100, 0..<100, 0..<10])
@@ -243,7 +243,7 @@ import OmFileFormatC
         //XCTAssertEqual(hex, "awfawf")
     }
 
-    @Test func writeChunks() throws {
+    @Test func writeChunks() async throws {
         let file = "writeChunks.om"
         let fn = try FileHandle.createNewFile(file: file, overwrite: true)
         defer { try? FileManager.default.removeItem(atPath: file) }
@@ -266,9 +266,9 @@ import OmFileFormatC
         try fileWriter.writeTrailer(rootVariable: variable)
 
         let readFn = try MmapFile(fn: FileHandle.openFileReading(file: file))
-        let read = try OmFileReader(fn: readFn).asArray(of: Float.self)!
+        let read = try await OmFileReaderAsync(fn: readFn).asArray(of: Float.self)!
 
-        let a = try read.read(range: [0..<5, 0..<5])
+        let a = try await read.read(range: [0..<5, 0..<5])
         #expect(a == [0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0, 18.0, 19.0, 20.0, 21.0, 22.0, 23.0, 24.0])
 
         #expect(readFn.count == 144)
@@ -277,7 +277,7 @@ import OmFileFormatC
         //XCTAssertTrue(bytes == [79, 77, 3, 0, 4, 130, 0, 2, 3, 34, 0, 4, 194, 2, 10, 4, 178, 0, 12, 4, 242, 0, 14, 197, 17, 20, 194, 2, 22, 194, 2, 24, 3, 3, 228, 200, 109, 1, 0, 0, 20, 0, 4, 0, 0, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0, 32, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 128, 63, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 100, 97, 116, 97, 0, 0, 0, 0, 79, 77, 3, 0, 0, 0, 0, 0, 40, 0, 0, 0, 0, 0, 0, 0, 76, 0, 0, 0, 0, 0, 0, 0] || bytes == [79, 77, 3, 0, 4, 130, 64, 2, 3, 34, 16, 4, 194, 2, 10, 4, 178, 64, 12, 4, 242, 64, 14, 197, 17, 20, 194, 2, 22, 194, 2, 24, 3, 3, 228, 200, 109, 1, 0, 0, 20, 0, 4, 0, 0, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0, 32, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 128, 63, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 100, 97, 116, 97, 0, 0, 0, 0, 79, 77, 3, 0, 0, 0, 0, 0, 40, 0, 0, 0, 0, 0, 0, 0, 76, 0, 0, 0, 0, 0, 0, 0])
     }
 
-    @Test func offsetWrite() throws {
+    @Test func offsetWrite() async throws {
         let file = "offsetWrite.om"
         let fn = try FileHandle.createNewFile(file: file, overwrite: true)
         defer { try? FileManager.default.removeItem(atPath: file) }
@@ -294,7 +294,7 @@ import OmFileFormatC
         try fileWriter.writeTrailer(rootVariable: variable)
 
         let readFn = try MmapFile(fn: FileHandle.openFileReading(file: file))
-        let readFile = try OmFileReader(fn: readFn)
+        let readFile = try await OmFileReaderAsync(fn: readFn)
         let read = readFile.asArray(of: Float.self)!
         #expect(readFile.dataType == .float_array)
         #expect(read.compression == .pfor_delta2d_int16)
@@ -306,11 +306,11 @@ import OmFileFormatC
         #expect(read.getChunkDimensions()[0] == 2)
         #expect(read.getChunkDimensions()[1] == 2)
 
-        let a = try read.read(range: [0..<5, 0..<5])
+        let a = try await read.read(range: [0..<5, 0..<5])
         #expect(a == [0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0, 18.0, 19.0, 20.0, 21.0, 22.0, 23.0, 24.0])
     }
 
-    @Test func write3D() throws {
+    @Test func write3D() async throws {
         let file = "write3D.om"
 
         let dims = [UInt64(3),3,3]
@@ -332,37 +332,37 @@ import OmFileFormatC
         try fileWriter.writeTrailer(rootVariable: variable)
 
         let readFn = try MmapFile(fn: FileHandle.openFileReading(file: file))
-        let readFile = try OmFileReader(fn: readFn)
+        let readFile = try await OmFileReaderAsync(fn: readFn)
         let read = readFile.asArray(of: Float.self)!
 
         #expect(readFile.numberOfChildren == 3)
-        let child = readFile.getChild(0)!
+        let child = try await readFile.getChild(0)!
         #expect(child.readScalar() == Int32(12323154))
         #expect(child.getName() == "int32")
-        let child2 = readFile.getChild(1)!
+        let child2 = try await readFile.getChild(1)!
         #expect(child2.readScalar() == Double(12323154))
         #expect(child2.getName() == "double")
-        let child3 = readFile.getChild(2)!
+        let child3 = try await readFile.getChild(2)!
         let targetString: String = "my_attribute"
         #expect(child3.readScalar() == targetString)
         #expect(child3.getName() == "string")
-        #expect(readFile.getChild(3) == nil)
+        try await #expect(readFile.getChild(3) == nil)
 
-        let a = try read.read(range: [0..<3, 0..<3, 0..<3])
+        let a = try await read.read(range: [0..<3, 0..<3, 0..<3])
         #expect(a == data)
 
         // single index
         for x in 0..<dims[0] {
             for y in 0..<dims[1] {
                 for z in 0..<dims[2] {
-                    #expect(try read.read(range: [x..<x+1, y..<y+1, z..<z+1]) == [Float(x*3*3 + y*3 + z)])
+                    await #expect(try read.read(range: [x..<x+1, y..<y+1, z..<z+1]) == [Float(x*3*3 + y*3 + z)])
                 }
             }
         }
 
         // Ensure written bytes are correct
         #expect(readFn.count == 296)
-        let bytes = Data(bytesNoCopy: UnsafeMutableRawPointer(mutating: readFn.getData(offset: 0, count: readFn.count)), count: readFn.count, deallocator: .none).map{UInt8($0)}
+        let bytes = readFn.getData(offset: 0, count: readFn.count).map{UInt8($0)}
         #expect(bytes[0..<3] == [79, 77, 3])
         #expect(bytes[3..<8] == [0, 3, 34, 140, 2]) // chunk
         #expect(bytes[8..<12] == [2, 3, 114, 1] || bytes[8..<12] == [2, 3, 114, 141]) // difference on x86 and ARM cause by the underlying compression
@@ -381,14 +381,14 @@ import OmFileFormatC
         #expect(bytes[272..<296] == [79, 77, 3, 0, 0, 0, 0, 0, 128, 0, 0, 0, 0, 0, 0, 0, 140, 0, 0, 0, 0, 0, 0, 0]) // trailer
 
         // Test interpolation
-        #expect(try read.readInterpolated(dim0X: 0, dim0XFraction: 0.5, dim0Y: 0, dim0YFraction: 0.5, dim0Nx: 3, dim1: 0..<3) == [6.0, 7.0, 8.0])
-        #expect(try read.readInterpolated(dim0X: 0, dim0XFraction: 0.1, dim0Y: 0, dim0YFraction: 0.2, dim0Nx: 3, dim1: 0..<3) == [2.1, 3.1000001, 4.1])
-        #expect(try read.readInterpolated(dim0X: 0, dim0XFraction: 0.9, dim0Y: 0, dim0YFraction: 0.2, dim0Nx: 3, dim1: 0..<3) == [4.5, 5.5, 6.5])
-        #expect(try read.readInterpolated(dim0X: 0, dim0XFraction: 0.1, dim0Y: 0, dim0YFraction: 0.9, dim0Nx: 3, dim1: 0..<3) == [8.4, 9.4, 10.400001])
-        #expect(try read.readInterpolated(dim0X: 0, dim0XFraction: 0.8, dim0Y: 0, dim0YFraction: 0.9, dim0Nx: 3, dim1: 0..<3) == [10.5, 11.5, 12.5])
+        await #expect(try read.readInterpolated(dim0X: 0, dim0XFraction: 0.5, dim0Y: 0, dim0YFraction: 0.5, dim0Nx: 3, dim1: 0..<3) == [6.0, 7.0, 8.0])
+        await #expect(try read.readInterpolated(dim0X: 0, dim0XFraction: 0.1, dim0Y: 0, dim0YFraction: 0.2, dim0Nx: 3, dim1: 0..<3) == [2.1, 3.1000001, 4.1])
+        await #expect(try read.readInterpolated(dim0X: 0, dim0XFraction: 0.9, dim0Y: 0, dim0YFraction: 0.2, dim0Nx: 3, dim1: 0..<3) == [4.5, 5.5, 6.5])
+        await #expect(try read.readInterpolated(dim0X: 0, dim0XFraction: 0.1, dim0Y: 0, dim0YFraction: 0.9, dim0Nx: 3, dim1: 0..<3) == [8.4, 9.4, 10.400001])
+        await #expect(try read.readInterpolated(dim0X: 0, dim0XFraction: 0.8, dim0Y: 0, dim0YFraction: 0.9, dim0Nx: 3, dim1: 0..<3) == [10.5, 11.5, 12.5])
     }
 
-    @Test func writev3() throws {
+    @Test func writev3() async throws {
         let file = "writev3.om"
         let dims = [UInt64(5),5]
         let fn = try FileHandle.createNewFile(file: file, overwrite: true)
@@ -404,16 +404,16 @@ import OmFileFormatC
         try fileWriter.writeTrailer(rootVariable: variable)
 
         let readFn = try MmapFile(fn: FileHandle.openFileReading(file: file))
-        let read = try OmFileReader(fn: readFn).asArray(of: Float.self)!
+        let read = try await OmFileReaderAsync(fn: readFn).asArray(of: Float.self)!
 
 
-        let a = try read.read(range: [0..<5, 0..<5])
+        let a = try await read.read(range: [0..<5, 0..<5])
         #expect(a == [0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0, 18.0, 19.0, 20.0, 21.0, 22.0, 23.0, 24.0])
 
         // single index
         for x in 0..<dims[0] {
             for y in 0..<dims[1] {
-                #expect(try read.read(range: [x..<x+1, y..<y+1]) == [Float(x*5 + y)])
+                await #expect(try read.read(range: [x..<x+1, y..<y+1]) == [Float(x*5 + y)])
             }
         }
 
@@ -421,9 +421,7 @@ import OmFileFormatC
         for x in 0..<dims[0] {
             for y in 0..<dims[1] {
                 var r = [Float](repeating: .nan, count: 9)
-                try r.withUnsafeMutableBufferPointer({
-                    try read.read(into: $0.baseAddress!, range: [x..<x+1, y..<y+1], intoCubeOffset: [1,1], intoCubeDimension: [3,3])
-                })
+                try await read.read(into: &r, range: [x..<x+1, y..<y+1], intoCubeOffset: [1,1], intoCubeDimension: [3,3])
                 #expect(r.testSimilar([Float.nan, .nan, .nan, .nan, Float(x*5 + y), .nan, .nan, .nan, .nan]))
             }
         }
@@ -431,53 +429,53 @@ import OmFileFormatC
         // 2x in fast dim
         for x in 0..<dims[0] {
             for y in 0..<dims[1]-1 {
-                #expect(try read.read(range: [x..<x+1, y..<y+2]) == [Float(x*5 + y), Float(x*5 + y + 1)])
+                await #expect(try read.read(range: [x..<x+1, y..<y+2]) == [Float(x*5 + y), Float(x*5 + y + 1)])
             }
         }
 
         // 2x in slow dim
         for x in 0..<dims[0]-1 {
             for y in 0..<dims[1] {
-                #expect(try read.read(range: [x..<x+2, y..<y+1]) == [Float(x*5 + y), Float((x+1)*5 + y)])
+                await #expect(try read.read(range: [x..<x+2, y..<y+1]) == [Float(x*5 + y), Float((x+1)*5 + y)])
             }
         }
 
         // 2x2
         for x in 0..<dims[0]-1 {
             for y in 0..<dims[1]-1 {
-                #expect(try read.read(range: [x..<x+2, y..<y+2]) == [Float(x*5 + y), Float(x*5 + y + 1), Float((x+1)*5 + y), Float((x+1)*5 + y + 1)])
+                await #expect(try read.read(range: [x..<x+2, y..<y+2]) == [Float(x*5 + y), Float(x*5 + y + 1), Float((x+1)*5 + y), Float((x+1)*5 + y + 1)])
             }
         }
         // 3x3
         for x in 0..<dims[0]-2 {
             for y in 0..<dims[1]-2 {
-                #expect(try read.read(range: [x..<x+3, y..<y+3]) == [Float(x*5 + y), Float(x*5 + y + 1), Float(x*5 + y + 2), Float((x+1)*5 + y), Float((x+1)*5 + y + 1),  Float((x+1)*5 + y + 2), Float((x+2)*5 + y), Float((x+2)*5 + y + 1),  Float((x+2)*5 + y + 2)])
+                await #expect(try read.read(range: [x..<x+3, y..<y+3]) == [Float(x*5 + y), Float(x*5 + y + 1), Float(x*5 + y + 2), Float((x+1)*5 + y), Float((x+1)*5 + y + 1),  Float((x+1)*5 + y + 2), Float((x+2)*5 + y), Float((x+2)*5 + y + 1),  Float((x+2)*5 + y + 2)])
             }
         }
 
         // 1x5
         for x in 0..<dims[1] {
-            #expect(try read.read(range: [x..<x+1, 0..<5]) == [Float(x*5), Float(x*5+1), Float(x*5+2), Float(x*5+3), Float(x*5+4)])
+            await #expect(try read.read(range: [x..<x+1, 0..<5]) == [Float(x*5), Float(x*5+1), Float(x*5+2), Float(x*5+3), Float(x*5+4)])
         }
 
         // 5x1
         for x in 0..<dims[0] {
-            #expect(try read.read(range: [0..<5, x..<x+1]) == [Float(x), Float(x+5), Float(x+10), Float(x+15), Float(x+20)])
+            await #expect(try read.read(range: [0..<5, x..<x+1]) == [Float(x), Float(x+5), Float(x+10), Float(x+15), Float(x+20)])
         }
 
         #expect(readFn.count == 144)
-        let bytes = Data(bytesNoCopy: UnsafeMutableRawPointer(mutating: readFn.getData(offset: 0, count: readFn.count)), count: readFn.count, deallocator: .none).map{UInt8($0)}
+        let bytes = readFn.getData(offset: 0, count: readFn.count).map{UInt8($0)}
         #expect(bytes == [79, 77, 3, 0, 4, 130, 0, 2, 3, 34, 0, 4, 194, 2, 10, 4, 178, 0, 12, 4, 242, 0, 14, 197, 17, 20, 194, 2, 22, 194, 2, 24, 3, 3, 228, 200, 109, 1, 0, 0, 20, 0, 4, 0, 0, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0, 32, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 128, 63, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 100, 97, 116, 97, 0, 0, 0, 0, 79, 77, 3, 0, 0, 0, 0, 0, 40, 0, 0, 0, 0, 0, 0, 0, 76, 0, 0, 0, 0, 0, 0, 0])
 
         // test interpolation
-        #expect(try read.readInterpolated(dim0X: 0, dim0XFraction: 0.5, dim0Y: 0, dim0YFraction: 0.5, dim0Nx: 2, dim1: 0..<5) == [7.5, 8.5, 9.5, 10.5, 11.5])
-        #expect(try read.readInterpolated(dim0X: 0, dim0XFraction: 0.1, dim0Y: 0, dim0YFraction: 0.2, dim0Nx: 2, dim1: 0..<5) == [2.5, 3.4999998, 4.5, 5.5, 6.5])
-        #expect(try read.readInterpolated(dim0X: 0, dim0XFraction: 0.9, dim0Y: 0, dim0YFraction: 0.2, dim0Nx: 2, dim1: 0..<5) == [6.5, 7.5, 8.5, 9.5, 10.5])
-        #expect(try read.readInterpolated(dim0X: 0, dim0XFraction: 0.1, dim0Y: 0, dim0YFraction: 0.9, dim0Nx: 2, dim1: 0..<5) == [9.5, 10.499999, 11.499999, 12.5, 13.499999])
-        #expect(try read.readInterpolated(dim0X: 0, dim0XFraction: 0.8, dim0Y: 0, dim0YFraction: 0.9, dim0Nx: 2, dim1: 0..<5) == [12.999999, 14.0, 15.0, 16.0, 17.0])
+        await #expect(try read.readInterpolated(dim0X: 0, dim0XFraction: 0.5, dim0Y: 0, dim0YFraction: 0.5, dim0Nx: 2, dim1: 0..<5) == [7.5, 8.5, 9.5, 10.5, 11.5])
+        await #expect(try read.readInterpolated(dim0X: 0, dim0XFraction: 0.1, dim0Y: 0, dim0YFraction: 0.2, dim0Nx: 2, dim1: 0..<5) == [2.5, 3.4999998, 4.5, 5.5, 6.5])
+        await #expect(try read.readInterpolated(dim0X: 0, dim0XFraction: 0.9, dim0Y: 0, dim0YFraction: 0.2, dim0Nx: 2, dim1: 0..<5) == [6.5, 7.5, 8.5, 9.5, 10.5])
+        await #expect(try read.readInterpolated(dim0X: 0, dim0XFraction: 0.1, dim0Y: 0, dim0YFraction: 0.9, dim0Nx: 2, dim1: 0..<5) == [9.5, 10.499999, 11.499999, 12.5, 13.499999])
+        await #expect(try read.readInterpolated(dim0X: 0, dim0XFraction: 0.8, dim0Y: 0, dim0YFraction: 0.9, dim0Nx: 2, dim1: 0..<5) == [12.999999, 14.0, 15.0, 16.0, 17.0])
     }
 
-    @Test func writev3MaxIOLimit() throws {
+    @Test func writev3MaxIOLimit() async throws {
         let file = "writev3MaxIOLimit.om"
         let dims = [UInt64(5),5]
         let fn = try FileHandle.createNewFile(file: file, overwrite: true)
@@ -493,16 +491,16 @@ import OmFileFormatC
         try fileWriter.writeTrailer(rootVariable: variable)
 
         let readFn = try MmapFile(fn: FileHandle.openFileReading(file: file))
-        let read = try OmFileReader(fn: readFn).asArray(of: Float.self, io_size_max: 0, io_size_merge: 0)!
+        let read = try await OmFileReaderAsync(fn: readFn).asArray(of: Float.self, io_size_max: 0, io_size_merge: 0)!
 
 
-        let a = try read.read(range: [0..<5, 0..<5])
+        let a = try await read.read(range: [0..<5, 0..<5])
         #expect(a == [0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0, 18.0, 19.0, 20.0, 21.0, 22.0, 23.0, 24.0])
 
         // single index
         for x in 0..<dims[0] {
             for y in 0..<dims[1] {
-                #expect(try read.read(range: [x..<x+1, y..<y+1]) == [Float(x*5 + y)])
+                await #expect(try read.read(range: [x..<x+1, y..<y+1]) == [Float(x*5 + y)])
             }
         }
 
@@ -510,9 +508,7 @@ import OmFileFormatC
         for x in 0..<dims[0] {
             for y in 0..<dims[1] {
                 var r = [Float](repeating: .nan, count: 9)
-                try r.withUnsafeMutableBufferPointer({
-                    try read.read(into: $0.baseAddress!, range: [x..<x+1, y..<y+1], intoCubeOffset: [1,1], intoCubeDimension: [3,3])
-                })
+                try await read.read(into: &r, range: [x..<x+1, y..<y+1], intoCubeOffset: [1,1], intoCubeDimension: [3,3])
                 #expect(r.testSimilar([Float.nan, .nan, .nan, .nan, Float(x*5 + y), .nan, .nan, .nan, .nan]))
             }
         }
@@ -520,38 +516,38 @@ import OmFileFormatC
         // 2x in fast dim
         for x in 0..<dims[0] {
             for y in 0..<dims[1]-1 {
-                #expect(try read.read(range: [x..<x+1, y..<y+2]) == [Float(x*5 + y), Float(x*5 + y + 1)])
+                await #expect(try read.read(range: [x..<x+1, y..<y+2]) == [Float(x*5 + y), Float(x*5 + y + 1)])
             }
         }
 
         // 2x in slow dim
         for x in 0..<dims[0]-1 {
             for y in 0..<dims[1] {
-                #expect(try read.read(range: [x..<x+2, y..<y+1]) == [Float(x*5 + y), Float((x+1)*5 + y)])
+                await #expect(try read.read(range: [x..<x+2, y..<y+1]) == [Float(x*5 + y), Float((x+1)*5 + y)])
             }
         }
 
         // 2x2
         for x in 0..<dims[0]-1 {
             for y in 0..<dims[1]-1 {
-                #expect(try read.read(range: [x..<x+2, y..<y+2]) == [Float(x*5 + y), Float(x*5 + y + 1), Float((x+1)*5 + y), Float((x+1)*5 + y + 1)])
+                await #expect(try read.read(range: [x..<x+2, y..<y+2]) == [Float(x*5 + y), Float(x*5 + y + 1), Float((x+1)*5 + y), Float((x+1)*5 + y + 1)])
             }
         }
         // 3x3
         for x in 0..<dims[0]-2 {
             for y in 0..<dims[1]-2 {
-                #expect(try read.read(range: [x..<x+3, y..<y+3]) == [Float(x*5 + y), Float(x*5 + y + 1), Float(x*5 + y + 2), Float((x+1)*5 + y), Float((x+1)*5 + y + 1),  Float((x+1)*5 + y + 2), Float((x+2)*5 + y), Float((x+2)*5 + y + 1),  Float((x+2)*5 + y + 2)])
+                await #expect(try read.read(range: [x..<x+3, y..<y+3]) == [Float(x*5 + y), Float(x*5 + y + 1), Float(x*5 + y + 2), Float((x+1)*5 + y), Float((x+1)*5 + y + 1),  Float((x+1)*5 + y + 2), Float((x+2)*5 + y), Float((x+2)*5 + y + 1),  Float((x+2)*5 + y + 2)])
             }
         }
 
         // 1x5
         for x in 0..<dims[1] {
-            #expect(try read.read(range: [x..<x+1, 0..<5]) == [Float(x*5), Float(x*5+1), Float(x*5+2), Float(x*5+3), Float(x*5+4)])
+            await #expect(try read.read(range: [x..<x+1, 0..<5]) == [Float(x*5), Float(x*5+1), Float(x*5+2), Float(x*5+3), Float(x*5+4)])
         }
 
         // 5x1
         for x in 0..<dims[0] {
-            #expect(try read.read(range: [0..<5, x..<x+1]) == [Float(x), Float(x+5), Float(x+10), Float(x+15), Float(x+20)])
+            await #expect(try read.read(range: [0..<5, x..<x+1]) == [Float(x), Float(x+5), Float(x+10), Float(x+15), Float(x+20)])
         }
     }
 
@@ -810,14 +806,14 @@ import OmFileFormatC
         try FileManager.default.removeItem(atPath: file)
     }*/
 
-    @Test func readWriteRoundTripArrayTypes() throws {
+    @Test func readWriteRoundTripArrayTypes() async throws {
 
         struct TestCase<T: OmFileArrayDataTypeProtocol & Equatable> {
             let dimensions: [UInt64] = [5, 5]
             let chunkDimensions: [UInt64] = [2, 2]
             let generateValue: () -> T
 
-            func test() throws {
+            func test() async throws {
                 let file = "test_file_\(T.self).om"
                 do {
                     // Write file
@@ -843,13 +839,13 @@ import OmFileFormatC
 
                     // Read and verify
                     let readFn = try MmapFile(fn: FileHandle.openFileReading(file: file))
-                    let readFile = try OmFileReader(fn: readFn)
+                    let readFile = try await OmFileReaderAsync(fn: readFn)
 
                     let array = readFile.asArray(of: T.self)!
                     #expect(array.getDimensions()[0] == dimensions[0])
                     #expect(array.getDimensions()[1] == dimensions[1])
 
-                    let readValues = try array.read(range: [0..<dimensions[0], 0..<dimensions[1]])
+                    let readValues = try await array.read(range: [0..<dimensions[0], 0..<dimensions[1]])
                     if T.self == Float.self {
                         #expect((values as! [Float]).testSimilar(readValues as! [Float]))
                     } else if T.self == Double.self {
@@ -864,16 +860,16 @@ import OmFileFormatC
             }
         }
 
-        try TestCase<Float>.init() { Float.random(in: 0..<1) * 10000 }.test()
-        try TestCase<Double>.init() { Double.random(in: 0..<1) * 10000 }.test()
-        try TestCase<Int8>.init() { Int8.random(in: Int8.min..<Int8.max) }.test()
-        try TestCase<Int16>.init() { Int16.random(in: Int16.min..<Int16.max) }.test()
-        try TestCase<Int32>.init() { Int32.random(in: Int32.min..<Int32.max) }.test()
-        try TestCase<Int>.init() { Int.random(in: Int.min..<Int.max) }.test()
-        try TestCase<UInt8>.init() { UInt8.random(in: 0..<UInt8.max) }.test()
-        try TestCase<UInt16>.init() { UInt16.random(in: 0..<UInt16.max) }.test()
-        try TestCase<UInt32>.init() { UInt32.random(in: 0..<UInt32.max) }.test()
-        try TestCase<UInt>.init() { UInt.random(in: 0..<UInt.max) }.test()
+        try await TestCase<Float>.init() { Float.random(in: 0..<1) * 10000 }.test()
+        try await TestCase<Double>.init() { Double.random(in: 0..<1) * 10000 }.test()
+        try await TestCase<Int8>.init() { Int8.random(in: Int8.min..<Int8.max) }.test()
+        try await TestCase<Int16>.init() { Int16.random(in: Int16.min..<Int16.max) }.test()
+        try await TestCase<Int32>.init() { Int32.random(in: Int32.min..<Int32.max) }.test()
+        try await TestCase<Int>.init() { Int.random(in: Int.min..<Int.max) }.test()
+        try await TestCase<UInt8>.init() { UInt8.random(in: 0..<UInt8.max) }.test()
+        try await TestCase<UInt16>.init() { UInt16.random(in: 0..<UInt16.max) }.test()
+        try await TestCase<UInt32>.init() { UInt32.random(in: 0..<UInt32.max) }.test()
+        try await TestCase<UInt>.init() { UInt.random(in: 0..<UInt.max) }.test()
     }
 
 
