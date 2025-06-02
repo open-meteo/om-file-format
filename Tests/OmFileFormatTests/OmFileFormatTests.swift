@@ -238,7 +238,7 @@ import OmFileFormatC
         let a = try await read.readConcurrent(range: [0..<100, 0..<100, 0..<10])
         #expect(a == data)
 
-        #expect(try await read.fn.count == 154176)
+        #expect(read.fn.count == 154176)
         //let hex = Data(bytesNoCopy: UnsafeMutableRawPointer(mutating: readFn.getData(offset: 0, count: readFn.count)), count: readFn.count, deallocator: .none)
         //XCTAssertEqual(hex, "awfawf")
     }

@@ -23,7 +23,7 @@ public enum OmFileFormatSwiftError: Error {
 }
 
 
-public enum DataType: UInt8, Codable {
+public enum DataType: UInt8, Codable, Sendable {
     case none = 0
     case int8 = 1
     case uint8 = 2
@@ -53,7 +53,7 @@ public enum DataType: UInt8, Codable {
     }
 }
 
-public enum CompressionType: UInt8, Codable {
+public enum CompressionType: UInt8, Codable, Sendable {
     /// Lossy compression using 2D delta coding and scalefactor. Only support float which are scaled to 16 bit signed integers
     case pfor_delta2d_int16 = 0
 
