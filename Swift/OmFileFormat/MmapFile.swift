@@ -1,7 +1,8 @@
 import Foundation
 
+
 /// `Mmap` all pages for a file
-public final class MmapFile {
+public final class MmapFile: Sendable {
     public let data: UnsafeBufferPointer<UInt8>
     public let file: FileHandle
 
@@ -66,5 +67,35 @@ public final class MmapFile {
         guard munmap(UnsafeMutableRawPointer(mutating: data.baseAddress!), len) == 0 else {
             fatalError("munmap failed")
         }
+    }
+}
+
+extension MmapFile: OmFileReaderBackend {
+    public var count: Int {
+        return data.count
+    }
+    
+    public func prefetchData(offset: Int, count: Int) async throws {
+        self.prefetchData(offset: offset, count: count, advice: .willneed)
+    }
+    
+    public func withData<T>(offset: Int, count: Int, fn: (UnsafeRawBufferPointer) throws -> T) async throws -> T {
+        assert(offset + count <= data.count)
+        let ptr = UnsafeRawBufferPointer(UnsafeBufferPointer(rebasing: data[offset ..< offset+count]))
+        return try fn(ptr)
+    }
+    
+    public func getData(offset: Int, count: Int) -> UnsafeRawBufferPointer {
+        assert(offset + count <= data.count)
+        let ptr = UnsafeRawBufferPointer(UnsafeBufferPointer(rebasing: data[offset ..< offset+count]))
+        return ptr
+    }
+}
+
+extension OmFileReader where Backend == MmapFile {
+    public init(mmapFile: String) async throws {
+        let fn = try FileHandle.openFileReading(file: mmapFile)
+        let mmap = try MmapFile(fn: fn)
+        try await self.init(fn: mmap)
     }
 }
