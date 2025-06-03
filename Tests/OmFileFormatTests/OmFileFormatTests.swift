@@ -127,7 +127,7 @@ import OmFileFormatC
         try fileWriter.writeTrailer(rootVariable: groupVar)
 
         // Read the file
-        let read = try await OmFileReaderAsync(fn: inMemoryBackend)
+        let read = try await OmFileReader(fn: inMemoryBackend)
 
         // Verify the group variable
         #expect(read.getName() == "group")
@@ -161,7 +161,7 @@ import OmFileFormatC
         try fileWriter.writeTrailer(rootVariable: variable)
 
         #expect(inMemoryBackend.count == 136)
-        let read = try await OmFileReaderAsync(fn: inMemoryBackend).asArray(of: Float.self)!
+        let read = try await OmFileReader(fn: inMemoryBackend).asArray(of: Float.self)!
         let a = try await read.read(range: [0..<1, 0..<UInt64(data.count)])
         #expect(a == data)
     }
@@ -201,7 +201,7 @@ import OmFileFormatC
         try fileWriter.writeTrailer(rootVariable: variable)
 
         let readFn = try MmapFile(fn: FileHandle.openFileReading(file: file))
-        let read = try await OmFileReaderAsync(fn: readFn).asArray(of: Float.self)!
+        let read = try await OmFileReader(fn: readFn).asArray(of: Float.self)!
 
         let a1 = try await read.read(range: [50..<51, 20..<21, 1..<2])
         #expect(a1 == [201.0])
@@ -229,8 +229,8 @@ import OmFileFormatC
         try fileWriter.writeTrailer(rootVariable: variable)
 
         /// Note: The mmap and file backends do not use asynchronous IO
-        let read = try await OmFileReaderAsync(file: file).asArray(of: Float.self)!
-        // let read = try await OmFileReaderAsync(mmapFile: file).asArray(of: Float.self)!
+        let read = try await OmFileReader(file: file).asArray(of: Float.self)!
+        // let read = try await OmFileReader(mmapFile: file).asArray(of: Float.self)!
 
         let a1 = try await read.read(range: [50..<51, 20..<21, 1..<2])
         #expect(a1 == [201.0])
@@ -266,7 +266,7 @@ import OmFileFormatC
         try fileWriter.writeTrailer(rootVariable: variable)
 
         let readFn = try MmapFile(fn: FileHandle.openFileReading(file: file))
-        let read = try await OmFileReaderAsync(fn: readFn).asArray(of: Float.self)!
+        let read = try await OmFileReader(fn: readFn).asArray(of: Float.self)!
 
         let a = try await read.read(range: [0..<5, 0..<5])
         #expect(a == [0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0, 18.0, 19.0, 20.0, 21.0, 22.0, 23.0, 24.0])
@@ -294,7 +294,7 @@ import OmFileFormatC
         try fileWriter.writeTrailer(rootVariable: variable)
 
         let readFn = try MmapFile(fn: FileHandle.openFileReading(file: file))
-        let readFile = try await OmFileReaderAsync(fn: readFn)
+        let readFile = try await OmFileReader(fn: readFn)
         let read = readFile.asArray(of: Float.self)!
         #expect(readFile.dataType == .float_array)
         #expect(read.compression == .pfor_delta2d_int16)
@@ -332,7 +332,7 @@ import OmFileFormatC
         try fileWriter.writeTrailer(rootVariable: variable)
 
         let readFn = try MmapFile(fn: FileHandle.openFileReading(file: file))
-        let readFile = try await OmFileReaderAsync(fn: readFn)
+        let readFile = try await OmFileReader(fn: readFn)
         let read = readFile.asArray(of: Float.self)!
 
         #expect(readFile.numberOfChildren == 3)
@@ -404,7 +404,7 @@ import OmFileFormatC
         try fileWriter.writeTrailer(rootVariable: variable)
 
         let readFn = try MmapFile(fn: FileHandle.openFileReading(file: file))
-        let read = try await OmFileReaderAsync(fn: readFn).asArray(of: Float.self)!
+        let read = try await OmFileReader(fn: readFn).asArray(of: Float.self)!
 
 
         let a = try await read.read(range: [0..<5, 0..<5])
@@ -491,7 +491,7 @@ import OmFileFormatC
         try fileWriter.writeTrailer(rootVariable: variable)
 
         let readFn = try MmapFile(fn: FileHandle.openFileReading(file: file))
-        let read = try await OmFileReaderAsync(fn: readFn).asArray(of: Float.self, io_size_max: 0, io_size_merge: 0)!
+        let read = try await OmFileReader(fn: readFn).asArray(of: Float.self, io_size_max: 0, io_size_merge: 0)!
 
 
         let a = try await read.read(range: [0..<5, 0..<5])
@@ -839,7 +839,7 @@ import OmFileFormatC
 
                     // Read and verify
                     let readFn = try MmapFile(fn: FileHandle.openFileReading(file: file))
-                    let readFile = try await OmFileReaderAsync(fn: readFn)
+                    let readFile = try await OmFileReader(fn: readFn)
 
                     let array = readFile.asArray(of: T.self)!
                     #expect(array.getDimensions()[0] == dimensions[0])

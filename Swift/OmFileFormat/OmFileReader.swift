@@ -6,7 +6,7 @@ import OmFileFormatC
 /// Decodes meta data which may include JSON
 /// Handles actual file reads. The current implementation just uses MMAP or plain memory.
 /// Later implementations may use async read operations
-public struct OmFileReaderAsync<Backend: OmFileReaderBackendAsync>: OmFileReaderAsyncProtocol {
+public struct OmFileReader<Backend: OmFileReaderBackend>: OmFileReaderProtocol {
     /// Points to the underlying memory. Needs to remain in scope to keep memory accessible
     public let fn: Backend
 
@@ -83,7 +83,7 @@ public struct OmFileReaderAsync<Backend: OmFileReaderBackendAsync>: OmFileReader
         })
     }
 
-    public func getChild(_ index: UInt32) async throws -> OmFileReaderAsync<Backend>? {
+    public func getChild(_ index: UInt32) async throws -> OmFileReader<Backend>? {
         var size: UInt64 = 0
         var offset: UInt64 = 0
         guard variable.withUnsafeBytes({
@@ -94,7 +94,7 @@ public struct OmFileReaderAsync<Backend: OmFileReaderBackendAsync>: OmFileReader
         }
         /// Read data from child.offset by child.size
         let dataChild = try await fn.getData(offset: Int(offset), count: Int(size))
-        return OmFileReaderAsync(fn: fn, variable: dataChild)
+        return OmFileReader(fn: fn, variable: dataChild)
     }
 
     public func readScalar<OmType: OmFileScalarDataTypeProtocol>() -> OmType? {
@@ -115,11 +115,11 @@ public struct OmFileReaderAsync<Backend: OmFileReaderBackendAsync>: OmFileReader
     /// If it is an array of specified type. Return a type safe reader for this type
     /// `io_size_merge` The maximum size (in bytes) for merging consecutive IO operations. It helps to optimise read performance by merging small reads.
     /// `io_size_max` The maximum size (in bytes) for a single IO operation before it is split. It defines the threshold for splitting large reads.
-    public func asArray<OmType: OmFileArrayDataTypeProtocol>(of: OmType.Type, io_size_max: UInt64 = 65536, io_size_merge: UInt64 = 512) -> OmFileReaderAsyncArray<Backend, OmType>? {
+    public func asArray<OmType: OmFileArrayDataTypeProtocol>(of: OmType.Type, io_size_max: UInt64 = 65536, io_size_merge: UInt64 = 512) -> OmFileReaderArray<Backend, OmType>? {
         guard OmType.dataTypeArray == self.dataType else {
             return nil
         }
-        return OmFileReaderAsyncArray(
+        return OmFileReaderArray(
             fn: fn,
             variable: variable,
             io_size_max: io_size_max,
@@ -127,11 +127,11 @@ public struct OmFileReaderAsync<Backend: OmFileReaderBackendAsync>: OmFileReader
         )
     }
     
-    public func asArray<OmType>(of: OmType.Type, io_size_max: UInt64, io_size_merge: UInt64) -> (any OmFileReaderAsyncArrayProtocol<OmType>)? where OmType : OmFileArrayDataTypeProtocol {
+    public func asArray<OmType>(of: OmType.Type, io_size_max: UInt64, io_size_merge: UInt64) -> (any OmFileReaderArrayProtocol<OmType>)? where OmType : OmFileArrayDataTypeProtocol {
         guard OmType.dataTypeArray == self.dataType else {
             return nil
         }
-        return OmFileReaderAsyncArray(
+        return OmFileReaderArray(
             fn: fn,
             variable: variable,
             io_size_max: io_size_max,
@@ -142,7 +142,7 @@ public struct OmFileReaderAsync<Backend: OmFileReaderBackendAsync>: OmFileReader
 
 /// Represents a variable that is an array of a given type.
 /// The previous function `asArray(of: T)` instantiates this struct and ensures it is the correct type (e.g. a float array)
-public struct OmFileReaderAsyncArray<Backend: OmFileReaderBackendAsync, OmType: OmFileArrayDataTypeProtocol>: OmFileReaderAsyncArrayProtocol {
+public struct OmFileReaderArray<Backend: OmFileReaderBackend, OmType: OmFileArrayDataTypeProtocol>: OmFileReaderArrayProtocol {
     /// Points to the underlying memory. Needs to remain in scope to keep memory accessible
     public let fn: Backend
 
@@ -378,7 +378,7 @@ public struct OmFileReaderAsyncArray<Backend: OmFileReaderBackendAsync, OmType: 
     }
 }
 
-extension OmFileReaderBackendAsync {
+extension OmFileReaderBackend {
     /// Read and decode
     func decode(decoder: UnsafePointer<OmDecoder_t>, into: UnsafeMutableRawPointer) async throws {
         var indexRead = OmDecoder_indexRead_t()

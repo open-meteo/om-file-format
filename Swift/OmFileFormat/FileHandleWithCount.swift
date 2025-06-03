@@ -14,7 +14,7 @@ public struct FileHandleWithCount: Sendable {
     }
 }
 
-extension FileHandleWithCount: OmFileReaderBackendAsync {
+extension FileHandleWithCount: OmFileReaderBackend {
     public func prefetchData(offset: Int, count: Int) async throws {
         // No prefetch possible
     }
@@ -37,7 +37,7 @@ extension FileHandleWithCount: OmFileReaderBackendAsync {
     }
 }
 
-extension OmFileReaderAsync where Backend == FileHandleWithCount {
+extension OmFileReader where Backend == FileHandleWithCount {
     public init(file: String) async throws {
         let fn = try FileHandle.openFileReading(file: file)
         let mmap = try FileHandleWithCount(fn)

@@ -69,7 +69,7 @@ public final class MmapFile: Sendable {
     }
 }
 
-extension MmapFile: OmFileReaderBackendAsync {
+extension MmapFile: OmFileReaderBackend {
     public var count: Int {
         return data.count
     }
@@ -91,7 +91,7 @@ extension MmapFile: OmFileReaderBackendAsync {
     }
 }
 
-extension OmFileReaderAsync where Backend == MmapFile {
+extension OmFileReader where Backend == MmapFile {
     public init(mmapFile: String) async throws {
         let fn = try FileHandle.openFileReading(file: mmapFile)
         let mmap = try MmapFile(fn: fn)

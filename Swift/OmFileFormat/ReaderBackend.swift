@@ -1,7 +1,7 @@
 import Foundation
 
 /// OmFileReader can read data from this backend
-public protocol OmFileReaderBackendAsync: Sendable {
+public protocol OmFileReaderBackend: Sendable {
     /// The return data can be a directly a pointer or a `Data` class that retains data.
     associatedtype DataType: ContiguousBytes & Sendable
     
@@ -18,7 +18,7 @@ public protocol OmFileReaderBackendAsync: Sendable {
     func withData<T>(offset: Int, count: Int, fn: @Sendable (UnsafeRawBufferPointer) throws -> T) async throws -> T
 }
 
-extension DataAsClass: OmFileReaderBackendAsync {
+extension DataAsClass: OmFileReaderBackend {
     public typealias DataType = Data.SubSequence
     
     public var count: Int {

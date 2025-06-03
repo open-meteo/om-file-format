@@ -1,6 +1,6 @@
-/// Protocol for `OmFileReaderAsync` but without the underlaying backend implementation
+/// Protocol for `OmFileReader` but without the underlaying backend implementation
 /// This protocol can be used to abstract multiple reader using different backends
-public protocol OmFileReaderAsyncProtocol: Sendable {
+public protocol OmFileReaderProtocol: Sendable {
     var dataType: DataType { get }
     var numberOfChildren: UInt32 { get }
     
@@ -8,11 +8,11 @@ public protocol OmFileReaderAsyncProtocol: Sendable {
     func getChild(_ index: UInt32) async throws -> Self?
     
     func readScalar<OmType: OmFileScalarDataTypeProtocol>() -> OmType?
-    func asArray<OmType: OmFileArrayDataTypeProtocol>(of: OmType.Type, io_size_max: UInt64, io_size_merge: UInt64) -> (any OmFileReaderAsyncArrayProtocol<OmType>)?
+    func asArray<OmType: OmFileArrayDataTypeProtocol>(of: OmType.Type, io_size_max: UInt64, io_size_merge: UInt64) -> (any OmFileReaderArrayProtocol<OmType>)?
 }
 
-/// Protocol for `OmFileReaderAsyncArray` to type erase the underlaying backend implementation
-public protocol OmFileReaderAsyncArrayProtocol<OmType>: Sendable {
+/// Protocol for `OmFileReaderArray` to type erase the underlaying backend implementation
+public protocol OmFileReaderArrayProtocol<OmType>: Sendable {
     associatedtype OmType: OmFileArrayDataTypeProtocol
     
     var compression: CompressionType { get }
