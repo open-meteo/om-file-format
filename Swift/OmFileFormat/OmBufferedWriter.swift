@@ -1,5 +1,6 @@
 import Foundation
 
+
 /// All data is written to a buffer before flushed to a backend
 public final class OmBufferedWriter<FileHandle: OmFileWriterBackend> {
     /// All data is written to this buffer. The current offset is in `writeBufferPos`. This buffer must be written out before it is full.

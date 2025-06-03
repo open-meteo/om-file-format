@@ -66,7 +66,7 @@ public struct OmFileWriter<FileHandle: OmFileWriterBackend> {
         return try write(value: OmNone(), name: name, children: children)
     }
 
-    public func prepareArray<OmType: OmFileArrayDataTypeProtocol>(type: OmType.Type, dimensions: [UInt64], chunkDimensions: [UInt64], compression: CompressionType, scale_factor: Float, add_offset: Float) throws -> OmFileWriterArray<OmType, FileHandle> {
+    public func prepareArray<OmType: OmFileArrayDataTypeProtocol>(type: OmType.Type, dimensions: [UInt64], chunkDimensions: [UInt64], compression: OmCompressionType, scale_factor: Float, add_offset: Float) throws -> OmFileWriterArray<OmType, FileHandle> {
         try writeHeaderIfRequired()
         return try .init(dimensions: dimensions, chunkDimensions: chunkDimensions, compression: compression, scale_factor: scale_factor, add_offset: add_offset, buffer: buffer)
     }
@@ -123,7 +123,7 @@ public final class OmFileWriterArray<OmType: OmFileArrayDataTypeProtocol, FileHa
     let add_offset: Float
 
     /// Type of compression and coding. E.g. delta, zigzag coding is then implemented in different compression routines
-    let compression: CompressionType
+    let compression: OmCompressionType
 
     /// The dimensions of the file
     let dimensions: [UInt64]
@@ -139,7 +139,7 @@ public final class OmFileWriterArray<OmType: OmFileArrayDataTypeProtocol, FileHa
     let buffer: OmBufferedWriter<FileHandle>
 
 
-    public init(dimensions: [UInt64], chunkDimensions: [UInt64], compression: CompressionType, scale_factor: Float, add_offset: Float, buffer: OmBufferedWriter<FileHandle>) throws {
+    public init(dimensions: [UInt64], chunkDimensions: [UInt64], compression: OmCompressionType, scale_factor: Float, add_offset: Float, buffer: OmBufferedWriter<FileHandle>) throws {
 
         assert(dimensions.count == chunkDimensions.count)
         
@@ -275,9 +275,9 @@ public struct OmFileWriterArrayFinalised {
     let add_offset: Float
 
     /// Type of compression and coding. E.g. delta, zigzag coding is then implemented in different compression routines
-    let compression: CompressionType
+    let compression: OmCompressionType
 
-    let datatype: DataType
+    let datatype: OmDataType
 
     /// The dimensions of the file
     let dimensions: [UInt64]

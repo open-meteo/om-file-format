@@ -1,7 +1,28 @@
+import Foundation
+
+
+/// OmFileReader can read data from this backend
+public protocol OmFileReaderBackend: Sendable {
+    /// The return data can be a directly a pointer or a `Data` class that retains data.
+    associatedtype DataType: ContiguousBytes & Sendable
+    
+    // Length in bytes
+    var count: Int { get }
+
+    /// Prefect data for future access. E.g. madvice on memory mapped files
+    func prefetchData(offset: Int, count: Int) async throws
+    
+    /// Read data. Data will be retained of type `DataType`. Reads must be thread safe.
+    func getData(offset: Int, count: Int) async throws -> DataType
+    
+    /// Read data. Data is only temporarily read inside the callback without async
+    func withData<T>(offset: Int, count: Int, fn: @Sendable (UnsafeRawBufferPointer) throws -> T) async throws -> T
+}
+
 /// Protocol for `OmFileReader` but without the underlaying backend implementation
 /// This protocol can be used to abstract multiple reader using different backends
 public protocol OmFileReaderProtocol: Sendable {
-    var dataType: DataType { get }
+    var dataType: OmDataType { get }
     var numberOfChildren: UInt32 { get }
     
     func getName() -> String?
@@ -15,7 +36,7 @@ public protocol OmFileReaderProtocol: Sendable {
 public protocol OmFileReaderArrayProtocol<OmType>: Sendable {
     associatedtype OmType: OmFileArrayDataTypeProtocol
     
-    var compression: CompressionType { get }
+    var compression: OmCompressionType { get }
     var scaleFactor: Float { get }
     var addOffset: Float { get }
     
