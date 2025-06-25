@@ -34,9 +34,9 @@ public final class OmBufferedWriter<FileHandle: OmFileWriterBackend> {
     }
 
     /// Add empty space if required to align to 64 bits
-    func alignTo64Bytes() throws {
+    func alignTo8Bytes() throws {
         let bytesToPadd = 8 - totalBytesWritten % 8
-        if bytesToPadd == 0 {
+        if bytesToPadd == 8 {
             return
         }
         try reallocate(minimumCapacity: bytesToPadd)

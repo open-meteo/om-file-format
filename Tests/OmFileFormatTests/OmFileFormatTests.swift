@@ -362,7 +362,7 @@ import OmFileFormatC
 
         // Ensure written bytes are correct
         #expect(readFn.count == 296)
-        let bytes = readFn.getData(offset: 0, count: readFn.count).map{UInt8($0)}
+        let bytes = readFn.getData(offset: 0, count: readFn.count).map{ UInt8($0) }
         #expect(bytes[0..<3] == [79, 77, 3])
         #expect(bytes[3..<8] == [0, 3, 34, 140, 2]) // chunk
         #expect(bytes[8..<12] == [2, 3, 114, 1] || bytes[8..<12] == [2, 3, 114, 141]) // difference on x86 and ARM cause by the underlying compression
@@ -386,6 +386,73 @@ import OmFileFormatC
         await #expect(try read.readInterpolated(dim0X: 0, dim0XFraction: 0.9, dim0Y: 0, dim0YFraction: 0.2, dim0Nx: 3, dim1: 0..<3) == [4.5, 5.5, 6.5])
         await #expect(try read.readInterpolated(dim0X: 0, dim0XFraction: 0.1, dim0Y: 0, dim0YFraction: 0.9, dim0Nx: 3, dim1: 0..<3) == [8.4, 9.4, 10.400001])
         await #expect(try read.readInterpolated(dim0X: 0, dim0XFraction: 0.8, dim0Y: 0, dim0YFraction: 0.9, dim0Nx: 3, dim1: 0..<3) == [10.5, 11.5, 12.5])
+    }
+
+    @Test func writeStringArray() async throws {
+        let file = "writeStringArray.om"
+        let fn = try FileHandle.createNewFile(file: file, overwrite: true)
+        defer { try? FileManager.default.removeItem(atPath: file) }
+        let fileWriter = OmFileWriter(fn: fn, initialCapacity: 8)
+
+        let writer = try fileWriter.prepareStringArray(dimensions: [3, 2, 2])
+
+        let data = ["string1", "string2", "string3", "string4", "string5", "string6", "string7", "string8_äöüß¿¡!?", "", "string10____", "string11", "string12"]
+        try writer.writeData(array: data)
+        let variableMeta = try writer.finalise()
+        let variable = try fileWriter.write(array: variableMeta, name: "data", children: [])
+        try fileWriter.writeTrailer(rootVariable: variable)
+
+        let readFn = try MmapFile(fn: FileHandle.openFileReading(file: file))
+        #expect(readFn.count == 296)
+        let bytes: [UInt8] = readFn.getData(offset: 0, count: readFn.count).map{ UInt8($0) }
+        #expect(bytes[0..<3] == [79, 77, 3])
+        #expect(bytes[3..<3+7] == [115, 116, 114, 105, 110, 103, 49]) // string1
+        #expect(bytes[10..<10+7] == [115, 116, 114, 105, 110, 103, 50]) // string2
+        #expect(bytes[17..<17+7] == [115, 116, 114, 105, 110, 103, 51]) // string3
+        #expect(bytes[24..<24+7] == [115, 116, 114, 105, 110, 103, 52]) // string4
+        #expect(bytes[31..<31+7] == [115, 116, 114, 105, 110, 103, 53]) // string5
+        #expect(bytes[38..<38+7] == [115, 116, 114, 105, 110, 103, 54]) // string6
+        #expect(bytes[45..<45+7] == [115, 116, 114, 105, 110, 103, 55]) // string7
+        #expect(bytes[52..<52+22] == [115, 116, 114, 105, 110, 103, 56, 95, 195, 164, 195, 182, 195, 188, 195, 159, 194, 191, 194, 161, 33, 63]) // string8_äöüß¿¡!?
+        #expect(bytes[74..<74+0] == []) // empty string
+        #expect(bytes[74..<74+12] == [115, 116, 114, 105, 110, 103, 49, 48, 95, 95, 95, 95]) // string10____
+        #expect(bytes[86..<86+8] == [115, 116, 114, 105, 110, 103, 49, 49]) // string11
+        #expect(bytes[94..<94+8] == [115, 116, 114, 105, 110, 103, 49, 50]) // string12
+        #expect(bytes[104..<104+13*8] == [
+            3, 0, 0, 0, 0, 0, 0, 0,
+            10, 0, 0, 0, 0, 0, 0, 0,
+            17, 0, 0, 0, 0, 0, 0, 0,
+            24, 0, 0, 0, 0, 0, 0, 0,
+            31, 0, 0, 0, 0, 0, 0, 0,
+            38, 0, 0, 0, 0, 0, 0, 0,
+            45, 0, 0, 0, 0, 0, 0, 0,
+            52, 0, 0, 0, 0, 0, 0, 0,
+            74, 0, 0, 0, 0, 0, 0, 0,
+            74, 0, 0, 0, 0, 0, 0, 0,
+            86, 0, 0, 0, 0, 0, 0, 0,
+            94, 0, 0, 0, 0, 0, 0, 0,
+            102, 0, 0, 0, 0, 0, 0, 0
+        ]) // LUT
+        #expect(bytes[104+13*8..<104+13*8+60] == [
+            22, 4, 4, 0, 0, 0, 0, 0, // data type (1), compression (1), size of name (2), number of children (4)
+            104, 0, 0, 0, 0, 0, 0, 0, // size of LUT
+            104, 0, 0, 0, 0, 0, 0, 0, // offset of LUT
+            3, 0, 0, 0, 0, 0, 0, 0, // number of dimensions
+            3, 0, 0, 0, 0, 0, 0, 0, // dimension1
+            2, 0, 0, 0, 0, 0, 0, 0, // dimension2
+            2, 0, 0, 0, 0, 0, 0, 0, // dimension3
+            100, 97, 116, 97
+        ]) // array meta
+        #expect(bytes[296-24..<296] == [79, 77, 3, 0, 0, 0, 0, 0, 208, 0, 0, 0, 0, 0, 0, 0, 60, 0, 0, 0, 0, 0, 0, 0]) // trailer
+
+
+        let reader = try await OmFileReader(fn: readFn)
+        let read = try await reader.asStringArray()!
+        let complete_array = try await read.read()
+        #expect(complete_array == data)
+
+        let partial_array = try await read.read(range: [0..<3, 0..<2, 0..<1])
+        #expect(partial_array == ["string1", "string3", "string5", "string7", "", "string11"])
     }
 
     @Test func writev3() async throws {

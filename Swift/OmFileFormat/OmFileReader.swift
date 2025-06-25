@@ -36,7 +36,7 @@ public struct OmFileReader<Backend: OmFileReaderBackend>: OmFileReaderProtocol {
                 }
                 return (offset, size)
             }
-            /// Read data from root.offset by root.size. Important: data must remain accessible throughout the use of this variable!!
+            // Read data from root.offset by root.size. Important: data must remain accessible throughout the use of this variable!!
             let dataVariable = try await fn.getData(offset: Int(offset), count: Int(size))
             self.variable = dataVariable
         case OM_HEADER_INVALID:
@@ -126,7 +126,7 @@ public struct OmFileReader<Backend: OmFileReaderBackend>: OmFileReaderProtocol {
             io_size_merge: io_size_merge
         )
     }
-    
+
     public func asArray<OmType>(of: OmType.Type, io_size_max: UInt64, io_size_merge: UInt64) -> (any OmFileReaderArrayProtocol<OmType>)? where OmType : OmFileArrayDataTypeProtocol {
         guard OmType.dataTypeArray == self.dataType else {
             return nil
@@ -137,5 +137,150 @@ public struct OmFileReader<Backend: OmFileReaderBackend>: OmFileReaderProtocol {
             io_size_max: io_size_max,
             io_size_merge: io_size_merge
         )
+    }
+
+    public func asStringArray(io_size_max: UInt64 = 65536, io_size_merge: UInt64 = 512) async throws -> OmFileReaderStringArray<Backend>? {
+        guard self.dataType == .string_array else {
+            return nil
+        }
+
+        return try await OmFileReaderStringArray(
+            fn: fn,
+            variable: variable,
+            io_size_max: io_size_max,
+            io_size_merge: io_size_merge
+        )
+    }
+}
+
+/// Specialized reader for string arrays that handles variable-length strings with native decoding
+public struct OmFileReaderStringArray<Backend: OmFileReaderBackend> {
+    /// Points to the underlying memory
+    public let fn: Backend
+    let variable: Backend.DataType
+    let io_size_max: UInt64
+    let io_size_merge: UInt64
+
+    let lutTable: [UInt64]
+
+    init(fn: Backend, variable: Backend.DataType, io_size_max: UInt64, io_size_merge: UInt64) async throws {
+        self.fn = fn
+        self.variable = variable
+        self.io_size_max = io_size_max
+        self.io_size_merge = io_size_merge
+
+        // Extract LUT information from the variable metadata
+        let (lutOffset, lutSize) = variable.withUnsafeBytes { bytes in
+            let variable = om_variable_init(bytes.baseAddress)
+
+            // Check if this is actually a string array
+            guard om_variable_get_type(variable) == DATA_TYPE_STRING_ARRAY else {
+                fatalError("Variable is not a string array")
+            }
+
+            // Cast to the string array structure to access LUT information
+            let stringArrayPtr = bytes.baseAddress!.assumingMemoryBound(to: OmVariableStringArrayV3_t.self)
+            let meta = stringArrayPtr.pointee
+
+            return (meta.lut_offset, meta.lut_size)
+        }
+
+        // Read the LUT from the file
+        let lutData = try await fn.getData(offset: Int(lutOffset), count: Int(lutSize))
+        let lutCount = Int(lutSize) / MemoryLayout<UInt64>.size
+
+        self.lutTable = lutData.withUnsafeBytes { bytes in
+            let lutBuffer = bytes.bindMemory(to: UInt64.self)
+            return Array(UnsafeBufferPointer(start: lutBuffer.baseAddress, count: lutCount))
+        }
+
+        print("lutTable \(lutTable)")
+    }
+
+    /// Get the dimensions of the string array
+    public func getDimensions() -> [UInt64] {
+        return variable.withUnsafeBytes { bytes in
+            let variable = om_variable_init(bytes.baseAddress)
+            let dimensions = om_variable_get_dimensions(variable)
+            return Array(UnsafeBufferPointer<UInt64>(start: dimensions.values, count: Int(dimensions.count)))
+        }
+    }
+
+    /// Read the entire string array
+    public func read() async throws -> [String] {
+        let dimensions = self.getDimensions()
+        let ranges = dimensions.map { 0..<$0 }
+        return try await read(range: ranges)
+    }
+
+    /// Read a subset of the string array
+    public func read(range: [Range<UInt64>]) async throws -> [String] {
+        let dimensions = self.getDimensions().map { Int($0) }
+        print("Dimensions \(dimensions)")
+        let ranges = range.map { Range(uncheckedBounds: (Int($0.lowerBound), Int($0.upperBound))) }
+        let totalCount = ranges.map { $0.count }.reduce(1, *)
+
+        guard dimensions.count == ranges.count else {
+            throw OmFileFormatSwiftError.omDecoder(error: "Dimension count mismatch")
+        }
+
+        var strings = [String]()
+        strings.reserveCapacity(Int(totalCount))
+
+        // We need to translate the array indices to linear indices
+        // according to row-major order
+        // Create array to hold current indices
+        var currentIndices = ranges.map { $0.lowerBound }
+
+        // Row-major iteration (leftmost dimension changes slowest)
+        outer: while true {
+            // Calculate linear index for current position
+            var linearIndex = 0
+            var multiplier = 1
+
+            // Calculate linear index in row-major order (rightmost dimension is fastest)
+            for (idx, dim) in dimensions.enumerated().reversed() {
+                linearIndex += currentIndices[idx] * multiplier
+                multiplier *= dim
+            }
+
+            // The LUT at the linear index contains the offset of the string
+            // The next LUT entry contains the offset of the next string
+            // The length of the string is the difference between the two offsets
+            let startOffset = self.lutTable[Int(linearIndex)]
+            let endOffset = self.lutTable[Int(linearIndex + 1)]
+
+            // Process current position
+            print("Read string at \(startOffset) - \(endOffset)")
+            strings.append(try await self.readString(start: Int(startOffset), end: Int(endOffset)))
+
+            // Increment indices starting from rightmost dimension
+            for dimIdx in (0..<dimensions.count).reversed() {
+                currentIndices[dimIdx] += 1
+                if currentIndices[dimIdx] < ranges[dimIdx].upperBound {
+                    break // If we haven't reached the end of this dimension, continue
+                }
+                if dimIdx == 0 {
+                    break outer // If we've processed all dimensions, we're done
+                }
+                // Reset this dimension and continue to increment the next one
+                currentIndices[dimIdx] = ranges[dimIdx].lowerBound
+            }
+        }
+
+        return strings
+    }
+
+    /// Read a single string from the specified start and end offset
+    public func readString(start: Int, end: Int) async throws -> String {
+        if start == end {
+            return "" // Empty string
+        }
+
+        let stringData = try await self.fn.getData(offset: start, count: end - start)
+
+        return stringData.withUnsafeBytes { buffer in
+            String(decoding: buffer, as: UTF8.self)
+        }
     }
 }

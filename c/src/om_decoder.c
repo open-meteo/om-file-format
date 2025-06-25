@@ -73,6 +73,7 @@ OmError_t om_decoder_init(
             lut_chunk_length = 1;
             break;
         }
+        case OM_MEMORY_LAYOUT_STRING_ARRAY:
         case OM_MEMORY_LAYOUT_SCALAR:
             return ERROR_INVALID_DATA_TYPE;
     }
@@ -184,24 +185,21 @@ ALWAYS_INLINE uint64_t om_decode_decompress(
                 case DATA_TYPE_DOUBLE_ARRAY:
                     result = p4nzdec64((unsigned char*)input, (size_t)count, (uint64_t*)output);
                     break;
-                case DATA_TYPE_NONE:
-                case DATA_TYPE_STRING:
-                case DATA_TYPE_STRING_ARRAY:
-                case DATA_TYPE_INT8:
-                case DATA_TYPE_UINT8:
-                case DATA_TYPE_INT16:
-                case DATA_TYPE_UINT16:
-                case DATA_TYPE_INT32:
-                case DATA_TYPE_UINT32:
-                case DATA_TYPE_INT64:
-                case DATA_TYPE_UINT64:
-                case DATA_TYPE_FLOAT:
-                case DATA_TYPE_DOUBLE:
+                default:
                     break;
             }
             break;
-
         case COMPRESSION_NONE:
+            switch (data_type) {
+                case DATA_TYPE_STRING_ARRAY:
+                    // For string arrays, we just return the total size
+                    // The actual string data is read separately
+                    result = count;
+                    break;
+                default:
+                    // Other data types need to be compressed
+                    break;
+            }
             break;
     }
 
@@ -497,6 +495,30 @@ bool om_decoder_next_index_read(const OmDecoder_t* decoder, OmDecoder_indexRead_
     return true;
 }
 
+// Helper function to update chunk position
+bool _advance_to_next_chunk(
+    const OmDecoder_t *decoder,
+    OmDecoder_dataRead_t *data_read
+) {
+    if (data_read->nextChunk.lowerBound + 1 >= data_read->nextChunk.upperBound) {
+        if (!_om_decoder_next_chunk_position(decoder, &data_read->nextChunk)) {
+            // No next chunk, finish processing the current one and stop
+            return false;
+        }
+    } else {
+        data_read->nextChunk.lowerBound += 1;
+    }
+
+    if (data_read->nextChunk.lowerBound >= data_read->indexRange.upperBound) {
+        data_read->nextChunk.lowerBound = 0;
+        data_read->nextChunk.upperBound = 0;
+        return false;
+    }
+
+    return true;
+}
+
+
 bool om_decoder_next_data_read(const OmDecoder_t *decoder, OmDecoder_dataRead_t* data_read, const void* index_data, uint64_t index_data_size, OmError_t* error) {
     if (data_read->nextChunk.lowerBound >= data_read->nextChunk.upperBound) {
         return false;
@@ -542,18 +564,7 @@ bool om_decoder_next_data_read(const OmDecoder_t *decoder, OmDecoder_dataRead_t*
             endPos = dataEndPos;
             chunkIndex = data_read->nextChunk.lowerBound;
 
-            if (data_read->nextChunk.lowerBound + 1 >= data_read->nextChunk.upperBound) {
-                if (!_om_decoder_next_chunk_position(decoder, &data_read->nextChunk)) {
-                    // No next chunk, finish processing the current one and stop
-                    break;
-                }
-            } else {
-                data_read->nextChunk.lowerBound += 1;
-            }
-
-            if (data_read->nextChunk.lowerBound >= data_read->indexRange.upperBound) {
-                data_read->nextChunk.lowerBound = 0;
-                data_read->nextChunk.upperBound = 0;
+            if (!_advance_to_next_chunk(decoder, data_read)) {
                 break;
             }
         }
@@ -625,18 +636,7 @@ bool om_decoder_next_data_read(const OmDecoder_t *decoder, OmDecoder_dataRead_t*
         endPos = dataEndPos;
         chunkIndex = data_read->nextChunk.lowerBound;
 
-        if (chunkIndex + 1 >= data_read->nextChunk.upperBound) {
-            if (!_om_decoder_next_chunk_position(decoder, &data_read->nextChunk)) {
-                // No next chunk, finish processing the current one and stop
-                break;
-            }
-        } else {
-            data_read->nextChunk.lowerBound += 1;
-        }
-
-        if (data_read->nextChunk.lowerBound >= data_read->indexRange.upperBound) {
-            data_read->nextChunk.lowerBound = 0;
-            data_read->nextChunk.upperBound = 0;
+        if (!_advance_to_next_chunk(decoder, data_read)) {
             break;
         }
     }
@@ -705,13 +705,12 @@ uint64_t _om_decoder_decode_chunk(
         d += rollingMultiplyChunkLength * d0;
         q += rollingMultiplyTargetCube * q0;
 
-        if (i == dimensions_count - 1 && !(lengthRead == length0 && read_count == length0 && cube_dimension == length0)) {
+        bool dimensionIsReadEntirely = (lengthRead == length0) && (read_count == length0) && (cube_dimension == length0);
+        if (i == dimensions_count - 1 && !dimensionIsReadEntirely) {
             // if fast dimension and only partially read
             linearReadCount = lengthRead;
             linearRead = false;
-        }
-
-        if (linearRead && lengthRead == length0 && read_count == length0 && cube_dimension == length0) {
+        } else if (linearRead && dimensionIsReadEntirely) {
             // dimension is read entirely
             // and can be copied linearly into the output buffer
             linearReadCount *= length0;
@@ -785,12 +784,12 @@ uint64_t _om_decoder_decode_chunk(
             d += rollingMultiplyChunkLength;
             q += rollingMultiplyTargetCube;
 
-            if ((i == dimensions_count - 1) && !(lengthRead == length0 && read_count == length0 && cube_dimension == length0)) {
+            bool dimensionIsReadEntirely = (lengthRead == length0) && (read_count == length0) && (cube_dimension == length0);
+            if ((i == dimensions_count - 1) && !dimensionIsReadEntirely) {
                 // if fast dimension and only partially read
                 linearReadCount = lengthRead;
                 linearRead = false;
-            }
-            if (linearRead && (lengthRead == length0) && (read_count == length0) && (cube_dimension == length0)) {
+            } else if (linearRead && dimensionIsReadEntirely) {
                 // dimension is read entirely
                 // and can be copied linearly into the output buffer
                 linearReadCount *= length0;

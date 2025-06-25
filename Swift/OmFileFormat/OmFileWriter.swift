@@ -31,7 +31,7 @@ public struct OmFileWriter<FileHandle: OmFileWriterBackend> {
             let childrenSizes = children.map { $0.size }
             let type = OmType.dataTypeScalar.toC()
 
-            try buffer.alignTo64Bytes()
+            try buffer.alignTo8Bytes()
             let offset = UInt64(buffer.totalBytesWritten)
 
             let size = value.withOmBytes(body: { value in
@@ -71,21 +71,72 @@ public struct OmFileWriter<FileHandle: OmFileWriterBackend> {
         return try .init(dimensions: dimensions, chunkDimensions: chunkDimensions, compression: compression, scale_factor: scale_factor, add_offset: add_offset, buffer: buffer)
     }
 
+    public func prepareStringArray(dimensions: [UInt64]) throws -> OmFileWriterStringArray<FileHandle> {
+        try writeHeaderIfRequired()
+        return .init(dimensions: dimensions, buffer: buffer)
+    }
+
     public func write(array: OmFileWriterArrayFinalised, name: String, children: [OmOffsetSize]) throws -> OmOffsetSize {
         try writeHeaderIfRequired()
-        guard array.dimensions.count == array.chunks.count else {
-            fatalError()
-        }
+
         var name = name
-        return try name.withUTF8{ name in
+        return try name.withUTF8 { name in
             guard name.count <= UInt16.max else { fatalError() }
-            try buffer.alignTo64Bytes()
-            let size = om_variable_write_numeric_array_size(UInt16(name.count), UInt32(children.count), UInt64(array.dimensions.count))
+            try buffer.alignTo8Bytes()
             let offset = UInt64(buffer.totalBytesWritten)
-            try buffer.reallocate(minimumCapacity: Int(size))
-            let childrenOffsets = children.map {$0.offset}
-            let childrenSizes = children.map {$0.size}
-            om_variable_write_numeric_array(buffer.bufferAtWritePosition, UInt16(name.count), UInt32(children.count), childrenOffsets, childrenSizes, name.baseAddress, array.datatype.toC(), array.compression.toC(), array.scale_factor, array.add_offset, UInt64(array.dimensions.count), array.dimensions, array.chunks, UInt64(array.lutSize), UInt64(array.lutOffset))
+            let childrenOffsets = children.map { $0.offset }
+            let childrenSizes = children.map { $0.size }
+
+            let size: Int
+            if array.datatype == .string_array {
+                size = om_variable_write_string_array_size(
+                    UInt16(name.count),
+                    UInt32(children.count),
+                    UInt64(array.dimensions.count)
+                )
+                try buffer.reallocate(minimumCapacity: Int(size))
+                om_variable_write_string_array(
+                    buffer.bufferAtWritePosition,
+                    UInt16(name.count),
+                    UInt32(children.count),
+                    childrenOffsets,
+                    childrenSizes,
+                    name.baseAddress,
+                    array.datatype.toC(),
+                    array.compression.toC(),
+                    UInt64(array.dimensions.count),
+                    array.dimensions,
+                    array.lutSize,
+                    array.lutOffset
+                )
+            } else {
+                guard array.dimensions.count == array.chunks.count else {
+                    fatalError()
+                }
+                size = om_variable_write_numeric_array_size(
+                    UInt16(name.count),
+                    UInt32(children.count),
+                    UInt64(array.dimensions.count)
+                )
+                try buffer.reallocate(minimumCapacity: Int(size))
+                om_variable_write_numeric_array(
+                    buffer.bufferAtWritePosition,
+                    UInt16(name.count),
+                    UInt32(children.count),
+                    childrenOffsets,
+                    childrenSizes,
+                    name.baseAddress,
+                    array.datatype.toC(),
+                    array.compression.toC(),
+                    array.scale_factor,
+                    array.add_offset,
+                    UInt64(array.dimensions.count),
+                    array.dimensions,
+                    array.chunks,
+                    UInt64(array.lutSize),
+                    UInt64(array.lutOffset)
+                )
+            }
             buffer.incrementWritePosition(by: size)
             return OmOffsetSize(offset: offset, size: UInt64(size))
         }
@@ -93,7 +144,7 @@ public struct OmFileWriter<FileHandle: OmFileWriterBackend> {
 
     public func writeTrailer(rootVariable: OmOffsetSize) throws {
         try writeHeaderIfRequired()
-        try buffer.alignTo64Bytes()
+        try buffer.alignTo8Bytes()
 
         // write length of JSON
         let size = om_trailer_size()
@@ -142,7 +193,7 @@ public final class OmFileWriterArray<OmType: OmFileArrayDataTypeProtocol, FileHa
     public init(dimensions: [UInt64], chunkDimensions: [UInt64], compression: OmCompressionType, scale_factor: Float, add_offset: Float, buffer: OmBufferedWriter<FileHandle>) throws {
 
         assert(dimensions.count == chunkDimensions.count)
-        
+
         var chunks = chunkDimensions
         var dimensions = dimensions
 
@@ -208,8 +259,8 @@ public final class OmFileWriterArray<OmType: OmFileArrayDataTypeProtocol, FileHa
         /// How many chunks can be written to the output. This could be only a single one, or multiple
         let numberOfChunksInArray = om_encoder_count_chunks_in_array(&encoder, arrayCount)
 
-        /// Store data start address if this is the first time this read is called
-        if chunkIndex == 0 {
+        // Store data start address if this is the first time this read is called
+        if self.chunkIndex == 0 {
             lookUpTable[chunkIndex] = UInt64(buffer.totalBytesWritten)
         }
 
@@ -288,6 +339,93 @@ public struct OmFileWriterArrayFinalised {
     let lutSize: UInt64
 
     let lutOffset: UInt64
+}
+
+/// Specialized string array writer
+public final class OmFileWriterStringArray<FileHandle: OmFileWriterBackend> {
+    private var lookUpTable: [UInt64]
+    private var currentIndex: Int
+    private let buffer: OmBufferedWriter<FileHandle>
+    private let dimensions: [UInt64]
+    private let totalNumberOfStrings: Int
+
+    public init(dimensions: [UInt64], buffer: OmBufferedWriter<FileHandle>) {
+        self.dimensions = dimensions
+        self.totalNumberOfStrings = Int(dimensions.reduce(1, *))
+        // Allocate space for a lookup table.
+        // Needs to be totalNumberOfStrings+1 to store start of first string
+        // as first element and for each string then the end address
+        self.lookUpTable = .init(repeating: 0, count: self.totalNumberOfStrings + 1)
+        self.currentIndex = 0
+        self.buffer = buffer
+    }
+
+    /// Write strings to file. Can be all, a single or multiple strings.
+    /// - Parameters:
+    ///   - array: Array of strings to write
+    ///   - arrayDimensions: The dimensions of the input array
+    ///   - arrayOffset: Starting position in the target array
+    ///   - arrayCount: Number of elements to write in each dimension
+    public func writeData(array: [String], arrayDimensions: [UInt64]? = nil, arrayOffset: [UInt64]? = nil, arrayCount: [UInt64]? = nil) throws {
+        let arrayDimensions = arrayDimensions ?? self.dimensions
+        let arrayCount = arrayCount ?? arrayDimensions
+        let arrayOffset = arrayOffset ?? [UInt64](repeating: 0, count: arrayDimensions.count)
+
+        // Verify parameters
+        assert(array.count == arrayCount.reduce(1, *))
+        assert(arrayDimensions.allSatisfy({$0 >= 0}))
+        assert(arrayOffset.allSatisfy({$0 >= 0}))
+        assert(zip(arrayDimensions, zip(arrayOffset, arrayCount)).allSatisfy { $1.0 + $1.1 <= $0 })
+
+        // Store data start address if this is the first time this read is called
+        if self.currentIndex == 0 {
+            lookUpTable[self.currentIndex] = UInt64(buffer.totalBytesWritten)
+        }
+
+        // Pre-calculate total required capacity
+        let totalCapacity = array.reduce(0) { $0 + $1.utf8.count }
+        try buffer.reallocate(minimumCapacity: totalCapacity)
+
+        // Write all strings consecutively
+        for string in array {
+            string.utf8.withContiguousStorageIfAvailable { utf8 in
+                let writeByteCount = utf8.count
+
+                buffer.bufferAtWritePosition
+                    .copyMemory(from: utf8.baseAddress!, byteCount: writeByteCount)
+                buffer.incrementWritePosition(by: writeByteCount)
+
+                lookUpTable[self.currentIndex+1] = UInt64(buffer.totalBytesWritten)
+                self.currentIndex += 1
+            }
+        }
+    }
+
+    public func finalise() throws -> OmFileWriterArrayFinalised {
+        guard self.currentIndex == self.totalNumberOfStrings else {
+            throw OmFileFormatSwiftError.omEncoder(error: "Not all strings have been written")
+        }
+
+        try buffer.alignTo8Bytes()
+        let lutOffset = buffer.totalBytesWritten
+
+        // Write uncompressed LUT
+        let lutSize = Int(lookUpTable.count * MemoryLayout<UInt64>.size)
+        try buffer.reallocate(minimumCapacity: lutSize)
+        buffer.bufferAtWritePosition.copyMemory(from: self.lookUpTable, byteCount: lutSize)
+        buffer.incrementWritePosition(by: lutSize)
+
+        return OmFileWriterArrayFinalised(
+            scale_factor: 0, // these are fake entries we don't need, will not be written to the file for string arrays
+            add_offset: 0, // these are fake entries we don't need, will not be written to the file for string arrays
+            compression: .none,
+            datatype: .string_array,
+            dimensions: dimensions,
+            chunks: [], // this is a fake entry we don't need, will not be written to the file for string arrays
+            lutSize: UInt64(lutSize),
+            lutOffset: UInt64(lutOffset)
+        )
+    }
 }
 
 /// Wrapper for the internal C structure to keep offset and size
