@@ -103,7 +103,7 @@ OmError_t om_decoder_init(
 
     // Correctly calculate number of chunks
     if (lut_chunk_length > 0) {
-        const uint64_t nLutChunks = divide_rounded_up(nChunks, LUT_CHUNK_COUNT);
+        const uint64_t nLutChunks = divide_rounded_up(nChunks+1, LUT_CHUNK_COUNT);
         lut_chunk_length = lut_size / nLutChunks;
     }
 
@@ -457,13 +457,13 @@ bool om_decoder_next_index_read(const OmDecoder_t* decoder, OmDecoder_indexRead_
     while (true) {
         const uint64_t maxRead = io_size_max / lut_chunk_length * lut_chunk_element_count;
         const uint64_t nextChunkCount = index_read->nextChunk.upperBound - index_read->nextChunk.lowerBound;
-        const uint64_t nextIncrement = max(1, min(maxRead-1, nextChunkCount - 1));
+        const uint64_t nextIncrement = max(1, min(maxRead - 1, nextChunkCount - 1));
 
         if (index_read->nextChunk.lowerBound + nextIncrement >= index_read->nextChunk.upperBound) {
             if (!_om_decoder_next_chunk_position(decoder, &index_read->nextChunk)) {
                 break;
             }
-            const uint64_t readEndNext = (index_read->nextChunk.lowerBound + endAlignOffset) / lut_chunk_element_count * lut_chunk_length;
+            const uint64_t readEndNext = divide_rounded_up(index_read->nextChunk.lowerBound + endAlignOffset, lut_chunk_element_count) * lut_chunk_length;
             const uint64_t readStartNext = readEndNext - lut_chunk_length;
             const uint64_t readEndPrevious = chunkIndex / lut_chunk_element_count * lut_chunk_length;
 

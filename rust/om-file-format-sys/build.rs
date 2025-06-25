@@ -2,6 +2,8 @@ use std::env;
 use std::path::PathBuf;
 use std::process::Command;
 
+use bindgen::EnumVariation;
+
 struct BuildConfig {
     // target: String,
     arch: String,
@@ -81,6 +83,12 @@ fn generate_bindings(submodule: &str, sysroot: &Option<String>) {
         )
         .clang_arg(format!("-I{}/include", submodule))
         .header(format!("{}/include/om_file_format.h", submodule))
+        // This tells bindgen to generate Rust enums.
+        // Rust enums have the downside of potentially causing UB
+        // if the C code for some reason returns a value that is not defined in the enum.
+        // Since we are in control of the C code, we can ensure that it only returns valid values!
+        // https://mdaverde.com/posts/rust-bindgen-enum/
+        .default_enum_style(EnumVariation::Rust { non_exhaustive: false })
         .generate()
         .expect("Unable to generate bindings");
 

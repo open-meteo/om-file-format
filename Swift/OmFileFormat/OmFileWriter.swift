@@ -1,12 +1,5 @@
-//
-//  OmFileWriter2.swift
-//  OpenMeteoApi
-//
-//  Created by Patrick Zippenfenig on 29.10.2024.
-//
-
 import Foundation
-@_implementationOnly import OmFileFormatC
+import OmFileFormatC
 
 
 /// Writes om file header and trailer
@@ -34,29 +27,24 @@ public struct OmFileWriter<FileHandle: OmFileWriterBackend> {
         return try name.withUTF8{ name in
             guard name.count <= UInt16.max else { fatalError() }
             guard children.count <= UInt32.max else { fatalError() }
+            let childrenOffsets = children.map { $0.offset }
+            let childrenSizes = children.map { $0.size }
             let type = OmType.dataTypeScalar.toC()
+
             try buffer.alignTo8Bytes()
-
-            let stringLength: UInt64
-            if type == DATA_TYPE_STRING {
-                // For strings, pass the string length
-                stringLength = UInt64((value as! String).utf8.count) // TODO: safely init?
-            } else {
-                stringLength = 0
-            }
-            let size = om_variable_write_scalar_size(
-                UInt16(name.count),
-                UInt32(children.count),
-                type,
-                stringLength
-            )
-
             let offset = UInt64(buffer.totalBytesWritten)
+
+            let size = value.withOmBytes(body: { value in
+                return om_variable_write_scalar_size(
+                    UInt16(name.count),
+                    UInt32(children.count),
+                    type,
+                    UInt64(value.count)
+                )
+            })
+
             try buffer.reallocate(minimumCapacity: Int(size))
-            var value = value
-            withUnsafePointer(to: &value, { value in
-                let childrenOffsets = children.map {$0.offset}
-                let childrenSizes = children.map {$0.size}
+            value.withOmBytes(body: { value in
                 om_variable_write_scalar(
                     buffer.bufferAtWritePosition,
                     UInt16(name.count),
@@ -65,8 +53,8 @@ public struct OmFileWriter<FileHandle: OmFileWriterBackend> {
                     childrenSizes,
                     name.baseAddress,
                     type,
-                    value,
-                    stringLength
+                    value.baseAddress,
+                    value.count
                 )
             })
             buffer.incrementWritePosition(by: size)
@@ -74,7 +62,11 @@ public struct OmFileWriter<FileHandle: OmFileWriterBackend> {
         }
     }
 
-    public func prepareArray<OmType: OmFileArrayDataTypeProtocol>(type: OmType.Type, dimensions: [UInt64], chunkDimensions: [UInt64], compression: CompressionType, scale_factor: Float, add_offset: Float) throws -> OmFileWriterArray<OmType, FileHandle> {
+    public func writeNone(name: String, children: [OmOffsetSize]) throws -> OmOffsetSize {
+        return try write(value: OmNone(), name: name, children: children)
+    }
+
+    public func prepareArray<OmType: OmFileArrayDataTypeProtocol>(type: OmType.Type, dimensions: [UInt64], chunkDimensions: [UInt64], compression: OmCompressionType, scale_factor: Float, add_offset: Float) throws -> OmFileWriterArray<OmType, FileHandle> {
         try writeHeaderIfRequired()
         return try .init(dimensions: dimensions, chunkDimensions: chunkDimensions, compression: compression, scale_factor: scale_factor, add_offset: add_offset, buffer: buffer)
     }
@@ -182,7 +174,7 @@ public final class OmFileWriterArray<OmType: OmFileArrayDataTypeProtocol, FileHa
     let add_offset: Float
 
     /// Type of compression and coding. E.g. delta, zigzag coding is then implemented in different compression routines
-    let compression: CompressionType
+    let compression: OmCompressionType
 
     /// The dimensions of the file
     let dimensions: [UInt64]
@@ -198,9 +190,12 @@ public final class OmFileWriterArray<OmType: OmFileArrayDataTypeProtocol, FileHa
     let buffer: OmBufferedWriter<FileHandle>
 
 
-    public init(dimensions: [UInt64], chunkDimensions: [UInt64], compression: CompressionType, scale_factor: Float, add_offset: Float, buffer: OmBufferedWriter<FileHandle>) throws {
+    public init(dimensions: [UInt64], chunkDimensions: [UInt64], compression: OmCompressionType, scale_factor: Float, add_offset: Float, buffer: OmBufferedWriter<FileHandle>) throws {
 
         assert(dimensions.count == chunkDimensions.count)
+
+        var chunks = chunkDimensions
+        var dimensions = dimensions
 
         self.chunks = chunkDimensions
         self.dimensions = dimensions
@@ -210,7 +205,7 @@ public final class OmFileWriterArray<OmType: OmFileArrayDataTypeProtocol, FileHa
 
         // Note: The encoder keeps the pointer to `&self.dimensions`. It is important that this array is not deallocated!
         self.encoder = OmEncoder_t()
-        let error = om_encoder_init(&encoder, scale_factor, add_offset, compression.toC(), OmType.dataTypeArray.toC(), &self.dimensions, &self.chunks, UInt64(dimensions.count))
+        let error = om_encoder_init(&encoder, scale_factor, add_offset, compression.toC(), OmType.dataTypeArray.toC(), &dimensions, &chunks, UInt64(dimensions.count))
 
         guard error == ERROR_OK else {
             throw OmFileFormatSwiftError.omEncoder(error: String(cString: om_error_string(error)))
@@ -331,9 +326,9 @@ public struct OmFileWriterArrayFinalised {
     let add_offset: Float
 
     /// Type of compression and coding. E.g. delta, zigzag coding is then implemented in different compression routines
-    let compression: CompressionType
+    let compression: OmCompressionType
 
-    let datatype: DataType
+    let datatype: OmDataType
 
     /// The dimensions of the file
     let dimensions: [UInt64]

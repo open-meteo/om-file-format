@@ -34,6 +34,8 @@ OmString_t om_variable_get_name(const OmVariable_t* variable) {
             const OmVariableV3_t* meta = (const OmVariableV3_t*)variable;
             char* base = (char*)((void *)variable + sizeof(OmVariableV3_t) + 16 * meta->children_count);
             switch (meta->data_type) {
+                case DATA_TYPE_NONE:
+                    return (OmString_t){.size = meta->name_size, .value = base};
                 case DATA_TYPE_INT8:
                 case DATA_TYPE_UINT8:
                     return (OmString_t){.size = meta->name_size, .value = base+1};
@@ -48,9 +50,12 @@ OmString_t om_variable_get_name(const OmVariable_t* variable) {
                 case DATA_TYPE_UINT64:
                 case DATA_TYPE_DOUBLE:
                     return (OmString_t){.size = meta->name_size, .value = base+8};
-                case DATA_TYPE_STRING:{
-                    uint16_t string_length = *(uint64_t*)base;
-                    return (OmString_t){.size = meta->name_size, .value = base + sizeof(uint64_t) + string_length};
+                case DATA_TYPE_STRING: {
+                    // String format: uint64_t string_size + string data
+                    uint64_t string_size = *(uint64_t*)base;
+                    const char* name_ptr = base + sizeof(uint64_t) + string_size;
+
+                    return (OmString_t){.size = meta->name_size, .value = name_ptr};
                 }
                 default:
                     return (OmString_t){.size = 0, .value = NULL};
@@ -209,7 +214,7 @@ bool om_variable_get_children(const OmVariable_t* variable, uint32_t child_offse
     return true;
 }
 
-OmError_t om_variable_get_scalar(const OmVariable_t* variable, void* value) {
+OmError_t om_variable_get_scalar(const OmVariable_t* variable, void** value, uint64_t* size) {
     if (_om_variable_memory_layout(variable) != OM_MEMORY_LAYOUT_SCALAR) {
         return ERROR_INVALID_DATA_TYPE;
     }
@@ -219,45 +224,36 @@ OmError_t om_variable_get_scalar(const OmVariable_t* variable, void* value) {
     switch (meta->data_type) {
         case DATA_TYPE_INT8:
         case DATA_TYPE_UINT8:
-            *(int8_t *)value = *(int8_t*)src;
+            *value = (void *)src;
+            *size = 1;
             return ERROR_OK;
         case DATA_TYPE_INT16:
         case DATA_TYPE_UINT16:
-            *(int16_t *)value = *(int16_t*)src;
+            *value = (void *)src;
+            *size = 2;
             return ERROR_OK;
         case DATA_TYPE_INT32:
         case DATA_TYPE_UINT32:
         case DATA_TYPE_FLOAT:
-            *(int32_t *)value = *(int32_t*)src;
+            *value = (void *)src;
+            *size = 4;
             return ERROR_OK;
         case DATA_TYPE_INT64:
         case DATA_TYPE_UINT64:
         case DATA_TYPE_DOUBLE:
-            *(int64_t *)value = *(int64_t*)src;
+            *value = (void *)src;
+            *size = 8;
+            return ERROR_OK;
+        case DATA_TYPE_STRING:
+            *value = (void *)((const char*)src + sizeof(uint64_t));
+            *size = *(uint64_t*)src;
             return ERROR_OK;
         default:
             return ERROR_INVALID_DATA_TYPE;
     }
 }
 
-OmString_t om_variable_get_string(const OmVariable_t* variable) {
-    if (_om_variable_memory_layout(variable) != OM_MEMORY_LAYOUT_SCALAR) {
-        return (OmString_t){.size = 0, .value = NULL};
-    }
-
-    const OmVariableV3_t* meta = (const OmVariableV3_t*)variable;
-    const void* src = (const void*)((char *)variable + sizeof(OmVariableV3_t) + 16 * meta->children_count);
-    if (meta->data_type != DATA_TYPE_STRING) {
-        return (OmString_t){.size = 0, .value = NULL};
-    }
-
-    uint64_t string_length = *(uint64_t*)src;
-    // Get pointer to the string data which follows the length
-    const char* string_data = (const char*)src + sizeof(uint64_t);
-    return (OmString_t){.size = string_length, .value = string_data};
-}
-
-size_t om_variable_write_scalar_size(uint16_t name_size, uint32_t children_count, OmDataType_t data_type, uint64_t string_length) {
+size_t om_variable_write_scalar_size(uint16_t name_size, uint32_t children_count, OmDataType_t data_type, uint64_t string_size) {
     size_t base = sizeof(OmVariableV3_t) + name_size + children_count * 16;
     switch (data_type) {
         case DATA_TYPE_NONE:
@@ -277,8 +273,8 @@ size_t om_variable_write_scalar_size(uint16_t name_size, uint32_t children_count
         case DATA_TYPE_DOUBLE:
             return base + 8;
         case DATA_TYPE_STRING:
-            // String format: uint64_t string_length + string data
-            return base + sizeof(uint64_t) + string_length;
+            // String format: uint64_t string_size + string data
+            return base + sizeof(uint64_t) + string_size;
         default:
             return 0;
     }
@@ -295,7 +291,17 @@ void _om_variable_write_children(void *dst, uint32_t children_count, const uint6
 }
 
 
-void om_variable_write_scalar(void* dst, uint16_t name_size, uint32_t children_count, const uint64_t* children_offsets, const uint64_t* children_sizes, const char* name, OmDataType_t data_type, const void* value, uint64_t string_length) {
+void om_variable_write_scalar(
+    void* dst,
+    uint16_t name_size,
+    uint32_t children_count,
+    const uint64_t* children_offsets,
+    const uint64_t* children_sizes,
+    const char* name,
+    OmDataType_t data_type,
+    const void* value,
+    size_t string_size
+) {
     *(OmVariableV3_t*)dst = (OmVariableV3_t){
         .data_type = (uint8_t)data_type,
         .compression_type = COMPRESSION_NONE,
@@ -310,6 +316,10 @@ void om_variable_write_scalar(void* dst, uint16_t name_size, uint32_t children_c
     char* destValue = (char*)(dst + sizeof(OmVariableV3_t) + 16 * children_count);
     uint8_t valueSize = 0;
     switch (data_type) {
+        case DATA_TYPE_NONE:
+            // No value to write for DATA_TYPE_NONE
+            valueSize = 0;
+            break;
         case DATA_TYPE_INT8:
         case DATA_TYPE_UINT8:
             *(int8_t *)destValue = *(int8_t*)value;
@@ -334,15 +344,20 @@ void om_variable_write_scalar(void* dst, uint16_t name_size, uint32_t children_c
             *(int64_t *)destValue = *(int64_t*)value;
             valueSize = 8;
             break;
-        case DATA_TYPE_STRING:
-            // Strings are written as uint16_t string_length + string data
-            *(uint64_t*)destValue = string_length; // write string length to the first two bytes
-            for (uint64_t i = 0; i < string_length; i++) {
-                ((char*)destValue)[sizeof(uint64_t) + i] = ((const char*)value)[i];
+        case DATA_TYPE_STRING: {
+            const char* string = (const char*)value;
+
+            // String format: uint64_t string_size + string data
+            *(uint64_t*)destValue = string_size; // write string length to the first 64bits
+
+            char* destString = destValue + sizeof(uint64_t);
+            for (uint64_t i = 0; i < string_size; i++) {
+                destString[i] = string[i];
             }
 
-            valueSize = sizeof(uint64_t) + string_length;
+            valueSize = sizeof(uint64_t) + string_size;
             break;
+        }
         default:
             break;
     }

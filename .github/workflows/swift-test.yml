@@ -16,13 +16,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        xcode: ["16.2", "16.1", "16.0"]
+        xcode: ["16.3", "16.2", "16.1"]
         include:
+          - xcode: "16.3"
+            macos: macos-15
           - xcode: "16.2"
             macos: macos-15
           - xcode: "16.1"
-            macos: macos-15
-          - xcode: "16.0"
             macos: macos-15
     runs-on: ${{ matrix.macos }}
     name: macOS
@@ -37,7 +37,7 @@ jobs:
         shell: bash
       - name: Cache resolved dependencies
         id: cache-resolved-dependencies
-        uses: actions/cache@v2
+        uses: actions/cache@v4
         with:
           path: |
             .build
@@ -56,11 +56,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        swift: ["6.0"]
+        swift: ["6.0", "6.1"]
         include:
           - swift: "6.0"
             container: "swift:6.0"
-    runs-on: ubuntu-20.04
+          - swift: "6.1"
+            container: "swift:6.1"
+    runs-on: ubuntu-latest
     container: ${{ matrix.container }}
     name: Linux
     steps:
@@ -72,7 +74,7 @@ jobs:
       - uses: actions/checkout@master
       - name: Cache resolved dependencies
         id: cache-resolved-dependencies
-        uses: actions/cache@v2
+        uses: actions/cache@v4
         with:
           path: |
             .build
