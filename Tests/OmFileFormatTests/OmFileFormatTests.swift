@@ -388,7 +388,7 @@ import OmFileFormatC
         await #expect(try read.readInterpolated(dim0X: 0, dim0XFraction: 0.8, dim0Y: 0, dim0YFraction: 0.9, dim0Nx: 3, dim1: 0..<3) == [10.5, 11.5, 12.5])
     }
 
-    @Test func writeStringArray() throws {
+    @Test func writeStringArray() async throws {
         let file = "writeStringArray.om"
         let fn = try FileHandle.createNewFile(file: file, overwrite: true)
         defer { try? FileManager.default.removeItem(atPath: file) }
@@ -446,12 +446,13 @@ import OmFileFormatC
         #expect(bytes[296-24..<296] == [79, 77, 3, 0, 0, 0, 0, 0, 208, 0, 0, 0, 0, 0, 0, 0, 60, 0, 0, 0, 0, 0, 0, 0]) // trailer
 
 
-        // let read = try OmFileReader(fn: readFn).asStringArray()!
-        // let complete_array = try read.read()
-        // #expect(complete_array == data)
+        let reader = try await OmFileReader(fn: readFn)
+        let read = try await reader.asStringArray()!
+        let complete_array = try await read.read()
+        #expect(complete_array == data)
 
-        // let partial_array = try read.read(range: [0..<3, 0..<2, 0..<1])
-        // #expect(partial_array == ["string1", "string3", "string5", "string7", "", "string11"])
+        let partial_array = try await read.read(range: [0..<3, 0..<2, 0..<1])
+        #expect(partial_array == ["string1", "string3", "string5", "string7", "", "string11"])
     }
 
     @Test func writev3() async throws {
