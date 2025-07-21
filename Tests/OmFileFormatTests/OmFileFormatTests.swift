@@ -551,6 +551,38 @@ import OmFileFormatC
         }
     }
 
+    @Test func writev3MaxIOLimitLargeArray() async throws {
+        let file = "writev3MaxIOLimitLarge.om"
+        let dim0: UInt64 = 4000
+        let dim1: UInt64 = 5000
+        let dims = [dim0,dim1]
+        let fn = try FileHandle.createNewFile(file: file, overwrite: true)
+        defer { try? FileManager.default.removeItem(atPath: file) }
+        let fileWriter = OmFileWriter(fn: fn, initialCapacity: 8)
+
+        let writer = try fileWriter.prepareArray(
+            type: Float.self,
+            dimensions: dims,
+            chunkDimensions: [100,100],
+            compression: .pfor_delta2d,
+            scale_factor: 1,
+            add_offset: 0
+        )
+
+        let data = (0..<Int(dim0*dim1)).map { Float($0) }
+        try writer.writeData(array: data)
+        let variableMeta = try writer.finalise()
+        let variable = try fileWriter.write(array: variableMeta, name: "data", children: [])
+        try fileWriter.writeTrailer(rootVariable: variable)
+
+        let readFn = try MmapFile(fn: FileHandle.openFileReading(file: file))
+        let read = try await OmFileReader(fn: readFn).asArray(of: Float.self, io_size_max: 0, io_size_merge: 0)!
+
+
+        let a = try await read.read(range: [0..<dim0, 0..<dim1])
+        #expect(a == data)
+    }
+
     /*@Test func oldWriterNewReader() throws {
         let file = "oldWriterNewReader.om"
         try FileManager.default.removeItemIfExists(at: file)
