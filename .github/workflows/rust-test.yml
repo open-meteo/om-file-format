@@ -32,6 +32,9 @@ jobs:
             target: aarch64-pc-windows-msvc
     steps:
       - uses: actions/checkout@v4
+      - name: Install clang on Windows ARM
+        if: matrix.platform.os-name == 'windows-aarch64'
+        run: choco install llvm
       - name: Build
         uses: houseabsolute/actions-rust-cross@v1
         with:
