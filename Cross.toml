@@ -10,8 +10,13 @@ passthrough = [
     "SYSROOT=/usr/aarch64-linux-gnu",
 ]
 
+[target.aarch64-pc-windows-msvc]
+pre-build = [
+    "choco install llvm",
+]
+
 [target.aarch64-pc-windows-msvc.env]
 passthrough = [
-    "CC=msvc",
+    "CC=clang",
     "CC_ENABLE_DEBUG_OUTPUT=1",
 ]
