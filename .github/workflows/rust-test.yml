@@ -27,9 +27,9 @@ jobs:
           - os-name: windows-x86_64
             runs-on: windows-latest
             target: x86_64-pc-windows-msvc
-          # - os-name: windows-aarch64
-          #   runs-on: windows-latest
-          #   target: aarch64-pc-windows-msvc
+          - os-name: windows-aarch64
+            runs-on: windows-latest
+            target: aarch64-pc-windows-msvc
     steps:
       - uses: actions/checkout@v4
       - name: Build
