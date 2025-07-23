@@ -9,3 +9,9 @@ passthrough = [
     # "CC_ENABLE_DEBUG_OUTPUT=1",
     "SYSROOT=/usr/aarch64-linux-gnu",
 ]
+
+[target.aarch64-pc-windows-msvc.env]
+passthrough = [
+    "CC=msvc",
+    "CC_ENABLE_DEBUG_OUTPUT=1",
+]
