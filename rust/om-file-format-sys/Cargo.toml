@@ -2,7 +2,7 @@
 name = "om-file-format-sys"
 version = "0.0.0"
 edition = "2021"
-license = "AGPL-3.0"
+license = "GPL-2.0-only"
 authors = ["Terraputix <terraputix@mailbox.org>"]
 readme = "README.md"
 categories = ["compression", "encoding"]
