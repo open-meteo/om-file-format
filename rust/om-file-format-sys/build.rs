@@ -88,7 +88,9 @@ fn generate_bindings(submodule: &str, sysroot: &Option<String>) {
         // if the C code for some reason returns a value that is not defined in the enum.
         // Since we are in control of the C code, we can ensure that it only returns valid values!
         // https://mdaverde.com/posts/rust-bindgen-enum/
-        .default_enum_style(EnumVariation::Rust { non_exhaustive: false })
+        .default_enum_style(EnumVariation::Rust {
+            non_exhaustive: false,
+        })
         .generate()
         .expect("Unable to generate bindings");
 
