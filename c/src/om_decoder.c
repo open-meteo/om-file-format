@@ -92,9 +92,9 @@ OmError_t om_decoder_init(
         if (read_count[i] > dimensions[i] || read_offset[i] + read_count[i] > dimensions[i]) {
             return ERROR_INVALID_READ_COUNT;
         }
-        const uint64_t cube_offset = decoder->cube_offset == NULL ? 0 : decoder->cube_offset[i];
-        const uint64_t cube_dimension = decoder->cube_dimensions == NULL ? read_count[i] : decoder->cube_dimensions[i];
-        if (cube_offset >= dimensions[i] || cube_offset + read_count[i] > cube_dimension) {
+        const uint64_t cube_offset_val = cube_offset == NULL ? 0 : cube_offset[i];
+        const uint64_t cube_dimension_val = cube_dimensions == NULL ? read_count[i] : cube_dimensions[i];
+        if (cube_offset_val >= dimensions[i] || cube_offset_val + read_count[i] > cube_dimension_val) {
             return ERROR_INVALID_CUBE_OFFSET;
         }
         nChunks *= divide_rounded_up(dimensions[i], chunks[i]);
