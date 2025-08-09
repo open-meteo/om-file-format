@@ -151,7 +151,7 @@ void om_common_copy_double_to_int64(uint64_t length, float scale_factor, float a
     }
 }
 
-void om_common_copy_float_to_int16_log10(uint64_t length, float scale_factor, float add_offset, const void* src, void* dst) {
+void om_common_copy_float_to_int16_log10(uint64_t length, float scale_factor, const void* src, void* dst) {
     for (uint64_t i = 0; i < length; ++i) {
         float val = ((float *)src)[i];
         if (isnan(val)) {
@@ -185,7 +185,7 @@ void om_common_copy_int64_to_double(uint64_t length, float scale_factor, float a
     }
 }
 
-void om_common_copy_int16_to_float_log10(uint64_t length, float scale_factor, float add_offset, const void* src, void* dst) {
+void om_common_copy_int16_to_float_log10(uint64_t length, float scale_factor, const void* src, void* dst) {
     for (uint64_t i = 0; i < length; ++i) {
         int16_t val = ((int16_t *)src)[i];
         ((float *)dst)[i] = (val == INT16_MAX) ? NAN : powf(10, (float)val / scale_factor) - 1;

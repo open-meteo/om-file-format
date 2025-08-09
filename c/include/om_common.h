@@ -103,7 +103,7 @@ void om_common_copy_float_to_int32(uint64_t length, float scale_factor, float ad
 void om_common_copy_double_to_int64(uint64_t length, float scale_factor, float add_offset, const void* src, void* dst);
 
 /// Copy 16 bit integer array and convert to float and scale log10
-void om_common_copy_float_to_int16_log10(uint64_t length, float scale_factor, float add_offset, const void* src, void* dst);
+void om_common_copy_float_to_int16_log10(uint64_t length, float scale_factor, const void* src, void* dst);
 
 /// Convert int16 and scale to float
 void om_common_copy_int16_to_float(uint64_t length, float scale_factor, float add_offset, const void* src, void* dst);
@@ -111,7 +111,7 @@ void om_common_copy_int32_to_float(uint64_t length, float scale_factor, float ad
 void om_common_copy_int64_to_double(uint64_t length, float scale_factor, float add_offset, const void* src, void* dst);
 
 /// Convert int16 and scale to float with log10
-void om_common_copy_int16_to_float_log10(uint64_t length, float scale_factor, float add_offset, const void* src, void* dst);
+void om_common_copy_int16_to_float_log10(uint64_t length, float scale_factor, const void* src, void* dst);
 
 void om_common_copy8(uint64_t length, float scale_factor, float add_offset, const void* src, void* dst);
 void om_common_copy16(uint64_t length, float scale_factor, float add_offset, const void* src, void* dst);

@@ -880,13 +880,13 @@ import OmFileFormatC
 
         ints.withUnsafeBufferPointer { srcPtr in
             floats.withUnsafeMutableBufferPointer { dstPtr in
-                om_common_copy_int16_to_float_log10(UInt64(ints.count), 1000.0, 0.0, srcPtr.baseAddress, dstPtr.baseAddress)
+                om_common_copy_int16_to_float_log10(UInt64(ints.count), 1000.0, srcPtr.baseAddress, dstPtr.baseAddress)
             }
         }
 
         floats.withUnsafeBufferPointer { srcPtr in
             intsRoundtrip.withUnsafeMutableBufferPointer { dstPtr in
-                om_common_copy_float_to_int16_log10(UInt64(floats.count), 1000.0, 0.0, srcPtr.baseAddress, dstPtr.baseAddress)
+                om_common_copy_float_to_int16_log10(UInt64(floats.count), 1000.0, srcPtr.baseAddress, dstPtr.baseAddress)
             }
         }
 

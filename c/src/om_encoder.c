@@ -200,7 +200,7 @@ ALWAYS_INLINE void om_encode_copy(
 
         case COMPRESSION_PFOR_DELTA2D_INT16_LOGARITHMIC:
             assert(data_type == DATA_TYPE_FLOAT_ARRAY && "Expecting float array");
-            om_common_copy_float_to_int16_log10(count, scale_factor, add_offset, input, output);
+            om_common_copy_float_to_int16_log10(count, scale_factor, input, output);
             break;
 
         case COMPRESSION_FPX_XOR2D:
