@@ -829,7 +829,7 @@ import OmFileFormatC
                         chunkDimensions: chunkDimensions,
                         compression: .pfor_delta2d,
                         scale_factor: 10000,
-                        add_offset: 0
+                        add_offset: 1000
                     )
                     try writer.writeData(array: values)
                     let variableMeta = try writer.finalise()
