@@ -118,7 +118,7 @@ void om_common_copy_float_to_int16(uint64_t length, float scale_factor, float ad
         if (isnan(val)) {
             ((int16_t *)dst)[i] = INT16_MAX;
         } else {
-            float scaled = val * scale_factor + add_offset;
+            float scaled = (val + add_offset) * scale_factor;
             float clamped = fmaxf(INT16_MIN, fminf(INT16_MAX, roundf(scaled)));
             ((int16_t *)dst)[i] = (int16_t)clamped;
         }
@@ -131,7 +131,7 @@ void om_common_copy_float_to_int32(uint64_t length, float scale_factor, float ad
         if (isnan(val)) {
             ((int32_t *)dst)[i] = INT32_MAX;
         } else {
-            float scaled = val * scale_factor + add_offset;
+            float scaled = (val + add_offset) * scale_factor;
             float clamped = fmaxf((float)INT32_MIN, fminf((float)INT32_MAX, roundf(scaled)));
             ((int32_t *)dst)[i] = (int32_t)clamped;
         }
@@ -144,14 +144,14 @@ void om_common_copy_double_to_int64(uint64_t length, float scale_factor, float a
         if (isnan(val)) {
             ((int64_t *)dst)[i] = INT64_MAX;
         } else {
-            double scaled = val * (double)scale_factor + (double)add_offset;
+            double scaled = (val + (double)add_offset) * (double)scale_factor;
             double clamped = fmax((double)INT64_MIN, fmin((double)INT64_MAX, round(scaled)));
             ((int64_t *)dst)[i] = (int64_t)clamped;
         }
     }
 }
 
-void om_common_copy_float_to_int16_log10(uint64_t length, float scale_factor, float add_offset, const void* src, void* dst) {
+void om_common_copy_float_to_int16_log10(uint64_t length, float scale_factor, const void* src, void* dst) {
     for (uint64_t i = 0; i < length; ++i) {
         float val = ((float *)src)[i];
         if (isnan(val)) {
@@ -185,7 +185,7 @@ void om_common_copy_int64_to_double(uint64_t length, float scale_factor, float a
     }
 }
 
-void om_common_copy_int16_to_float_log10(uint64_t length, float scale_factor, float add_offset, const void* src, void* dst) {
+void om_common_copy_int16_to_float_log10(uint64_t length, float scale_factor, const void* src, void* dst) {
     for (uint64_t i = 0; i < length; ++i) {
         int16_t val = ((int16_t *)src)[i];
         ((float *)dst)[i] = (val == INT16_MAX) ? NAN : powf(10, (float)val / scale_factor) - 1;
