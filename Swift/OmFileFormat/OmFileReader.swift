@@ -16,34 +16,32 @@ public struct OmFileReader<Backend: OmFileReaderBackend>: OmFileReaderProtocol {
     /// Open a file and decode om file meta data. In this case  fn is typically mmap or just plain memory
     public init(fn: Backend) async throws {
         self.fn = fn
-
-        let headerSize = om_header_size()
-        let headerType = try await fn.withData(offset: 0, count: headerSize) {
-            om_header_type($0.baseAddress)
-        }
-
-        switch headerType {
-        case OM_HEADER_LEGACY:
-            self.variable = try await fn.getData(offset: 0, count: headerSize)
-        case OM_HEADER_READ_TRAILER:
-            let fileSize = fn.count
-            let trailerSize = om_trailer_size()
-            let (offset, size) = try await fn.withData(offset: fileSize - trailerSize, count: trailerSize) { trailerData in
-                var offset: UInt64 = 0
-                var size: UInt64 = 0
-                guard om_trailer_read(trailerData.baseAddress, &offset, &size) else {
-                    throw OmFileFormatSwiftError.notAnOpenMeteoFile
-                }
-                return (offset, size)
+        // Try to read version 3 files. If this fails, use legacy
+        let fileSize = fn.count
+        let trailerSize = om_trailer_size()
+        guard let (offset, size) = try await fn.withData(offset: fileSize - trailerSize, count: trailerSize, fn: { trailerData -> (UInt64, UInt64)? in
+            var offset: UInt64 = 0
+            var size: UInt64 = 0
+            guard om_trailer_read(trailerData.baseAddress, &offset, &size) else {
+                return nil
             }
-            /// Read data from root.offset by root.size. Important: data must remain accessible throughout the use of this variable!!
-            let dataVariable = try await fn.getData(offset: Int(offset), count: Int(size))
-            self.variable = dataVariable
-        case OM_HEADER_INVALID:
-            fallthrough
-        default:
-            throw OmFileFormatSwiftError.notAnOpenMeteoFile
+            return (offset, size)
+        }) else {
+            // Try legacy file header
+            let headerSize = om_header_size()
+            let data = try await fn.getData(offset: 0, count: headerSize)
+            let headerType = data.withUnsafeBytes {
+                om_header_type($0.baseAddress)
+            }
+            guard headerType == OM_HEADER_LEGACY else {
+                throw OmFileFormatSwiftError.notAnOpenMeteoFile
+            }
+            self.variable = data
+            return
         }
+        /// Read data from root.offset by root.size. Important: data must remain accessible throughout the use of this variable!!
+        let dataVariable = try await fn.getData(offset: Int(offset), count: Int(size))
+        self.variable = dataVariable
     }
 
     init(fn: Backend, variable: Backend.DataType) {
