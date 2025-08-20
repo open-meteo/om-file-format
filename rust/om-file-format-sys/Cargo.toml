@@ -1,8 +1,8 @@
 [package]
 name = "om-file-format-sys"
 version = "0.0.0"
-edition = "2021"
-license = "AGPL-3.0"
+edition = "2024"
+license = "GPL-2.0-only"
 authors = ["Terraputix <terraputix@mailbox.org>"]
 readme = "README.md"
 categories = ["compression", "encoding"]
@@ -24,5 +24,5 @@ include = [
 libc = "0.2"
 
 [build-dependencies]
-cc = { version = "1.0", features = ["parallel"] }
-bindgen = "0.69.4"
+cc = { version = "1.2", features = ["parallel"] }
+bindgen = "0.72"

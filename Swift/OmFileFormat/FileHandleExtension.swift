@@ -80,3 +80,8 @@ extension FileHandle {
         return handle
     }
 }
+
+/// Make `FileHandle` work as writer
+extension FileHandle: OmFileWriterBackend {
+    
+}

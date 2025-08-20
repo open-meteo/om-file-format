@@ -24,23 +24,13 @@ This library implements the format in C, with a high-level Swift abstraction int
 - **High-Speed Data Access:** OM-Files minimize data transfer and decompression overhead, enabling extremely fast reads while maintaining strong compression ratios based on [FastPFOR](https://github.com/fast-pack/FastPFor) with SIMD instructions for compression rates in the GB/s range. This powers the Open-Meteo weather API to deliver forecasts in sub-millisecond speeds and enables large-scale data analysis without requiring users to download hundreds of gigabytes of GRIB files.
 - **Improved Compression Efficiency:** Chunking exploits spatial and temporal data correlations to enhance compression. Weather data, for instance, shows gradual changes across locations and time. Optimal chunking dimensions (compressing 1,000–2,000 values per chunk with a last dimension >100) strike a balance between compression efficiency and performance. Too many chunks reduce both.
 
-### C Library Interface
-The C code is available in [/c](./c/). The C code is the foundation for all language bindings, but is completely agnostic of any IO or threading.
 
-TODO document C functions
-
-### Swift Library Interface
-Swift code can be found in [./Swift](./Swift/) with tests in [./Tests](./Tests/). The Swift functions interact with the underlying C function and provide IO and structured concurrency.
-
-TODO: Document functions + example
-
-
-### Rust Library
-This repository exposes low level Rust bindings to access the underlying C functions. A high level implementation is available in [open-meteo/rust-omfiles](https://github.com/open-meteo/rust-omfiles).
-
-
-### Python Library
-Python bindings can be found in the repository [open-meteo/python-omfiles](https://github.com/open-meteo/python-omfiles). Python bindings are based no the Rust bindings.
+### Libraries
+- C: Available in [/c](./c/). Used as the underlying implementation for all other libraries
+- Swift: Can be found in [./Swift](./Swift/) with tests in [./Tests](./Tests/).
+- Rust: A high level implementation is available in [open-meteo/rust-omfiles](https://github.com/open-meteo/rust-omfiles).
+- Python: Bindings can be found in the repository [open-meteo/python-omfiles](https://github.com/open-meteo/python-omfiles). Python bindings are based no the Rust bindings.
+- TypeScript: Available here [open-meteo/typescript-omfiles](https://github.com/open-meteo/typescript-omfiles).
 
 
 ### ToDo:
@@ -48,6 +38,12 @@ Python bindings can be found in the repository [open-meteo/python-omfiles](https
 - Document C functions
 - Support for string-arrays
 - Build web-interface to make the entire Open-Meteo weather database accessible with automatic Python code generation
+
+
+### File Layout
+The file begins with compressed data, followed by an index for locating individual chunks, then metadata, and finally an entrypoint. This layout allows for sequential file writing while supporting efficient random reads with minimal I/O operations, making it well-suited for cloud-native access.
+
+![](./docs/images/file_layout.png)
 
 
 ### Data Hierarchy Model:

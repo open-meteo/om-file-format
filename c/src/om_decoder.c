@@ -92,9 +92,9 @@ OmError_t om_decoder_init(
         if (read_count[i] > dimensions[i] || read_offset[i] + read_count[i] > dimensions[i]) {
             return ERROR_INVALID_READ_COUNT;
         }
-        const uint64_t cube_offset = decoder->cube_offset == NULL ? 0 : decoder->cube_offset[i];
-        const uint64_t cube_dimension = decoder->cube_dimensions == NULL ? read_count[i] : decoder->cube_dimensions[i];
-        if (cube_offset >= dimensions[i] || cube_offset + read_count[i] > cube_dimension) {
+        const uint64_t this_cube_offset = cube_offset == NULL ? 0 : cube_offset[i];
+        const uint64_t this_cube_dimension = cube_dimensions == NULL ? read_count[i] : cube_dimensions[i];
+        if (this_cube_offset + read_count[i] > this_cube_dimension) {
             return ERROR_INVALID_CUBE_OFFSET;
         }
         nChunks *= divide_rounded_up(dimensions[i], chunks[i]);
@@ -276,7 +276,7 @@ ALWAYS_INLINE void om_decode_copy(
 
         case COMPRESSION_PFOR_DELTA2D_INT16_LOGARITHMIC:
             assert(data_type == DATA_TYPE_FLOAT_ARRAY && "Expecting float array");
-            om_common_copy_int16_to_float_log10(count, scale_factor, add_offset, input, output);
+            om_common_copy_int16_to_float_log10(count, scale_factor, input, output);
             break;
 
         case COMPRESSION_FPX_XOR2D:
@@ -456,16 +456,16 @@ bool om_decoder_next_index_read(const OmDecoder_t* decoder, OmDecoder_indexRead_
 
     const uint64_t readStart = (index_read->nextChunk.lowerBound - alignOffset) / lut_chunk_element_count * lut_chunk_length;
 
-    while (1) {
+    while (true) {
         const uint64_t maxRead = io_size_max / lut_chunk_length * lut_chunk_element_count;
         const uint64_t nextChunkCount = index_read->nextChunk.upperBound - index_read->nextChunk.lowerBound;
-        const uint64_t nextIncrement = max(1, min(maxRead-1, nextChunkCount - 1));
+        const uint64_t nextIncrement = max(1, min(maxRead - 1, nextChunkCount - 1));
 
         if (index_read->nextChunk.lowerBound + nextIncrement >= index_read->nextChunk.upperBound) {
             if (!_om_decoder_next_chunk_position(decoder, &index_read->nextChunk)) {
                 break;
             }
-            const uint64_t readEndNext = (index_read->nextChunk.lowerBound + endAlignOffset) / lut_chunk_element_count * lut_chunk_length;
+            const uint64_t readEndNext = divide_rounded_up(index_read->nextChunk.lowerBound + endAlignOffset, lut_chunk_element_count) * lut_chunk_length;
             const uint64_t readStartNext = readEndNext - lut_chunk_length;
             const uint64_t readEndPrevious = chunkIndex / lut_chunk_element_count * lut_chunk_length;
 
