@@ -30,6 +30,7 @@ public protocol OmFileReaderProtocol: Sendable {
     
     func readScalar<OmType: OmFileScalarDataTypeProtocol>() -> OmType?
     func asArray<OmType: OmFileArrayDataTypeProtocol>(of: OmType.Type, io_size_max: UInt64, io_size_merge: UInt64) -> (any OmFileReaderArrayProtocol<OmType>)?
+    func expectArray<OmType: OmFileArrayDataTypeProtocol>(of: OmType.Type, io_size_max: UInt64, io_size_merge: UInt64) throws -> any OmFileReaderArrayProtocol<OmType>
 }
 
 /// Protocol for `OmFileReaderArray` to type erase the underlaying backend implementation
@@ -57,4 +58,16 @@ public protocol OmFileReaderArrayProtocol<OmType>: Sendable {
     func readConcurrent(range: [Range<UInt64>]?) async throws -> [OmType]
     func readConcurrent(into: UnsafeMutablePointer<OmType>, range: [Range<UInt64>], intoCubeOffset: [UInt64]?, intoCubeDimension: [UInt64]?) async throws
     func readConcurrent(into: UnsafeMutablePointer<OmType>, offset: UnsafePointer<UInt64>, count: UnsafePointer<UInt64>, intoCubeOffset: UnsafePointer<UInt64>, intoCubeDimension: UnsafePointer<UInt64>, nDimensions: Int) async throws
+}
+
+
+extension OmFileReaderProtocol {
+    func getChild(name: String) async throws -> Self? {
+        for i in 0..<numberOfChildren {
+            if let child = try await getChild(i), child.getName() == name {
+                return child
+            }
+        }
+        return nil
+    }
 }

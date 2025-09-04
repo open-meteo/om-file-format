@@ -136,4 +136,28 @@ public struct OmFileReader<Backend: OmFileReaderBackend>: OmFileReaderProtocol {
             io_size_merge: io_size_merge
         )
     }
+    
+    public func expectArray<OmType>(of: OmType.Type, io_size_max: UInt64 = 65536, io_size_merge: UInt64 = 512) throws -> OmFileReaderArray<Backend, OmType> where OmType : OmFileArrayDataTypeProtocol {
+        guard OmType.dataTypeArray == self.dataType else {
+            throw OmFileFormatSwiftError.invalidDataType
+        }
+        return OmFileReaderArray(
+            fn: fn,
+            variable: variable,
+            io_size_max: io_size_max,
+            io_size_merge: io_size_merge
+        )
+    }
+    
+    public func expectArray<OmType>(of: OmType.Type, io_size_max: UInt64, io_size_merge: UInt64) throws -> any OmFileReaderArrayProtocol<OmType> where OmType : OmFileArrayDataTypeProtocol {
+        guard OmType.dataTypeArray == self.dataType else {
+            throw OmFileFormatSwiftError.invalidDataType
+        }
+        return OmFileReaderArray(
+            fn: fn,
+            variable: variable,
+            io_size_max: io_size_max,
+            io_size_merge: io_size_merge
+        )
+    }
 }
