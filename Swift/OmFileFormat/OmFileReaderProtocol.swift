@@ -62,7 +62,7 @@ public protocol OmFileReaderArrayProtocol<OmType>: Sendable {
 
 
 extension OmFileReaderProtocol {
-    func getChild(name: String) async throws -> Self? {
+    public func getChild(name: String) async throws -> Self? {
         for i in 0..<numberOfChildren {
             if let child = try await getChild(i), child.getName() == name {
                 return child
