@@ -94,6 +94,15 @@ public struct OmFileReader<Backend: OmFileReaderBackend>: OmFileReaderProtocol {
         let dataChild = try await fn.getData(offset: Int(offset), count: Int(size))
         return OmFileReader(fn: fn, variable: dataChild)
     }
+    
+    public func getChild(name: String) async throws -> Self? {
+        for i in 0..<numberOfChildren {
+            if let child = try await getChild(i), child.getName() == name {
+                return child
+            }
+        }
+        return nil
+    }
 
     public func readScalar<OmType: OmFileScalarDataTypeProtocol>() -> OmType? {
         guard OmType.dataTypeScalar == dataType else {

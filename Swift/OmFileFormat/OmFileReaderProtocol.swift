@@ -27,6 +27,7 @@ public protocol OmFileReaderProtocol: Sendable {
     
     func getName() -> String?
     func getChild(_ index: UInt32) async throws -> Self?
+    func getChild(name: String) async throws -> Self?
     
     func readScalar<OmType: OmFileScalarDataTypeProtocol>() -> OmType?
     func asArray<OmType: OmFileArrayDataTypeProtocol>(of: OmType.Type, io_size_max: UInt64, io_size_merge: UInt64) -> (any OmFileReaderArrayProtocol<OmType>)?
@@ -58,16 +59,4 @@ public protocol OmFileReaderArrayProtocol<OmType>: Sendable {
     func readConcurrent(range: [Range<UInt64>]?) async throws -> [OmType]
     func readConcurrent(into: UnsafeMutablePointer<OmType>, range: [Range<UInt64>], intoCubeOffset: [UInt64]?, intoCubeDimension: [UInt64]?) async throws
     func readConcurrent(into: UnsafeMutablePointer<OmType>, offset: UnsafePointer<UInt64>, count: UnsafePointer<UInt64>, intoCubeOffset: UnsafePointer<UInt64>, intoCubeDimension: UnsafePointer<UInt64>, nDimensions: Int) async throws
-}
-
-
-extension OmFileReaderProtocol {
-    public func getChild(name: String) async throws -> Self? {
-        for i in 0..<numberOfChildren {
-            if let child = try await getChild(i), child.getName() == name {
-                return child
-            }
-        }
-        return nil
-    }
 }
