@@ -65,11 +65,12 @@ public struct OmFileReader<Backend: OmFileReaderBackend>: OmFileReaderProtocol {
     public func getName() -> String? {
         return variable.withUnsafeBytes({
             let variable = om_variable_init($0.baseAddress)
-            let name = om_variable_get_name(variable);
-            guard name.size > 0 else {
+            var length: UInt16 = 0
+            let name = om_variable_get_name(variable, &length);
+            guard let name, length > 0 else {
                 return nil
             }
-            let buffer = Data(bytesNoCopy: UnsafeMutableRawPointer(mutating: name.value), count: Int(name.size), deallocator: .none)
+            let buffer = Data(bytesNoCopy: UnsafeMutableRawPointer(mutating: name), count: Int(length), deallocator: .none)
             return String(data: buffer, encoding: .utf8)
         })
     }
