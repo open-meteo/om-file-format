@@ -68,8 +68,8 @@ OmError_t om_decoder_init(
             compression = metaV3->compression_type;
             lut_size = metaV3->lut_size;
             lut_start = metaV3->lut_offset;
-            dimensions = om_variable_get_dimensions(variable).values;
-            chunks = om_variable_get_chunks(variable).values;
+            dimensions = om_variable_get_dimensions(variable);
+            chunks = om_variable_get_chunks(variable);
             lut_chunk_length = 1;
             break;
         }
