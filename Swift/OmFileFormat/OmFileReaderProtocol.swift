@@ -27,9 +27,11 @@ public protocol OmFileReaderProtocol: Sendable {
     
     func getName() -> String?
     func getChild(_ index: UInt32) async throws -> Self?
+    func getChild(name: String) async throws -> Self?
     
     func readScalar<OmType: OmFileScalarDataTypeProtocol>() -> OmType?
     func asArray<OmType: OmFileArrayDataTypeProtocol>(of: OmType.Type, io_size_max: UInt64, io_size_merge: UInt64) -> (any OmFileReaderArrayProtocol<OmType>)?
+    func expectArray<OmType: OmFileArrayDataTypeProtocol>(of: OmType.Type, io_size_max: UInt64, io_size_merge: UInt64) throws -> any OmFileReaderArrayProtocol<OmType>
 }
 
 /// Protocol for `OmFileReaderArray` to type erase the underlaying backend implementation

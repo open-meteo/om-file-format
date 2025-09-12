@@ -11,17 +11,19 @@ const OmVariable_t* om_variable_init(const void* src) {
     return src;
 }
 
-OmString_t om_variable_get_name(const OmVariable_t* variable) {
+const char* om_variable_get_name(const OmVariable_t* variable, uint16_t* length) {
     switch (_om_variable_memory_layout(variable)) {
         case OM_MEMORY_LAYOUT_LEGACY: {
             // Legacy files do not have a name field
-            return (OmString_t){.size = 0, .value = NULL};
+            *length = 0;
+            return NULL;
         }
         case OM_MEMORY_LAYOUT_ARRAY: {
             // 'Name' is after dimension arrays
             const OmVariableArrayV3_t* meta = (const OmVariableArrayV3_t*)variable;
             const char* name = (void *)variable + sizeof(OmVariableArrayV3_t) + 16 * meta->children_count + 16 * meta->dimension_count;
-            return (OmString_t){.size = meta->name_size, .value = name};
+            *length = meta->name_size;
+            return name;
         }
         case OM_MEMORY_LAYOUT_SCALAR: {
             // 'Name' is after the scalar value
@@ -29,30 +31,36 @@ OmString_t om_variable_get_name(const OmVariable_t* variable) {
             char* base = (char*)((void *)variable + sizeof(OmVariableV3_t) + 16 * meta->children_count);
             switch (meta->data_type) {
                 case DATA_TYPE_NONE:
-                    return (OmString_t){.size = meta->name_size, .value = base};
+                    *length = meta->name_size;
+                    return base;
                 case DATA_TYPE_INT8:
                 case DATA_TYPE_UINT8:
-                    return (OmString_t){.size = meta->name_size, .value = base+1};
+                    *length = meta->name_size;
+                    return base+1;
                 case DATA_TYPE_INT16:
                 case DATA_TYPE_UINT16:
-                    return (OmString_t){.size = meta->name_size, .value = base+2};
+                    *length = meta->name_size;
+                    return base+2;
                 case DATA_TYPE_INT32:
                 case DATA_TYPE_UINT32:
                 case DATA_TYPE_FLOAT:
-                    return (OmString_t){.size = meta->name_size, .value = base+4};
+                    *length = meta->name_size;
+                    return base+4;
                 case DATA_TYPE_INT64:
                 case DATA_TYPE_UINT64:
                 case DATA_TYPE_DOUBLE:
-                    return (OmString_t){.size = meta->name_size, .value = base+8};
+                    *length = meta->name_size;
+                    return base+8;
                 case DATA_TYPE_STRING: {
                     // String format: uint64_t string_size + string data
                     uint64_t string_size = *(uint64_t*)base;
                     const char* name_ptr = base + sizeof(uint64_t) + string_size;
-
-                    return (OmString_t){.size = meta->name_size, .value = name_ptr};
+                    *length = meta->name_size;
+                    return name_ptr;
                 }
                 default:
-                    return (OmString_t){.size = 0, .value = NULL};
+                    *length = 0;
+                    return NULL;
             }
         }
     }
@@ -120,35 +128,47 @@ float om_variable_get_add_offset(const OmVariable_t* variable) {
     }
 }
 
-OmDimensions_t om_variable_get_dimensions(const OmVariable_t* variable) {
+uint64_t om_variable_get_dimensions_count(const OmVariable_t* variable) {
     switch (_om_variable_memory_layout(variable)) {
         case OM_MEMORY_LAYOUT_LEGACY: {
-            const OmHeaderV1_t* meta = (const OmHeaderV1_t*)variable;
-            return (OmDimensions_t){.count = 2, .values = &meta->dim0};
+            return 2;
         }
         case OM_MEMORY_LAYOUT_ARRAY: {
             const OmVariableArrayV3_t* meta = (const OmVariableArrayV3_t*)variable;
-            const uint64_t* dimensions = (const uint64_t*)((void *)variable + sizeof(OmVariableArrayV3_t) + 16 * meta->children_count);
-            return (OmDimensions_t){.count = meta->dimension_count, .values = dimensions};
+            return meta->dimension_count;
         }
         case OM_MEMORY_LAYOUT_SCALAR:
-            return (OmDimensions_t){.count = 0, .values = NULL};
+            return 0;
     }
 }
 
-OmDimensions_t om_variable_get_chunks(const OmVariable_t* variable) {
+const uint64_t* om_variable_get_dimensions(const OmVariable_t* variable) {
     switch (_om_variable_memory_layout(variable)) {
         case OM_MEMORY_LAYOUT_LEGACY: {
             const OmHeaderV1_t* meta = (const OmHeaderV1_t*)variable;
-            return (OmDimensions_t){2, &meta->chunk0};
+            return &meta->dim0;
         }
         case OM_MEMORY_LAYOUT_ARRAY: {
             const OmVariableArrayV3_t* meta = (const OmVariableArrayV3_t*)variable;
-            const uint64_t* chunks = (const uint64_t*)((void *)variable + sizeof(OmVariableArrayV3_t) + 16 * meta->children_count + 8 * meta->dimension_count);
-            return (OmDimensions_t){meta->dimension_count, chunks};
+            return (void *)variable + sizeof(OmVariableArrayV3_t) + 16 * meta->children_count;
         }
         case OM_MEMORY_LAYOUT_SCALAR:
-            return (OmDimensions_t){0, NULL};
+            return NULL;
+    }
+}
+
+const uint64_t* om_variable_get_chunks(const OmVariable_t* variable) {
+    switch (_om_variable_memory_layout(variable)) {
+        case OM_MEMORY_LAYOUT_LEGACY: {
+            const OmHeaderV1_t* meta = (const OmHeaderV1_t*)variable;
+            return &meta->chunk0;
+        }
+        case OM_MEMORY_LAYOUT_ARRAY: {
+            const OmVariableArrayV3_t* meta = (const OmVariableArrayV3_t*)variable;
+            return (void *)variable + sizeof(OmVariableArrayV3_t) + 16 * meta->children_count + 8 * meta->dimension_count;
+        }
+        case OM_MEMORY_LAYOUT_SCALAR:
+            return NULL;
     }
 }
 

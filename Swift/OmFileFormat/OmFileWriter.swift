@@ -90,6 +90,12 @@ public struct OmFileWriter<FileHandle: OmFileWriterBackend> {
             return OmOffsetSize(offset: offset, size: UInt64(size))
         }
     }
+    
+    public func writeArray<OmType: OmFileArrayDataTypeProtocol>(data: [OmType], dimensions: [UInt64], chunkDimensions: [UInt64], compression: OmCompressionType, scale_factor: Float, add_offset: Float) throws -> OmFileWriterArrayFinalised {
+        let prepare = try self.prepareArray(type: OmType.self, dimensions: dimensions, chunkDimensions: chunkDimensions, compression: compression, scale_factor: scale_factor, add_offset: add_offset)
+        try prepare.writeData(array: data)
+        return try prepare.finalise()
+    }
 
     public func writeTrailer(rootVariable: OmOffsetSize) throws {
         try writeHeaderIfRequired()

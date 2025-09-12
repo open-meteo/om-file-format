@@ -65,11 +65,12 @@ public struct OmFileReader<Backend: OmFileReaderBackend>: OmFileReaderProtocol {
     public func getName() -> String? {
         return variable.withUnsafeBytes({
             let variable = om_variable_init($0.baseAddress)
-            let name = om_variable_get_name(variable);
-            guard name.size > 0 else {
+            var length: UInt16 = 0
+            let name = om_variable_get_name(variable, &length);
+            guard let name, length > 0 else {
                 return nil
             }
-            let buffer = Data(bytesNoCopy: UnsafeMutableRawPointer(mutating: name.value), count: Int(name.size), deallocator: .none)
+            let buffer = Data(bytesNoCopy: UnsafeMutableRawPointer(mutating: name), count: Int(length), deallocator: .none)
             return String(data: buffer, encoding: .utf8)
         })
     }
@@ -93,6 +94,15 @@ public struct OmFileReader<Backend: OmFileReaderBackend>: OmFileReaderProtocol {
         /// Read data from child.offset by child.size
         let dataChild = try await fn.getData(offset: Int(offset), count: Int(size))
         return OmFileReader(fn: fn, variable: dataChild)
+    }
+    
+    public func getChild(name: String) async throws -> Self? {
+        for i in 0..<numberOfChildren {
+            if let child = try await getChild(i), child.getName() == name {
+                return child
+            }
+        }
+        return nil
     }
 
     public func readScalar<OmType: OmFileScalarDataTypeProtocol>() -> OmType? {
@@ -128,6 +138,30 @@ public struct OmFileReader<Backend: OmFileReaderBackend>: OmFileReaderProtocol {
     public func asArray<OmType>(of: OmType.Type, io_size_max: UInt64, io_size_merge: UInt64) -> (any OmFileReaderArrayProtocol<OmType>)? where OmType : OmFileArrayDataTypeProtocol {
         guard OmType.dataTypeArray == self.dataType else {
             return nil
+        }
+        return OmFileReaderArray(
+            fn: fn,
+            variable: variable,
+            io_size_max: io_size_max,
+            io_size_merge: io_size_merge
+        )
+    }
+    
+    public func expectArray<OmType>(of: OmType.Type, io_size_max: UInt64 = 65536, io_size_merge: UInt64 = 512) throws -> OmFileReaderArray<Backend, OmType> where OmType : OmFileArrayDataTypeProtocol {
+        guard OmType.dataTypeArray == self.dataType else {
+            throw OmFileFormatSwiftError.invalidDataType
+        }
+        return OmFileReaderArray(
+            fn: fn,
+            variable: variable,
+            io_size_max: io_size_max,
+            io_size_merge: io_size_merge
+        )
+    }
+    
+    public func expectArray<OmType>(of: OmType.Type, io_size_max: UInt64, io_size_merge: UInt64) throws -> any OmFileReaderArrayProtocol<OmType> where OmType : OmFileArrayDataTypeProtocol {
+        guard OmType.dataTypeArray == self.dataType else {
+            throw OmFileFormatSwiftError.invalidDataType
         }
         return OmFileReaderArray(
             fn: fn,

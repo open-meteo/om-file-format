@@ -67,22 +67,11 @@ typedef void* OmVariable_t;
 /// =========== Functions for reading ===============
 
 
-typedef struct {
-    const uint16_t size;
-    const char* value;
-} OmString_t;
-
-typedef struct {
-    const uint64_t count;
-    const uint64_t* values;
-} OmDimensions_t;
-
-
 /// After reading data for the variable, initialize it. This is literally a simple cast to an opaque pointer. Source memory must remain accessible!
 const OmVariable_t* om_variable_init(const void* src);
 
-/// Get the name of of a given variable. No guarantee for zero termination!
-OmString_t om_variable_get_name(const OmVariable_t* variable);
+/// Get the name of of a given variable. No guarantee for zero termination! The length in bytes of the string is placed into `length`.
+const char* om_variable_get_name(const OmVariable_t* variable, uint16_t* length);
 
 /// Get the type of the current variable
 OmDataType_t om_variable_get_type(const OmVariable_t* variable);
@@ -94,11 +83,14 @@ float om_variable_get_scale_factor(const OmVariable_t* variable);
 
 float om_variable_get_add_offset(const OmVariable_t* variable);
 
+/// Get number of dimensions
+uint64_t om_variable_get_dimensions_count(const OmVariable_t* variable);
+
 /// Get a pointer to the dimensions of a OM variable
-OmDimensions_t om_variable_get_dimensions(const OmVariable_t* variable);
+const uint64_t* om_variable_get_dimensions(const OmVariable_t* variable);
 
 /// Get a pointer to the chunk dimensions of an OM Variable
-OmDimensions_t om_variable_get_chunks(const OmVariable_t* variable);
+const uint64_t* om_variable_get_chunks(const OmVariable_t* variable);
 
 /// Return how many children are available for a given variable
 uint32_t om_variable_get_children_count(const OmVariable_t* variable);

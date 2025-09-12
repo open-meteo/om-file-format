@@ -206,9 +206,9 @@ ALWAYS_INLINE void om_encode_copy(
         case COMPRESSION_FPX_XOR2D:
             assert(data_type == DATA_TYPE_FLOAT_ARRAY || data_type == DATA_TYPE_DOUBLE_ARRAY && "Expecting float or double array");
             if (data_type == DATA_TYPE_FLOAT_ARRAY) {
-                om_common_copy32(count, scale_factor, add_offset, input, output);
+                om_common_copy32(count, input, output);
             } else if (data_type == DATA_TYPE_DOUBLE_ARRAY) {
-                om_common_copy64(count, scale_factor, add_offset, input, output);
+                om_common_copy64(count, input, output);
             }
             break;
 
@@ -216,22 +216,22 @@ ALWAYS_INLINE void om_encode_copy(
             switch (data_type) {
                 case DATA_TYPE_INT8_ARRAY:
                 case DATA_TYPE_UINT8_ARRAY:
-                    om_common_copy8(count, scale_factor, add_offset, input, output);
+                    om_common_copy8(count, input, output);
                     break;
                 case DATA_TYPE_INT16_ARRAY:
                 case DATA_TYPE_UINT16_ARRAY:
-                    om_common_copy16(count, scale_factor, add_offset, input, output);
+                    om_common_copy16(count, input, output);
                     break;
                 case DATA_TYPE_INT32_ARRAY:
                 case DATA_TYPE_UINT32_ARRAY:
-                    om_common_copy32(count, scale_factor, add_offset, input, output);
+                    om_common_copy32(count, input, output);
                     break;
                 case DATA_TYPE_FLOAT_ARRAY:
                     om_common_copy_float_to_int32(count, scale_factor, add_offset, input, output);
                     break;
                 case DATA_TYPE_INT64_ARRAY:
                 case DATA_TYPE_UINT64_ARRAY:
-                    om_common_copy64(count, scale_factor, add_offset, input, output);
+                    om_common_copy64(count, input, output);
                     break;
                 case DATA_TYPE_DOUBLE_ARRAY:
                     om_common_copy_double_to_int64(count, scale_factor, add_offset, input, output);

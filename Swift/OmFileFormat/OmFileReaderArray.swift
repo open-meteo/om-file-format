@@ -38,8 +38,9 @@ public struct OmFileReaderArray<Backend: OmFileReaderBackend, OmType: OmFileArra
     public func withDimensions<R>(_ body: (_: UnsafeBufferPointer<UInt64>) -> R) -> R {
         return variable.withUnsafeBytes({
             let variable = om_variable_init($0.baseAddress)
+            let count = om_variable_get_dimensions_count(variable)
             let dimensions = om_variable_get_dimensions(variable)
-            return body(UnsafeBufferPointer<UInt64>(start: dimensions.values, count: Int(dimensions.count)))
+            return body(UnsafeBufferPointer<UInt64>(start: dimensions, count: Int(count)))
         })
     }
 
@@ -47,8 +48,9 @@ public struct OmFileReaderArray<Backend: OmFileReaderBackend, OmType: OmFileArra
     public func withChunkDimensions<R>(_ body: (_: UnsafeBufferPointer<UInt64>) -> R) -> R {
         return variable.withUnsafeBytes({
             let variable = om_variable_init($0.baseAddress)
+            let count = om_variable_get_dimensions_count(variable)
             let dimensions = om_variable_get_chunks(variable)
-            return body(UnsafeBufferPointer<UInt64>(start: dimensions.values, count: Int(dimensions.count)))
+            return body(UnsafeBufferPointer<UInt64>(start: dimensions, count: Int(count)))
         })
     }
 

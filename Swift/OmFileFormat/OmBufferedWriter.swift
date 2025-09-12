@@ -35,10 +35,11 @@ public final class OmBufferedWriter<FileHandle: OmFileWriterBackend> {
 
     /// Add empty space if required to align to 64 bits
     func alignTo64Bytes() throws {
-        let bytesToPadd = 8 - totalBytesWritten % 8
-        if bytesToPadd == 0 {
+        let unalignedBytes = totalBytesWritten % 8
+        if unalignedBytes == 0 {
             return
         }
+        let bytesToPadd = 8 - unalignedBytes
         try reallocate(minimumCapacity: bytesToPadd)
         bufferAtWritePosition.initializeMemory(as: UInt8.self, repeating: 0, count: bytesToPadd)
         incrementWritePosition(by: bytesToPadd)
