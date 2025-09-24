@@ -19,23 +19,25 @@ public protocol OmFileReaderBackend: Sendable {
     func withData<T>(offset: Int, count: Int, fn: @Sendable (UnsafeRawBufferPointer) throws -> T) async throws -> T
 }
 
-/// Protocol for `OmFileReader` but without the underlaying backend implementation
-/// This protocol can be used to abstract multiple reader using different backends
-public protocol OmFileReaderProtocol: Sendable {
+/// Each variable (array and scalar) contains datatype, name and children
+public protocol OmFileVariableProtocol: Sendable {
     var dataType: OmDataType { get }
     var numberOfChildren: UInt32 { get }
+    var name: String { get }
     
-    func getName() -> String?
-    func getChild(_ index: UInt32) async throws -> Self?
+    func getChild(index: UInt32) async throws -> Self?
     func getChild(name: String) async throws -> Self?
-    
-    func readScalar<OmType: OmFileScalarDataTypeProtocol>() -> OmType?
-    func asArray<OmType: OmFileArrayDataTypeProtocol>(of: OmType.Type, io_size_max: UInt64, io_size_merge: UInt64) -> (any OmFileReaderArrayProtocol<OmType>)?
-    func expectArray<OmType: OmFileArrayDataTypeProtocol>(of: OmType.Type, io_size_max: UInt64, io_size_merge: UInt64) throws -> any OmFileReaderArrayProtocol<OmType>
+}
+
+/// Protocol for `OmFileReader` but without the underlaying backend implementation
+/// This protocol can be used to abstract multiple reader using different backends
+public protocol OmFileReaderProtocol: OmFileVariableProtocol {
+    func scalar<OmType: OmFileScalarDataTypeProtocol>(of: OmType.Type) throws -> any OmFileReaderArrayProtocol<OmType>
+    func array<OmType: OmFileArrayDataTypeProtocol>(of: OmType.Type, io_size_max: UInt64, io_size_merge: UInt64) throws -> any OmFileReaderArrayProtocol<OmType>
 }
 
 /// Protocol for `OmFileReaderArray` to type erase the underlaying backend implementation
-public protocol OmFileReaderArrayProtocol<OmType>: Sendable {
+public protocol OmFileReaderArrayProtocol<OmType>: OmFileVariableProtocol {
     associatedtype OmType: OmFileArrayDataTypeProtocol
     
     var compression: OmCompressionType { get }
@@ -59,4 +61,12 @@ public protocol OmFileReaderArrayProtocol<OmType>: Sendable {
     func readConcurrent(range: [Range<UInt64>]?) async throws -> [OmType]
     func readConcurrent(into: UnsafeMutablePointer<OmType>, range: [Range<UInt64>], intoCubeOffset: [UInt64]?, intoCubeDimension: [UInt64]?) async throws
     func readConcurrent(into: UnsafeMutablePointer<OmType>, offset: UnsafePointer<UInt64>, count: UnsafePointer<UInt64>, intoCubeOffset: UnsafePointer<UInt64>, intoCubeDimension: UnsafePointer<UInt64>, nDimensions: Int) async throws
+}
+
+
+/// Protocol for `OmFileReaderScalar` to type erase the underlaying backend implementation
+public protocol OmFileReaderScalarProtocol<OmType>: OmFileVariableProtocol {
+    associatedtype OmType: OmFileScalarDataTypeProtocol
+    
+    func read() async throws -> OmType
 }
