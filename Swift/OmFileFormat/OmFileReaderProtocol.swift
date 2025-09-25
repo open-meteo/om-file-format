@@ -19,23 +19,6 @@ public protocol OmFileReaderBackend: Sendable {
     func withData<T>(offset: Int, count: Int, fn: @Sendable (UnsafeRawBufferPointer) throws -> T) async throws -> T
 }
 
-/// Protocol for `OmFileReader` but without the underlaying backend implementation
-/// This protocol can be used to abstract multiple reader using different backends
-public protocol OmFileReaderProtocol: Sendable {
-    associatedtype Backend: OmFileReaderBackend
-    
-    var dataType: OmDataType { get }
-    var numberOfChildren: UInt32 { get }
-    
-    func getName() -> String?
-    func getChild(_ index: UInt32) async throws -> Self?
-    func getChild(name: String) async throws -> Self?
-    
-    func readScalar<OmType: OmFileScalarDataTypeProtocol>() -> OmType?
-    func asArray<OmType: OmFileArrayDataTypeProtocol>(of: OmType.Type, io_size_max: UInt64, io_size_merge: UInt64) -> OmFileReaderArray<Backend, OmType>?
-    func expectArray<OmType: OmFileArrayDataTypeProtocol>(of: OmType.Type, io_size_max: UInt64, io_size_merge: UInt64) throws -> OmFileReaderArray<Backend, OmType>
-}
-
 /// Protocol for `OmFileReaderArray` to type erase the underlaying backend implementation
 public protocol OmFileReaderArrayProtocol<OmType>: Sendable {
     associatedtype OmType: OmFileArrayDataTypeProtocol
