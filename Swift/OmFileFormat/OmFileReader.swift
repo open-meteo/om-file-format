@@ -6,7 +6,7 @@ import OmFileFormatC
 /// Decodes meta data which may include JSON
 /// Handles actual file reads. The current implementation just uses MMAP or plain memory.
 /// Later implementations may use async read operations
-public struct OmFileReader<Backend: OmFileReaderBackend>: OmFileReaderProtocol {
+public struct OmFileReader<Backend: OmFileReaderBackend> {
     /// Points to the underlying memory. Needs to remain in scope to keep memory accessible
     public let fn: Backend
 
@@ -61,17 +61,32 @@ public struct OmFileReader<Backend: OmFileReaderBackend>: OmFileReaderProtocol {
             return OmDataType(rawValue: UInt8(om_variable_get_type(variable).rawValue))!
         })
     }
+    
+    /// Temporarily return the name of the variable. The string refers to internal memory and should not be used outside its scope.
+    public func withName<R>(_ body: (String) throws -> R) rethrows -> R {
+        return try variable.withUnsafeBytes({
+            let variable = om_variable_init($0.baseAddress)
+            var length: UInt16 = 0
+            let name = om_variable_get_name(variable, &length);
+            guard let name, length > 0 else {
+                return try body("")
+            }
+            let buffer = Data(bytesNoCopy: UnsafeMutableRawPointer(mutating: name), count: Int(length), deallocator: .none)
+            return try body(String(data: buffer, encoding: .utf8) ?? "")
+        })
+    }
 
-    public func getName() -> String? {
+    /// Get the name of the variable. The String is copied form the underlaying buffer memory..
+    public func getName() -> String {
         return variable.withUnsafeBytes({
             let variable = om_variable_init($0.baseAddress)
             var length: UInt16 = 0
             let name = om_variable_get_name(variable, &length);
             guard let name, length > 0 else {
-                return nil
+                return ""
             }
-            let buffer = Data(bytesNoCopy: UnsafeMutableRawPointer(mutating: name), count: Int(length), deallocator: .none)
-            return String(data: buffer, encoding: .utf8)
+            let buffer = Data(buffer: UnsafeMutableBufferPointer(start: UnsafeMutablePointer(mutating: name), count: Int(length)))
+            return String(data: buffer, encoding: .utf8) ?? ""
         })
     }
 
@@ -98,13 +113,14 @@ public struct OmFileReader<Backend: OmFileReaderBackend>: OmFileReaderProtocol {
     
     public func getChild(name: String) async throws -> Self? {
         for i in 0..<numberOfChildren {
-            if let child = try await getChild(i), child.getName() == name {
+            if let child = try await getChild(i), child.withName({$0 == name}) {
                 return child
             }
         }
         return nil
     }
 
+    /// Read variable as a scalar of a specified type or `nil` if it is the wrong type
     public func readScalar<OmType: OmFileScalarDataTypeProtocol>() -> OmType? {
         guard OmType.dataTypeScalar == dataType else {
             return nil
@@ -120,7 +136,7 @@ public struct OmFileReader<Backend: OmFileReaderBackend>: OmFileReaderProtocol {
         })
     }
 
-    /// If it is an array of specified type. Return a type safe reader for this type
+    /// If it is an array of specified type, return a type safe reader for this type
     /// `io_size_merge` The maximum size (in bytes) for merging consecutive IO operations. It helps to optimise read performance by merging small reads.
     /// `io_size_max` The maximum size (in bytes) for a single IO operation before it is split. It defines the threshold for splitting large reads.
     public func asArray<OmType: OmFileArrayDataTypeProtocol>(of: OmType.Type, io_size_max: UInt64 = 65536, io_size_merge: UInt64 = 512) -> OmFileReaderArray<Backend, OmType>? {
@@ -135,31 +151,10 @@ public struct OmFileReader<Backend: OmFileReaderBackend>: OmFileReaderProtocol {
         )
     }
     
-    public func asArray<OmType>(of: OmType.Type, io_size_max: UInt64, io_size_merge: UInt64) -> (any OmFileReaderArrayProtocol<OmType>)? where OmType : OmFileArrayDataTypeProtocol {
-        guard OmType.dataTypeArray == self.dataType else {
-            return nil
-        }
-        return OmFileReaderArray(
-            fn: fn,
-            variable: variable,
-            io_size_max: io_size_max,
-            io_size_merge: io_size_merge
-        )
-    }
-    
+    /// If it is an array of specified type, return a type safe reader for this type otherwise throw an error
+    /// `io_size_merge` The maximum size (in bytes) for merging consecutive IO operations. It helps to optimise read performance by merging small reads.
+    /// `io_size_max` The maximum size (in bytes) for a single IO operation before it is split. It defines the threshold for splitting large reads.
     public func expectArray<OmType>(of: OmType.Type, io_size_max: UInt64 = 65536, io_size_merge: UInt64 = 512) throws -> OmFileReaderArray<Backend, OmType> where OmType : OmFileArrayDataTypeProtocol {
-        guard OmType.dataTypeArray == self.dataType else {
-            throw OmFileFormatSwiftError.invalidDataType
-        }
-        return OmFileReaderArray(
-            fn: fn,
-            variable: variable,
-            io_size_max: io_size_max,
-            io_size_merge: io_size_merge
-        )
-    }
-    
-    public func expectArray<OmType>(of: OmType.Type, io_size_max: UInt64, io_size_merge: UInt64) throws -> any OmFileReaderArrayProtocol<OmType> where OmType : OmFileArrayDataTypeProtocol {
         guard OmType.dataTypeArray == self.dataType else {
             throw OmFileFormatSwiftError.invalidDataType
         }
