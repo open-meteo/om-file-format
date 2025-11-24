@@ -652,8 +652,8 @@ uint64_t _om_decoder_decode_chunk(
     const OmDecoder_t *decoder,
     uint64_t chunkIndex,
     const void *data,
-    void *into,
-    void *chunk_buffer
+    uint8_t *into,
+    uint8_t *chunk_buffer
 ) {
     uint64_t rollingMultiply = 1;
     uint64_t rollingMultiplyChunkLength = 1;
