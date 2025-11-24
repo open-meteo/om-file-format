@@ -28,7 +28,7 @@ const char* om_variable_get_name(const OmVariable_t* variable, uint16_t* length)
         case OM_MEMORY_LAYOUT_SCALAR: {
             // 'Name' is after the scalar value
             const OmVariableV3_t* meta = (const OmVariableV3_t*)variable;
-            char* base = (char *)variable + sizeof(OmVariableV3_t) + 16 * meta->children_count;
+            const char* base = (const char *)variable + sizeof(OmVariableV3_t) + 16 * meta->children_count;
             switch (meta->data_type) {
                 case DATA_TYPE_NONE:
                     *length = meta->name_size;
@@ -202,8 +202,8 @@ bool om_variable_get_children(const OmVariable_t* variable, uint32_t child_offse
     if (child_offset + child_count > meta->children_count) {
         return false;
     }
-    const uint64_t* sizes = (const uint64_t*)((const char *)variable + sizeof_variable);
-    const uint64_t* offsets = (const uint64_t*)((const char *)variable + sizeof_variable + meta->children_count * sizeof(uint64_t));
+    const uint64_t* sizes = (const uint64_t*)((const uint8_t *)variable + sizeof_variable);
+    const uint64_t* offsets = (const uint64_t*)((const uint8_t *)variable + sizeof_variable + meta->children_count * sizeof(uint64_t));
     for (size_t n = 0; n < child_count; n++) {
         child_offsets[n] = offsets[n+child_offset];
         child_sizes[n] = sizes[n+child_offset];

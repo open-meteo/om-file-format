@@ -382,8 +382,8 @@ uint64_t om_encoder_compress_chunk(
             linearReadCount,
             encoder->scale_factor,
             encoder->add_offset,
-            (const void*)(&((const uint8_t*)array)[encoder->bytes_per_element * readCoordinate]),
-            &chunkBuffer[encoder->bytes_per_element_compressed * writeCoordinate]
+            (const uint8_t*)array + encoder->bytes_per_element * readCoordinate,
+            chunkBuffer + encoder->bytes_per_element_compressed * writeCoordinate
         );
 
         readCoordinate += linearReadCount - 1;

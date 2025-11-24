@@ -751,8 +751,8 @@ uint64_t _om_decoder_decode_chunk(
             linearReadCount,
             decoder->scale_factor,
             decoder->add_offset,
-            &chunk_buffer[d * decoder->bytes_per_element_compressed],
-            &into[q * decoder->bytes_per_element]
+            chunk_buffer + d * decoder->bytes_per_element_compressed,
+            into + q * decoder->bytes_per_element
         );
 
         q += linearReadCount - 1;
