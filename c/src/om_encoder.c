@@ -285,7 +285,7 @@ uint64_t om_encoder_lut_buffer_size(const uint64_t* lookUpTable, uint64_t lookUp
     uint64_t maxLength = 0;
     for (uint64_t i = 0; i < nLutChunks; i++) {
         const uint64_t rangeStart = i * LUT_CHUNK_COUNT;
-        const uint64_t rangeEnd = OM_MIN(rangeStart + LUT_CHUNK_COUNT, lookUpTableCount);
+        const uint64_t rangeEnd = om_min(rangeStart + LUT_CHUNK_COUNT, lookUpTableCount);
         const uint64_t len = p4ndenc64((uint64_t*)&lookUpTable[rangeStart], rangeEnd - rangeStart, (unsigned char *)buffer);
         if (len > maxLength) maxLength = len;
     }
@@ -300,7 +300,7 @@ uint64_t om_encoder_compress_lut(const uint64_t* lookUpTable, uint64_t lookUpTab
 
     for (uint64_t i = 0; i < nLutChunks; i++) {
         const uint64_t rangeStart = i * LUT_CHUNK_COUNT;
-        const uint64_t rangeEnd = OM_MIN(rangeStart + LUT_CHUNK_COUNT, lookUpTableCount);
+        const uint64_t rangeEnd = om_min(rangeStart + LUT_CHUNK_COUNT, lookUpTableCount);
         const uint64_t len = p4ndenc64((uint64_t*)&lookUpTable[rangeStart], rangeEnd - rangeStart, &out[i * lutChunkLength]);
         for (uint64_t j = i * lutChunkLength + len; j < (i+1) * lutChunkLength; j++) {
             out[j] = 0; // fill remaining space with 0
@@ -345,7 +345,7 @@ uint64_t om_encoder_compress_chunk(
         const uint64_t nChunksInThisDimension = divide_rounded_up(dimension, chunk);
         const uint64_t c0 = (chunkIndex / rollingMultiply) % nChunksInThisDimension;
         const uint64_t c0Offset = (chunkIndexOffsetInThisArray / rollingMultiply) % nChunksInThisDimension;
-        const uint64_t length0 = OM_MIN((c0 + 1) * chunk, dimension) - c0 * chunk;
+        const uint64_t length0 = om_min((c0 + 1) * chunk, dimension) - c0 * chunk;
 
         if (i == dimension_count - 1) {
             lengthLast = length0;
@@ -399,7 +399,7 @@ uint64_t om_encoder_compress_chunk(
             const uint64_t chunk = encoder->chunks[i];
 
             const uint64_t qPos = ((readCoordinate / rollingMultiplyTargetCube) % arrayDimensions[i] - arrayOffset[i]) / chunk;
-            const uint64_t length0 = OM_MIN((qPos + 1) * chunk, arrayCount[i]) - qPos * chunk;
+            const uint64_t length0 = om_min((qPos + 1) * chunk, arrayCount[i]) - qPos * chunk;
             readCoordinate += rollingMultiplyTargetCube;
 
             if (i == dimension_count - 1 && !(arrayCount[i] == length0 && arrayDimensions[i] == length0)) {
