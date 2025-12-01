@@ -459,7 +459,7 @@ bool om_decoder_next_index_read(const OmDecoder_t* decoder, OmDecoder_indexRead_
     while (true) {
         const uint64_t maxRead = io_size_max / lut_chunk_length * lut_chunk_element_count;
         const uint64_t nextChunkCount = index_read->nextChunk.upperBound - index_read->nextChunk.lowerBound;
-        const uint64_t nextIncrement = max(1, min(maxRead - 1, nextChunkCount - 1));
+        const uint64_t nextIncrement = om_max(1, om_min(maxRead - 1, nextChunkCount - 1));
 
         if (index_read->nextChunk.lowerBound + nextIncrement >= index_read->nextChunk.upperBound) {
             if (!_om_decoder_next_chunk_position(decoder, &index_read->nextChunk)) {
@@ -583,7 +583,7 @@ bool om_decoder_next_data_read(const OmDecoder_t *decoder, OmDecoder_dataRead_t*
 
     // Uncompress the first LUT index chunk and check the length
     {
-        const size_t thisLutChunkElementCount = min((lutChunk + 1) * LUT_CHUNK_COUNT, number_of_chunks+1) - lutChunk * LUT_CHUNK_COUNT;
+        const uint64_t thisLutChunkElementCount = om_min((lutChunk + 1) * LUT_CHUNK_COUNT, number_of_chunks+1) - lutChunk * LUT_CHUNK_COUNT;
         const uint64_t start = lutChunk * lutChunkLength - lutOffset;
         if (start + lutChunkLength > index_data_size || thisLutChunkElementCount > LUT_CHUNK_COUNT) {
             (*error) = ERROR_OUT_OF_BOUND_READ;
@@ -604,7 +604,7 @@ bool om_decoder_next_data_read(const OmDecoder_t *decoder, OmDecoder_dataRead_t*
 
         // Maybe the next LUT chunk needs to be uncompressed
         if (nextLutChunk != lutChunk) {
-            const size_t nextLutChunkElementCount = min((nextLutChunk + 1) * LUT_CHUNK_COUNT, number_of_chunks+1) - nextLutChunk * LUT_CHUNK_COUNT;
+            const uint64_t nextLutChunkElementCount = om_min((nextLutChunk + 1) * LUT_CHUNK_COUNT, number_of_chunks+1) - nextLutChunk * LUT_CHUNK_COUNT;
             const uint64_t start = nextLutChunk * lutChunkLength - lutOffset;
             if (start + lutChunkLength > index_data_size || nextLutChunkElementCount > LUT_CHUNK_COUNT) {
                 (*error) = ERROR_OUT_OF_BOUND_READ;
@@ -683,10 +683,10 @@ uint64_t _om_decoder_decode_chunk(
         const uint64_t nChunksInThisDimension = divide_rounded_up(dimension, chunk);
         const uint64_t c0 = (chunkIndex / rollingMultiply) % nChunksInThisDimension;
         const uint64_t chunkGlobal0Start = c0 * chunk;
-        const uint64_t chunkGlobal0End = min((c0+1) * chunk, dimension);
+        const uint64_t chunkGlobal0End = om_min((c0+1) * chunk, dimension);
         const uint64_t length0 = chunkGlobal0End - chunkGlobal0Start;
-        const uint64_t clampedGlobal0Start = max(chunkGlobal0Start, read_offset);
-        const uint64_t clampedGlobal0End = min(chunkGlobal0End, read_offset + read_count);
+        const uint64_t clampedGlobal0Start = om_max(chunkGlobal0Start, read_offset);
+        const uint64_t clampedGlobal0End = om_min(chunkGlobal0End, read_offset + read_count);
         const uint64_t clampedLocal0Start = clampedGlobal0Start - c0 * chunk;
         const uint64_t lengthRead = clampedGlobal0End - clampedGlobal0Start;
 
@@ -775,10 +775,10 @@ uint64_t _om_decoder_decode_chunk(
             const uint64_t nChunksInThisDimension = divide_rounded_up(dimension, chunk);
             const uint64_t c0 = (chunkIndex / rollingMultiply) % nChunksInThisDimension;
             const uint64_t chunkGlobal0Start = c0 * chunk;
-            const uint64_t chunkGlobal0End = min((c0+1) * chunk, dimension);
+            const uint64_t chunkGlobal0End = om_min((c0+1) * chunk, dimension);
             const uint64_t length0 = chunkGlobal0End - chunkGlobal0Start;
-            const uint64_t clampedGlobal0Start = max(chunkGlobal0Start, read_offset);
-            const uint64_t clampedGlobal0End = min(chunkGlobal0End, read_offset + read_count);
+            const uint64_t clampedGlobal0Start = om_max(chunkGlobal0Start, read_offset);
+            const uint64_t clampedGlobal0End = om_min(chunkGlobal0End, read_offset + read_count);
             const uint64_t clampedLocal0End = clampedGlobal0End - chunkGlobal0Start;
             const uint64_t lengthRead = clampedGlobal0End - clampedGlobal0Start;
 

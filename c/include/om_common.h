@@ -79,23 +79,12 @@ uint8_t om_get_bytes_per_element(OmDataType_t data_type, OmError_t* error);
 /// It only supports array types.
 uint8_t om_get_bytes_per_element_compressed(OmDataType_t data_type, OmCompression_t compression, OmError_t* error);
 
-/// Divide and round up
-#define divide_rounded_up(dividend,divisor) \
-  ({ __typeof__ (dividend) _dividend = (dividend); \
-      __typeof__ (divisor) _divisor = (divisor); \
-    (_dividend + _divisor - 1) / _divisor; })
+static inline uint64_t divide_rounded_up(uint64_t dividend, uint64_t divisor) {
+    return (dividend + divisor - 1) / divisor;
+}
 
-/// Maxima of 2 terms
-#define max(a,b) \
-  ({ __typeof__ (a) _a = (a); \
-      __typeof__ (b) _b = (b); \
-    _a > _b ? _a : _b; })
-
-/// Minima of 2 terms
-#define min(a,b) \
-  ({ __typeof__ (a) _a = (a); \
-      __typeof__ (b) _b = (b); \
-    _a < _b ? _a : _b; })
+static inline uint64_t om_min(uint64_t a, uint64_t b) { return a < b ? a : b; }
+static inline uint64_t om_max(uint64_t a, uint64_t b) { return a > b ? a : b; }
 
 /// Copy 16 bit integer array and convert to float
 void om_common_copy_float_to_int16(uint64_t length, float scale_factor, float add_offset, const void* src, void* dst);
