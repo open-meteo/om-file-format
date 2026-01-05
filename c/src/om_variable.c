@@ -313,7 +313,7 @@ void om_variable_write_scalar(
 
     /// Set value
     char* destValue = (char*)(dst_ptr + sizeof(OmVariableV3_t) + 16 * children_count);
-    uint8_t valueSize = 0;
+    uint64_t valueSize = 0;
     switch (data_type) {
         case DATA_TYPE_NONE:
             // No value to write for DATA_TYPE_NONE
