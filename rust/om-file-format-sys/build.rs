@@ -59,7 +59,7 @@ fn configure_build_flags(build: &mut cc::Build, config: &BuildConfig, compiler: 
             if config.is_windows && compiler.is_like_msvc() {
                 // No special flags needed for MSVC atm
             } else {
-                // Choose between skylake and native based on environment variable
+                // x86-64-v3 has AVX2 (2013 Haswell Architecture) and should be a safe and performant baseline
                 if !config.native_build {
                     build.flag("-march=x86-64-v3");
                 } else {
