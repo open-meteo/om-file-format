@@ -8,7 +8,7 @@ struct BuildConfig {
     // target: String,
     arch: String,
     sysroot: Option<String>,
-    use_skylake: bool,
+    native_build: bool,
     is_windows: bool,
 }
 
@@ -16,7 +16,7 @@ fn get_build_config() -> BuildConfig {
     BuildConfig {
         arch: env::var("CARGO_CFG_TARGET_ARCH").unwrap(),
         sysroot: env::var("SYSROOT").ok(),
-        use_skylake: env::var("MARCH_SKYLAKE")
+        native_build: env::var("NATIVE_BUILD")
             .map(|v| v == "TRUE")
             .unwrap_or(false),
         is_windows: env::var("TARGET").unwrap().contains("windows"),
@@ -59,9 +59,9 @@ fn configure_build_flags(build: &mut cc::Build, config: &BuildConfig, compiler: 
             if config.is_windows && compiler.is_like_msvc() {
                 // No special flags needed for MSVC atm
             } else {
-                // Choose between skylake and native based on environment variable
-                if config.use_skylake {
-                    build.flag("-march=skylake");
+                // x86-64-v3 has AVX2 (2013 Haswell Architecture) and should be a safe and performant baseline
+                if !config.native_build {
+                    build.flag("-march=x86-64-v3");
                 } else {
                     build.flag("-march=native");
                 }
