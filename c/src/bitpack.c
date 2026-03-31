@@ -260,7 +260,7 @@ size_t bitnfpack64( uint64_t *__restrict in, size_t n, unsigned char *__restrict
   return op - out;\
 }
 
-  #ifdef __AVX2__
+  #ifdef AVX2_ON
 #include <immintrin.h>
 #include "bitpack_.h"
 

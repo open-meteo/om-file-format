@@ -164,7 +164,7 @@ size_t bitnfunpack64( unsigned char *__restrict in, size_t n, uint64_t *__restri
   } if(n&=(_csize_-1)) { unsigned b = *ip++; ip = TEMPLATE2(_bitunpack_,  _usize_)(ip, n,     op, start,b); }\
   return ip - in;\
 }
-  #ifdef __AVX2__ //-------------------------------- AVX2 ----------------------------------------------------------------------------
+  #ifdef AVX2_ON //-------------------------------- AVX2 ----------------------------------------------------------------------------
 #include <immintrin.h>
 
     #ifdef __AVX512F__
