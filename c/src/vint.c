@@ -26,7 +26,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#pragma clang diagnostic ignored "-Wincompatible-pointer-types"
+#pragma clang diagnostic ignored "-Wincompatible-pointer-types-discards-qualifiers"
 #pragma clang diagnostic ignored "-Wunused-variable"
 #pragma clang diagnostic ignored "-Wmacro-redefined"
 #pragma clang diagnostic ignored "-Wshift-op-parentheses"
