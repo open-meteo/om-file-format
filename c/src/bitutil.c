@@ -24,6 +24,7 @@
 //    "Integer Compression" utility - delta, for, zigzag / Floating point compression
 
 #pragma clang diagnostic ignored "-Wmacro-redefined"
+#pragma clang diagnostic ignored "-Wincompatible-pointer-types"
 #pragma clang diagnostic ignored "-Wunused-variable"
 #pragma clang diagnostic ignored "-Wunused-but-set-variable"
 #pragma clang diagnostic ignored "-Wshorten-64-to-32"
@@ -693,3 +694,4 @@ static inline double _fppad64(double d, double e, int lg2e) { if(isnan(d)) retur
 }
 
 void fppad64(double *in, size_t n, double *out, double e) { int lg2e = -log(e)/log(2.0); double *ip; for(ip = in; ip < in+n; ip++,out++) *out = _fppad64(*ip, e, lg2e); }
+
