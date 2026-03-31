@@ -16,7 +16,7 @@ jobs:
             runs-on: ubuntu-latest
             target: x86_64-unknown-linux-gnu
           - os-name: Linux-aarch64
-            runs-on: ubuntu-latest
+            runs-on: ubuntu-24.04-arm
             target: aarch64-unknown-linux-gnu
           - os-name: macOS-x86_64
             runs-on: macOS-15-intel
@@ -33,13 +33,6 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - name: Build
-        uses: houseabsolute/actions-rust-cross@v0
-        with:
-          command: "build"
-          target: ${{ matrix.platform.target }}
+        run: cargo build --verbose --target ${{ matrix.platform.target }}
       - name: Run tests
-        uses: houseabsolute/actions-rust-cross@v0
-        with:
-          command: "test"
-          target: ${{ matrix.platform.target }}
-          args: "-- --test-threads=1 --nocapture"
+        run: cargo test --verbose --target ${{ matrix.platform.target }} -- --nocapture
