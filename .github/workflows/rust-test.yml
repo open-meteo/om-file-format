@@ -10,6 +10,7 @@ jobs:
   build:
     runs-on: ${{ matrix.platform.runs-on }}
     strategy:
+      fail-fast: false
       matrix:
         platform:
           - os-name: Linux-x86_64
