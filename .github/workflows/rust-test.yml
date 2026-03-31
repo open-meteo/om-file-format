@@ -33,6 +33,6 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - name: Build
-        run: cargo build --verbose --target ${{ matrix.platform.target }}
+        run: CC=gcc cargo build --verbose --target ${{ matrix.platform.target }}
       - name: Run tests
-        run: cargo test --verbose --target ${{ matrix.platform.target }} -- --nocapture
+        run: CC=gcc cargo test --verbose --target ${{ matrix.platform.target }} -- --nocapture
