@@ -12,3 +12,6 @@ jobs:
 
   call-rust-tests:
     uses: ./.github/workflows/rust-test.yml
+
+  call-c-msvc-build:
+    uses: ./.github/workflows/c-msvc.yml

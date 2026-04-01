@@ -1,0 +1,39 @@
+name: C MSVC Build
+
+on:
+  workflow_call:
+
+jobs:
+  build-msvc:
+    name: Build (Windows MSVC)
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Add msbuild to PATH
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Initialize MSVC environment
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Build
+        working-directory: c
+        run: |
+          # Create a build directory for output
+          mkdir build
+
+          # Compile src/*.c, look for headers in include/, output to build/
+          # /Zi = debug info, /W3 = warning level 3, /Fe = output executable name
+          cl.exe /LD /Zi /W3 /I include /arch:SSSE3 /D__SSE2__ /D__SSSE3__ /Fe:build/om-file-format.dll src/*.c
+
+      - name: Verify Build Artifacts
+        working-directory: c/build
+        run: |
+          dir
+          if (!(Test-Path 'om-file-format.dll')) {
+            Write-Error 'om-file-format.dll not found'
+            exit 1
+          }
