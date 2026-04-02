@@ -166,7 +166,7 @@ size_t p4nsdec16(unsigned char *in, size_t n, uint16_t *out) { uint16_t  *op,sta
 size_t p4nsdec32(unsigned char *in, size_t n, uint32_t *out) { uint32_t  *op,start; P4NDDEC(in, n, out, 128, 32, p4sdec); }
 size_t p4nsdec64(unsigned char *in, size_t n, uint64_t *out) { uint64_t  *op,start; P4NDDEC(in, n, out, 128, 64, p4sdec); }
 #undef _P4BITS
-  #elif defined(__AVX2__)
+  #elif defined(AVX2_ON)
 #define  BITDELTA bitdienc
 #define HYBRID 1
 #define P4BITS _p4bits

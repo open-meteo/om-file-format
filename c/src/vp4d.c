@@ -57,7 +57,7 @@ extern char _shuffle_32[16][16];  // defined in bitunpack.c
 extern char _shuffle_16[256][16];
   #endif
 
-  #ifdef __AVX2__
+  #ifdef AVX2_ON
 #define VSIZE 256
 #define P4DELTA(a)
 #define P4DELTA_(a)
