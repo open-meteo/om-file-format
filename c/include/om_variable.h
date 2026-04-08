@@ -101,6 +101,11 @@ bool om_variable_get_children(const OmVariable_t* variable, uint32_t children_of
 /// Read a variable as a scalar. Returns the size and value into the value and size field. `value` needs to be a pointer that then points to the value
 OmError_t om_variable_get_scalar(const OmVariable_t* variable, void** value, uint64_t* size);
 
+/// Validate that the variable metadata is consistent with the buffer size.
+/// This checks that dimension arrays, chunk arrays, children arrays, and name
+/// all fit within the given buffer. Returns ERROR_OK if valid.
+OmError_t om_variable_validate(const void* src, uint64_t buffer_size);
+
 
 
 

@@ -404,3 +404,67 @@ void om_variable_write_numeric_array(void* dst, uint16_t name_size, uint32_t chi
         baseName[i] = name[i];
     }
 }
+
+OmError_t om_variable_validate(const void* src, uint64_t buffer_size) {
+    if (buffer_size < sizeof(OmHeaderV3_t)) {
+        return ERROR_NOT_AN_OM_FILE;
+    }
+    const OmVariable_t* variable = src;
+    switch (_om_variable_memory_layout(variable)) {
+        case OM_MEMORY_LAYOUT_LEGACY: {
+            if (buffer_size < sizeof(OmHeaderV1_t)) {
+                return ERROR_OUT_OF_BOUND_READ;
+            }
+            const OmHeaderV1_t* meta = (const OmHeaderV1_t*)variable;
+            if (meta->dim0 == 0 || meta->dim1 == 0) {
+                return ERROR_INVALID_DIMENSIONS;
+            }
+            if (meta->chunk0 == 0 || meta->chunk0 > meta->dim0) {
+                return ERROR_INVALID_CHUNK_DIMENSIONS;
+            }
+            if (meta->chunk1 == 0 || meta->chunk1 > meta->dim1) {
+                return ERROR_INVALID_CHUNK_DIMENSIONS;
+            }
+            return ERROR_OK;
+        }
+        case OM_MEMORY_LAYOUT_ARRAY: {
+            if (buffer_size < sizeof(OmVariableArrayV3_t)) {
+                return ERROR_OUT_OF_BOUND_READ;
+            }
+            const OmVariableArrayV3_t* meta = (const OmVariableArrayV3_t*)variable;
+            size_t expected = om_variable_write_numeric_array_size(
+                meta->name_size, meta->children_count, meta->dimension_count
+            );
+            if ((uint64_t)expected > buffer_size) {
+                return ERROR_OUT_OF_BOUND_READ;
+            }
+            if (meta->dimension_count == 0) {
+                return ERROR_INVALID_DIMENSIONS;
+            }
+            return ERROR_OK;
+        }
+        case OM_MEMORY_LAYOUT_SCALAR: {
+            if (buffer_size < sizeof(OmVariableV3_t)) {
+                return ERROR_OUT_OF_BOUND_READ;
+            }
+            const OmVariableV3_t* meta = (const OmVariableV3_t*)variable;
+            // For string type, read the string_size from the buffer if possible
+            uint64_t string_size = 0;
+            if (meta->data_type == DATA_TYPE_STRING) {
+                uint64_t string_size_offset = sizeof(OmVariableV3_t) + 16 * (uint64_t)meta->children_count;
+                if (string_size_offset + sizeof(uint64_t) > buffer_size) {
+                    return ERROR_OUT_OF_BOUND_READ;
+                }
+                string_size = *(const uint64_t*)((const char*)variable + string_size_offset);
+            }
+            size_t expected = om_variable_write_scalar_size(
+                meta->name_size, meta->children_count, meta->data_type, string_size
+            );
+            if ((uint64_t)expected > buffer_size) {
+                return ERROR_OUT_OF_BOUND_READ;
+            }
+            return ERROR_OK;
+        }
+    }
+    return ERROR_NOT_AN_OM_FILE;
+}

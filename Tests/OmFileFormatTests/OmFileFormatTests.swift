@@ -897,7 +897,7 @@ import OmFileFormatC
         let inMemoryBackend = DataAsClass(data: Data())
         let fileWriter = OmFileWriter(fn: inMemoryBackend, initialCapacity: 8)
 
-        let error = #expect(throws: OmFileFormatSwiftError.self) {
+        #expect(throws: OmFileFormatSwiftError.self) {
             try fileWriter.prepareArray(
                 type: Float.self,
                 dimensions: [],
@@ -907,7 +907,42 @@ import OmFileFormatC
                 add_offset: 0
             )
         }
-        // #expect(error == OmFileFormatSwiftError.omEncoder(error: "Invalid dimensions"))
+    }
+
+    @Test func testArrayWithCorruptedDimensionCount() async throws {
+        let inMemoryBackend = DataAsClass(data: Data())
+        let fileWriter = OmFileWriter(fn: inMemoryBackend, initialCapacity: 8)
+
+        // Write a normal file first
+        let data: [Float] = [0.0, 1.0, 2.0, 3.0]
+        let writer = try fileWriter.prepareArray(
+            type: Float.self,
+            dimensions: [2, 2],
+            chunkDimensions: [1, 1],
+            compression: .pfor_delta2d_int16,
+            scale_factor: 1,
+            add_offset: 0
+        )
+        try writer.writeData(array: data)
+        let variableMeta = try writer.finalise()
+        let variable = try fileWriter.write(array: variableMeta, name: "data", children: [])
+        try fileWriter.writeTrailer(rootVariable: variable)
+
+        // The OmVariableArrayV3_t.dimension_count is at byte offset 24 within the struct
+        let varOffset = Int(variable.offset)
+        let corrupted_dimension_count: UInt64 = 20
+        // Convert the corrupted value to little-endian bytes
+        let corruptedBytes: [UInt8] = withUnsafeBytes(of: corrupted_dimension_count.littleEndian) { Array($0) }
+        // Write the 8 bytes into the backend at offsets varOffset + 24 .. varOffset + 31
+        for i in 0..<corruptedBytes.count {
+            inMemoryBackend.data[varOffset + 24 + i] = corruptedBytes[i]
+        }
+
+        await #expect(throws: OmFileFormatSwiftError.self) {
+            let reader = try await OmFileReader(fn: inMemoryBackend)
+            let read = reader.asArray(of: Float.self)!
+            let _ = try await read.read()
+        }
     }
 }
 

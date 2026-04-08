@@ -41,6 +41,12 @@ public struct OmFileReader<Backend: OmFileReaderBackend> {
         }
         /// Read data from root.offset by root.size. Important: data must remain accessible throughout the use of this variable!!
         let dataVariable = try await fn.getData(offset: Int(offset), count: Int(size))
+        try dataVariable.withUnsafeBytes {
+            let error = om_variable_validate($0.baseAddress, UInt64($0.count))
+            guard error == ERROR_OK else {
+                throw OmFileFormatSwiftError.omDecoder(error: String(cString: om_error_string(error)))
+            }
+        }
         self.variable = dataVariable
     }
 
@@ -108,6 +114,12 @@ public struct OmFileReader<Backend: OmFileReaderBackend> {
         }
         /// Read data from child.offset by child.size
         let dataChild = try await fn.getData(offset: Int(offset), count: Int(size))
+        try dataChild.withUnsafeBytes {
+            let error = om_variable_validate($0.baseAddress, UInt64($0.count))
+            guard error == ERROR_OK else {
+                throw OmFileFormatSwiftError.omDecoder(error: String(cString: om_error_string(error)))
+            }
+        }
         return OmFileReader(fn: fn, variable: dataChild)
     }
     
