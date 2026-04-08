@@ -29,7 +29,7 @@ public struct OmFileReader<Backend: OmFileReaderBackend> {
         }) else {
             // Try legacy file header
             let headerSize = om_header_size()
-            let data = try await fn.getData(offset: 0, count: headerSize)
+            let data = try await fn.getDataChecked(offset: 0, count: headerSize)
             let headerType = data.withUnsafeBytes {
                 om_header_type($0.baseAddress)
             }
@@ -40,7 +40,13 @@ public struct OmFileReader<Backend: OmFileReaderBackend> {
             return
         }
         /// Read data from root.offset by root.size. Important: data must remain accessible throughout the use of this variable!!
-        let dataVariable = try await fn.getData(offset: Int(offset), count: Int(size))
+        let dataVariable = try await fn.getDataChecked(offset: Int(offset), count: Int(size))
+        try dataVariable.withUnsafeBytes {
+            let error = om_variable_validate($0.baseAddress, UInt64($0.count))
+            guard error == ERROR_OK else {
+                throw OmFileFormatSwiftError.omDecoder(error: String(cString: om_error_string(error)))
+            }
+        }
         self.variable = dataVariable
     }
 
@@ -50,7 +56,7 @@ public struct OmFileReader<Backend: OmFileReaderBackend> {
     }
 
     public func isLegacyFormat() async throws -> Bool {
-        return try await fn.withData(offset: 0, count: om_header_size()) {
+        return try await fn.withDataChecked(offset: 0, count: om_header_size()) {
             return om_header_type($0.baseAddress) == OM_HEADER_LEGACY
         }
     }
@@ -107,7 +113,13 @@ public struct OmFileReader<Backend: OmFileReaderBackend> {
             return nil
         }
         /// Read data from child.offset by child.size
-        let dataChild = try await fn.getData(offset: Int(offset), count: Int(size))
+        let dataChild = try await fn.getDataChecked(offset: Int(offset), count: Int(size))
+        try dataChild.withUnsafeBytes {
+            let error = om_variable_validate($0.baseAddress, UInt64($0.count))
+            guard error == ERROR_OK else {
+                throw OmFileFormatSwiftError.omDecoder(error: String(cString: om_error_string(error)))
+            }
+        }
         return OmFileReader(fn: fn, variable: dataChild)
     }
     

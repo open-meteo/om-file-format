@@ -203,9 +203,10 @@ public final class OmFileWriterArray<OmType: OmFileArrayDataTypeProtocol, FileHa
         let arrayCount = arrayCount ?? arrayDimensions
         let arrayOffset = arrayOffset ?? [UInt64](repeating: 0, count: arrayDimensions.count)
 
-        assert(pointer.count == arrayDimensions.reduce(1, *))
-        assert(arrayDimensions.allSatisfy({$0 >= 0}))
-        assert(arrayOffset.allSatisfy({$0 >= 0}))
+        let arrayDimsFlat = arrayDimensions.reduce(1, *)
+        if pointer.count != arrayDimsFlat {
+            throw OmFileFormatSwiftError.requireDimensionsToMatch(required: pointer.count, actual: Int(arrayDimsFlat))
+        }
         assert(zip(arrayDimensions, zip(arrayOffset, arrayCount)).allSatisfy { $1.0 + $1.1 <= $0 })
 
         /// For performance the output buffer should be able to hold a multiple of the chunk buffer size

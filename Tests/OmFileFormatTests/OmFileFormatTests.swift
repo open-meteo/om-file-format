@@ -362,7 +362,7 @@ import OmFileFormatC
 
         // Ensure written bytes are correct
         #expect(readFn.count == 296)
-        let bytes = readFn.getData(offset: 0, count: readFn.count).map{UInt8($0)}
+        let bytes = try readFn.getData(offset: 0, count: readFn.count).map{UInt8($0)}
         #expect(bytes[0..<3] == [79, 77, 3])
         #expect(bytes[3..<8] == [0, 3, 34, 140, 2]) // chunk
         #expect(bytes[8..<12] == [2, 3, 114, 1] || bytes[8..<12] == [2, 3, 114, 141]) // difference on x86 and ARM cause by the underlying compression
@@ -464,7 +464,7 @@ import OmFileFormatC
         }
 
         #expect(readFn.count == 144)
-        let bytes = readFn.getData(offset: 0, count: readFn.count).map{UInt8($0)}
+        let bytes = try readFn.getData(offset: 0, count: readFn.count).map{UInt8($0)}
         #expect(bytes == [79, 77, 3, 0, 4, 130, 0, 2, 3, 34, 0, 4, 194, 2, 10, 4, 178, 0, 12, 4, 242, 0, 14, 197, 17, 20, 194, 2, 22, 194, 2, 24, 3, 3, 228, 200, 109, 1, 0, 0, 20, 0, 4, 0, 0, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0, 32, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 128, 63, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 100, 97, 116, 97, 0, 0, 0, 0, 79, 77, 3, 0, 0, 0, 0, 0, 40, 0, 0, 0, 0, 0, 0, 0, 76, 0, 0, 0, 0, 0, 0, 0])
 
         // test interpolation
@@ -892,7 +892,62 @@ import OmFileFormatC
 
         #expect(ints == intsRoundtrip)
     }
-    
+
+    @Test func testWriteArrayWithEmptyDimensions() async throws {
+        let inMemoryBackend = DataAsClass(data: Data())
+        let fileWriter = OmFileWriter(fn: inMemoryBackend, initialCapacity: 8)
+
+        let data: [Float] = [0.0, 1.0, 2.0, 3.0]
+        let writer = try fileWriter.prepareArray(
+            type: Float.self,
+            dimensions: [],  // empty dimensions on purpose
+            chunkDimensions: [],  // empty dimensions on purpose
+            compression: .pfor_delta2d_int16,
+            scale_factor: 1,
+            add_offset: 0
+        )
+
+        #expect(throws: OmFileFormatSwiftError.self) {
+            try writer.writeData(array: data)
+        }
+    }
+
+    @Test func testArrayWithCorruptedDimensionCount() async throws {
+        let inMemoryBackend = DataAsClass(data: Data())
+        let fileWriter = OmFileWriter(fn: inMemoryBackend, initialCapacity: 8)
+
+        // Write a normal file first
+        let data: [Float] = [0.0, 1.0, 2.0, 3.0]
+        let writer = try fileWriter.prepareArray(
+            type: Float.self,
+            dimensions: [2, 2],
+            chunkDimensions: [1, 1],
+            compression: .pfor_delta2d_int16,
+            scale_factor: 1,
+            add_offset: 0
+        )
+        try writer.writeData(array: data)
+        let variableMeta = try writer.finalise()
+        let variable = try fileWriter.write(array: variableMeta, name: "data", children: [])
+        try fileWriter.writeTrailer(rootVariable: variable)
+
+        // The OmVariableArrayV3_t.dimension_count is at byte offset 24 within the struct
+        let varOffset = Int(variable.offset)
+        let corrupted_dimension_count: UInt64 = 20
+        // Convert the corrupted value to little-endian bytes
+        let corruptedBytes: [UInt8] = withUnsafeBytes(of: corrupted_dimension_count.littleEndian) { Array($0) }
+        // Write the 8 bytes into the backend at offsets varOffset + 24 .. varOffset + 31
+        for i in 0..<corruptedBytes.count {
+            inMemoryBackend.data[varOffset + 24 + i] = corruptedBytes[i]
+        }
+
+        await #expect(throws: OmFileFormatSwiftError.self) {
+            let reader = try await OmFileReader(fn: inMemoryBackend)
+            let read = reader.asArray(of: Float.self)!
+            let _ = try await read.read()
+        }
+    }
+
     /// On linux this uses `O_TMPFILE` and atomic move operations. On other platforms uses `~` at the end of file names.
     @Test func testCreateFileTemporary() throws {
         let file = "temporary.txt"
@@ -907,7 +962,6 @@ import OmFileFormatC
         // Check contents
         let content = try String(contentsOfFile: file)
         #expect(content == "Test")
-        
     }
 }
 
