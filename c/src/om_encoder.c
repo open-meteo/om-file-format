@@ -24,10 +24,6 @@ OmError_t om_encoder_init(
     const uint64_t* chunks,
     uint64_t dimension_count
 ) {
-    if (dimension_count == 0) {
-        return ERROR_INVALID_DIMENSIONS;
-    }
-
     for (uint64_t i = 0; i < dimension_count; i++) {
         if (dimensions[i] == 0) {
             return ERROR_INVALID_DIMENSIONS;

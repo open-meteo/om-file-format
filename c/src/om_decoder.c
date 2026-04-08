@@ -34,9 +34,6 @@ OmError_t om_decoder_init(
     uint64_t io_size_merge,
     uint64_t io_size_max
 ) {
-    if (dimension_count == 0) {
-        return ERROR_INVALID_DIMENSIONS;
-    }
 
     float scalefactor, add_offset;
     const uint64_t *dimensions, *chunks;
