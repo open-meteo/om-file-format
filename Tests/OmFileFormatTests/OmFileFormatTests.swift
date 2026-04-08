@@ -892,6 +892,23 @@ import OmFileFormatC
 
         #expect(ints == intsRoundtrip)
     }
+
+    @Test func testWriteArrayWithEmptyDimensions() async throws {
+        let inMemoryBackend = DataAsClass(data: Data())
+        let fileWriter = OmFileWriter(fn: inMemoryBackend, initialCapacity: 8)
+
+        let error = #expect(throws: OmFileFormatSwiftError.self) {
+            try fileWriter.prepareArray(
+                type: Float.self,
+                dimensions: [],
+                chunkDimensions: [],
+                compression: .pfor_delta2d_int16,
+                scale_factor: 1,
+                add_offset: 0
+            )
+        }
+        // #expect(error == OmFileFormatSwiftError.omEncoder(error: "Invalid dimensions"))
+    }
 }
 
 extension Array where Element == Float {
