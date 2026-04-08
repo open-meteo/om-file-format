@@ -899,7 +899,7 @@ import OmFileFormatC
         let fn = try FileHandle.createNewFile(file: file, overwrite: true, temporary: true)
         try fn.write(contentsOf: "Test".data(using: .utf8)!)
         #expect(FileManager.default.fileExists(atPath: file) == false)
-        try fn.moveTemporary(file: file)
+        try fn.linkTemporary(file: file)
         defer {
             try! FileManager.default.removeItem(atPath: file)
         }
