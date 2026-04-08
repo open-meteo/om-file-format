@@ -20,6 +20,9 @@ extension FileHandleWithCount: OmFileReaderBackend {
     }
     
     public func getData(offset: Int, count: Int) async throws -> Data {
+        guard offset + count <= self.count else {
+            throw OmFileFormatSwiftError.omDecoder(error: "Read out of bounds")
+        }
         var data = Data(repeating: 0, count: count)
         let err = data.withUnsafeMutableBytes({ data in
             /// Pread is thread safe

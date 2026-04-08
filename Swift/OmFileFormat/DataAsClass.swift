@@ -33,13 +33,15 @@ extension DataAsClass: OmFileReaderBackend {
     }
     
     public func withData<T>(offset: Int, count: Int, fn: @Sendable (UnsafeRawBufferPointer) throws -> T) async throws -> T {
-        try data[offset..<offset+count].withUnsafeBytes({
+        return try await getData(offset: offset, count: count).withUnsafeBytes({
             try fn($0)
         })
     }
     
     public func getData(offset: Int, count: Int) async throws -> Data.SubSequence {
+        guard offset + count <= data.count else {
+            throw OmFileFormatSwiftError.omDecoder(error: "Read out of bounds")
+        }
         return data[offset..<offset+count]
     }
 }
-

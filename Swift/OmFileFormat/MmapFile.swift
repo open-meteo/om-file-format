@@ -80,13 +80,13 @@ extension MmapFile: OmFileReaderBackend {
     }
     
     public func withData<T>(offset: Int, count: Int, fn: (UnsafeRawBufferPointer) throws -> T) async throws -> T {
-        assert(offset + count <= data.count)
-        let ptr = UnsafeRawBufferPointer(UnsafeBufferPointer(rebasing: data[offset ..< offset+count]))
-        return try fn(ptr)
+        return try fn(getData(offset: offset, count: count))
     }
-    
-    public func getData(offset: Int, count: Int) -> UnsafeRawBufferPointer {
-        assert(offset + count <= data.count)
+
+    public func getData(offset: Int, count: Int) throws -> UnsafeRawBufferPointer {
+        guard offset + count <= data.count else {
+            throw OmFileFormatSwiftError.omDecoder(error: "Read out of bounds")
+        }
         let ptr = UnsafeRawBufferPointer(UnsafeBufferPointer(rebasing: data[offset ..< offset+count]))
         return ptr
     }
