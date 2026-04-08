@@ -15,6 +15,7 @@ public enum OmFileFormatSwiftError: Error {
     case notAOmFile
     case fileExistsAlready(filename: String)
     case posixFallocateFailed(error: Int32)
+    case linkAt(error: Int32)
     case ftruncateFailed(error: Int32)
     case omDecoder(error: String)
     case omEncoder(error: String)

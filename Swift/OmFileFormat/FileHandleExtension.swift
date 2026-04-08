@@ -4,11 +4,17 @@ import Foundation
 extension FileHandle {
     /// Create new file and convert it into a `FileHandle`. For some reason this does not exist in stock swift....
     /// Error on existing file
-    public static func createNewFile(file: String, size: Int? = nil, sparseSize: Int? = nil, overwrite: Bool = false) throws -> FileHandle {
+    /// If `temporary`, a tilde `~` is appended to the filename. On linux flag `O_TMPFILE` is used
+    public static func createNewFile(file: String, size: Int? = nil, sparseSize: Int? = nil, overwrite: Bool = false, temporary: Bool = false) throws -> FileHandle {
         let flagOverwrite = overwrite ? O_TRUNC : O_EXCL
-        let flags = O_RDWR | O_CREAT | flagOverwrite
+        #if os(Linux)
+        let flagTemporary = temporary ? O_TMPFILE : 0
+        #else
+        let flagTemporary = Int32(0)
+        #endif
+        let flags = O_RDWR | O_CREAT | flagOverwrite | flagTemporary
         // 0644 permissions
-        let fn = open(file, flags, S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH)
+        let fn = open(temporary ? "\(file)~" : file, flags, S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH)
         guard fn > 0 else {
             let error = String(cString: strerror(errno))
             throw OmFileFormatSwiftError.cannotCreateFile(filename: file, errno: errno, error: error)
@@ -26,6 +32,27 @@ extension FileHandle {
         }
         try handle.seek(toOffset: 0)
         return handle
+    }
+    
+    /// If the file was created using `temporary: true` in `createNewFile`. Move the file to its final destination
+    func moveTemporary(file: String) throws {
+        #if os(Linux)
+        try linkAt(file: file)
+        #else
+        try FileManager.default.moveItem(atPath: "\(file)~", toPath: file)
+        #endif
+    }
+    
+    /// Link the file descriptor to a named file. Only works on Linux. Used in combination with `O_TMPFILE`
+    func linkAt(file: String) throws {
+        #if os(Linux)
+        let temporary = "\(file).\(Int32.random(in: 0..<Int32.max))~"
+        let res = linkat(AT_FDCWD, "/proc/self/fd/\(fileDescriptor)", AT_FDCWD, temporary, AT_SYMLINK_FOLLOW)
+        guard res >= 0 else {
+            throw OmFileFormatSwiftError.linkAt(error: res)
+        }
+        try FileManager.default.moveItem(atPath: temporary, toPath: file)
+        #endif
     }
 
     /// Allocate the required diskspace for a given file
