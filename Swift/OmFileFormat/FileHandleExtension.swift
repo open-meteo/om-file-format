@@ -28,7 +28,7 @@ extension FileHandle {
             fn = open(file, flags, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH)
         }
         #else
-        let flags = O_RDWR | O_CREAT | (temporary ? 0 : flagOverwrite)
+        let flags = O_RDWR | O_CREAT | flagOverwrite
         fn = open(temporary ? "\(file)~" : file, flags, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH)
         #endif
 
