@@ -1,14 +1,37 @@
 import Foundation
 
+#if os(Linux)
+import Glibc
+#endif
+
 
 extension FileHandle {
     /// Create new file and convert it into a `FileHandle`. For some reason this does not exist in stock swift....
     /// Error on existing file
-    public static func createNewFile(file: String, size: Int? = nil, sparseSize: Int? = nil, overwrite: Bool = false) throws -> FileHandle {
+    /// If `temporary`, a tilde `~` is appended to the filename. On linux flag `O_TMPFILE` is used
+    public static func createNewFile(file: String, size: Int? = nil, sparseSize: Int? = nil, overwrite: Bool = false, temporary: Bool = false) throws -> FileHandle {
         let flagOverwrite = overwrite ? O_TRUNC : O_EXCL
+
+        let fn: Int32
+
+        #if os(Linux)
+        if temporary {
+            // O_TMPFILE needs a *directory* path — the file gets no name at all
+            // until linkAt() is called later
+            let dir = URL(fileURLWithPath: file)
+                .deletingLastPathComponent()
+                .path
+            let flags = O_RDWR | __O_TMPFILE   // O_CREAT must NOT be combined with O_TMPFILE
+            fn = open(dir, flags, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH)
+        } else {
+            let flags = O_RDWR | O_CREAT | flagOverwrite
+            fn = open(file, flags, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH)
+        }
+        #else
         let flags = O_RDWR | O_CREAT | flagOverwrite
-        // 0644 permissions
-        let fn = open(file, flags, S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH)
+        fn = open(temporary ? "\(file)~" : file, flags, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH)
+        #endif
+
         guard fn > 0 else {
             let error = String(cString: strerror(errno))
             throw OmFileFormatSwiftError.cannotCreateFile(filename: file, errno: errno, error: error)
@@ -26,6 +49,24 @@ extension FileHandle {
         }
         try handle.seek(toOffset: 0)
         return handle
+    }
+
+    /// If the file was created using `temporary: true` in `createNewFile`, move the file to its final destination
+    /// On linux flag `O_TMPFILE` is used with `linkat` and `proc` fd lookup. Other platt forms create append a `~` to the filename
+    public func linkTemporary(file: String) throws {
+        #if os(Linux)
+        let temporary = "\(file).\(Int32.random(in: 0..<Int32.max))~"
+        let res = linkat(AT_FDCWD, "/proc/self/fd/\(fileDescriptor)", AT_FDCWD, temporary, AT_SYMLINK_FOLLOW)
+        guard res >= 0 else {
+            throw OmFileFormatSwiftError.linkAt(error: res)
+        }
+        #else
+        let temporary = "\(file)~"
+        #endif
+        guard rename(temporary, file) != -1 else {
+            let error = String(cString: strerror(errno))
+            throw OmFileFormatSwiftError.cannotMoveFile(from: temporary, to: file, errno: errno, error: error)
+        }
     }
 
     /// Allocate the required diskspace for a given file
@@ -83,5 +124,5 @@ extension FileHandle {
 
 /// Make `FileHandle` work as writer
 extension FileHandle: OmFileWriterBackend {
-    
+
 }

@@ -14,6 +14,8 @@ public enum OmFileFormatSwiftError: Error {
     case dimensionMustBeLargerThan0
     case fileExistsAlready(filename: String)
     case posixFallocateFailed(error: Int32)
+    case linkAt(error: Int32)
+    case cannotMoveFile(from: String, to: String, errno: Int32, error: String)
     case ftruncateFailed(error: Int32)
     case omDecoder(error: String)
     case omEncoder(error: String)
