@@ -254,7 +254,7 @@ extension OmFileReaderBackend {
         while om_decoder_next_index_read(decoder, &indexRead) {
             var indexRead = indexRead
             //print("Read index \(indexRead)")
-            let indexData = try await self.getData(offset: Int(indexRead.offset), count: Int(indexRead.count))
+            let indexData = try await self.getDataChecked(offset: Int(indexRead.offset), count: Int(indexRead.count))
             //try await self.withData(offset: Int(indexRead.offset), count: Int(indexRead.count)) { indexData in
             var dataRead = OmDecoder_dataRead_t()
             om_decoder_init_data_read(&dataRead, &indexRead)
@@ -294,7 +294,7 @@ extension OmFileReaderBackend {
             /// Loop over index blocks and read index data
             while om_decoder_next_index_read(decoder, &indexRead) {
                 //print("Read index \(indexRead)")
-                let indexData = try await self.getData(offset: Int(indexRead.offset), count: Int(indexRead.count))
+                let indexData = try await self.getDataChecked(offset: Int(indexRead.offset), count: Int(indexRead.count))
                 //try await self.withData(offset: Int(indexRead.offset), count: Int(indexRead.count)) { indexData in
                 var dataRead = OmDecoder_dataRead_t()
                 om_decoder_init_data_read(&dataRead, &indexRead)
@@ -336,7 +336,7 @@ extension OmFileReaderBackend {
         while om_decoder_next_index_read(decoder, &indexRead) {
             var indexRead = indexRead
             //print("Read index \(indexRead)")
-            let indexData = try await self.getData(offset: Int(indexRead.offset), count: Int(indexRead.count))
+            let indexData = try await self.getDataChecked(offset: Int(indexRead.offset), count: Int(indexRead.count))
             //try await self.withData(offset: Int(indexRead.offset), count: Int(indexRead.count)) { indexData in
             var dataRead = OmDecoder_dataRead_t()
             om_decoder_init_data_read(&dataRead, &indexRead)
