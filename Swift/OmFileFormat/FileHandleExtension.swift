@@ -53,7 +53,7 @@ extension FileHandle {
 
     /// If the file was created using `temporary: true` in `createNewFile`, move the file to its final destination
     /// On linux flag `O_TMPFILE` is used with `linkat` and `proc` fd lookup. Other platt forms create append a `~` to the filename
-    func linkTemporary(file: String) throws {
+    public func linkTemporary(file: String) throws {
         #if os(Linux)
         let temporary = "\(file).\(Int32.random(in: 0..<Int32.max))~"
         let res = linkat(AT_FDCWD, "/proc/self/fd/\(fileDescriptor)", AT_FDCWD, temporary, AT_SYMLINK_FOLLOW)
