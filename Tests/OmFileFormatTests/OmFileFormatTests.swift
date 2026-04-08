@@ -362,7 +362,7 @@ import OmFileFormatC
 
         // Ensure written bytes are correct
         #expect(readFn.count == 296)
-        let bytes = try await readFn.getData(offset: 0, count: readFn.count).map{UInt8($0)}
+        let bytes = try readFn.getData(offset: 0, count: readFn.count).map{UInt8($0)}
         #expect(bytes[0..<3] == [79, 77, 3])
         #expect(bytes[3..<8] == [0, 3, 34, 140, 2]) // chunk
         #expect(bytes[8..<12] == [2, 3, 114, 1] || bytes[8..<12] == [2, 3, 114, 141]) // difference on x86 and ARM cause by the underlying compression
@@ -464,7 +464,7 @@ import OmFileFormatC
         }
 
         #expect(readFn.count == 144)
-        let bytes = try await readFn.getData(offset: 0, count: readFn.count).map{UInt8($0)}
+        let bytes = try readFn.getData(offset: 0, count: readFn.count).map{UInt8($0)}
         #expect(bytes == [79, 77, 3, 0, 4, 130, 0, 2, 3, 34, 0, 4, 194, 2, 10, 4, 178, 0, 12, 4, 242, 0, 14, 197, 17, 20, 194, 2, 22, 194, 2, 24, 3, 3, 228, 200, 109, 1, 0, 0, 20, 0, 4, 0, 0, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0, 32, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 128, 63, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 100, 97, 116, 97, 0, 0, 0, 0, 79, 77, 3, 0, 0, 0, 0, 0, 40, 0, 0, 0, 0, 0, 0, 0, 76, 0, 0, 0, 0, 0, 0, 0])
 
         // test interpolation
@@ -897,15 +897,18 @@ import OmFileFormatC
         let inMemoryBackend = DataAsClass(data: Data())
         let fileWriter = OmFileWriter(fn: inMemoryBackend, initialCapacity: 8)
 
+        let data: [Float] = [0.0, 1.0, 2.0, 3.0]
+        let writer = try fileWriter.prepareArray(
+            type: Float.self,
+            dimensions: [],  // empty dimensions on purpose
+            chunkDimensions: [],  // empty dimensions on purpose
+            compression: .pfor_delta2d_int16,
+            scale_factor: 1,
+            add_offset: 0
+        )
+
         #expect(throws: OmFileFormatSwiftError.self) {
-            try fileWriter.prepareArray(
-                type: Float.self,
-                dimensions: [],
-                chunkDimensions: [],
-                compression: .pfor_delta2d_int16,
-                scale_factor: 1,
-                add_offset: 0
-            )
+            try writer.writeData(array: data)
         }
     }
 
