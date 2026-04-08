@@ -892,6 +892,23 @@ import OmFileFormatC
 
         #expect(ints == intsRoundtrip)
     }
+    
+    /// On linux this uses `O_TMPFILE` and atomic move operations. On other platforms uses `~` at the end of file names.
+    @Test func testCreateFileTemporary() throws {
+        let file = "temporary.txt"
+        let fn = try FileHandle.createNewFile(file: file, overwrite: true, temporary: true)
+        try fn.write(contentsOf: "Test".data(using: .utf8)!)
+        #expect(FileManager.default.fileExists(atPath: file) == false)
+        try fn.moveTemporary(file: file)
+        defer {
+            try! FileManager.default.removeItem(atPath: file)
+        }
+        #expect(FileManager.default.fileExists(atPath: file))
+        // Check contents
+        let content = try String(contentsOfFile: file)
+        #expect(content == "Test")
+        
+    }
 }
 
 extension Array where Element == Float {
