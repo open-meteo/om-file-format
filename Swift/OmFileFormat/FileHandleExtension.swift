@@ -11,14 +11,27 @@ extension FileHandle {
     /// If `temporary`, a tilde `~` is appended to the filename. On linux flag `O_TMPFILE` is used
     public static func createNewFile(file: String, size: Int? = nil, sparseSize: Int? = nil, overwrite: Bool = false, temporary: Bool = false) throws -> FileHandle {
         let flagOverwrite = overwrite ? O_TRUNC : O_EXCL
+
+        let fn: Int32
+
         #if os(Linux)
-        let flagTemporary = temporary ? __O_TMPFILE : 0
+        if temporary {
+            // O_TMPFILE needs a *directory* path — the file gets no name at all
+            // until linkAt() is called later
+            let dir = URL(fileURLWithPath: file)
+                .deletingLastPathComponent()
+                .path
+            let flags = O_RDWR | __O_TMPFILE   // O_CREAT must NOT be combined with O_TMPFILE
+            fn = open(dir, flags, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH)
+        } else {
+            let flags = O_RDWR | O_CREAT | flagOverwrite
+            fn = open(file, flags, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH)
+        }
         #else
-        let flagTemporary = Int32(0)
+        let flags = O_RDWR | O_CREAT | (temporary ? 0 : flagOverwrite)
+        fn = open(temporary ? "\(file)~" : file, flags, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH)
         #endif
-        let flags = O_RDWR | O_CREAT | flagOverwrite | flagTemporary
-        // 0644 permissions
-        let fn = open(temporary ? "\(file)~" : file, flags, S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH)
+
         guard fn > 0 else {
             let error = String(cString: strerror(errno))
             throw OmFileFormatSwiftError.cannotCreateFile(filename: file, errno: errno, error: error)
