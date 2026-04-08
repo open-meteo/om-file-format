@@ -26,6 +26,13 @@ extension OmFileReaderBackend {
         }
         return try await self.getData(offset: offset, count: count)
     }
+    
+    func withDataChecked<T>(offset: Int, count: Int, fn: @Sendable (UnsafeRawBufferPointer) throws -> T) async throws -> T {
+        guard offset + count <= self.count else {
+            throw OmFileFormatSwiftError.omDecoder(error: "Read out of bounds")
+        }
+        return try await self.withData(offset: offset, count: count, fn: fn)
+    }
 }
 
 /// Protocol for `OmFileReaderArray` to type erase the underlaying backend implementation

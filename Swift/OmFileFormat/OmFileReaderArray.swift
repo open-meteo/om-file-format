@@ -255,7 +255,7 @@ extension OmFileReaderBackend {
             var indexRead = indexRead
             //print("Read index \(indexRead)")
             let indexData = try await self.getDataChecked(offset: Int(indexRead.offset), count: Int(indexRead.count))
-            //try await self.withData(offset: Int(indexRead.offset), count: Int(indexRead.count)) { indexData in
+            //try await self.withDataChecked(offset: Int(indexRead.offset), count: Int(indexRead.count)) { indexData in
             var dataRead = OmDecoder_dataRead_t()
             om_decoder_init_data_read(&dataRead, &indexRead)
             var error: OmError_t = ERROR_OK
@@ -264,10 +264,10 @@ extension OmFileReaderBackend {
                 //print("Read data \(dataRead) for chunk index \(dataRead.chunkIndex)")
                 let chunkIndex = dataRead.chunkIndex
                 let dataReadCount = dataRead.count
-                try await self.withData(offset: Int(dataRead.offset), count: Int(dataRead.count)) { dataDataBuffer in
+                try await self.withDataChecked(offset: Int(dataRead.offset), count: Int(dataReadCount)) { dataDataBuffer in
                     try withUnsafeTemporaryAllocation(byteCount: Int(bufferSize), alignment: 1) { buffer in
                         var error: OmError_t = ERROR_OK
-                        guard om_decoder_decode_chunks(decoder, chunkIndex, dataDataBuffer.baseAddress, UInt64(dataReadCount), into, buffer.baseAddress, &error) else {
+                        guard om_decoder_decode_chunks(decoder, chunkIndex, dataDataBuffer.baseAddress, dataReadCount, into, buffer.baseAddress, &error) else {
                             throw OmFileFormatSwiftError.omDecoder(error: String(cString: om_error_string(error)))
                         }
                     }
@@ -295,7 +295,7 @@ extension OmFileReaderBackend {
             while om_decoder_next_index_read(decoder, &indexRead) {
                 //print("Read index \(indexRead)")
                 let indexData = try await self.getDataChecked(offset: Int(indexRead.offset), count: Int(indexRead.count))
-                //try await self.withData(offset: Int(indexRead.offset), count: Int(indexRead.count)) { indexData in
+                //try await self.withDataChecked(offset: Int(indexRead.offset), count: Int(indexRead.count)) { indexData in
                 var dataRead = OmDecoder_dataRead_t()
                 om_decoder_init_data_read(&dataRead, &indexRead)
                 
@@ -309,10 +309,10 @@ extension OmFileReaderBackend {
                     group.addTask {
                         //print("Read data chunk index \(chunkIndex), count=\(dataReadCount)")
                         // print(dataReadOffset, dataReadCount)
-                        try await self.withData(offset: Int(dataReadOffset), count: Int(dataReadCount)) { dataData in
+                        try await self.withDataChecked(offset: Int(dataReadOffset), count: Int(dataReadCount)) { dataData in
                             try withUnsafeTemporaryAllocation(byteCount: Int(bufferSize), alignment: 8) { buffer in
                                 var error: OmError_t = ERROR_OK
-                                guard om_decoder_decode_chunks(decoder, chunkIndex, dataData.baseAddress, UInt64(dataReadCount), into, buffer.baseAddress, &error) else {
+                                guard om_decoder_decode_chunks(decoder, chunkIndex, dataData.baseAddress, dataReadCount, into, buffer.baseAddress, &error) else {
                                     throw OmFileFormatSwiftError.omDecoder(error: String(cString: om_error_string(error)))
                                 }
                             }
@@ -337,7 +337,7 @@ extension OmFileReaderBackend {
             var indexRead = indexRead
             //print("Read index \(indexRead)")
             let indexData = try await self.getDataChecked(offset: Int(indexRead.offset), count: Int(indexRead.count))
-            //try await self.withData(offset: Int(indexRead.offset), count: Int(indexRead.count)) { indexData in
+            //try await self.withDataChecked(offset: Int(indexRead.offset), count: Int(indexRead.count)) { indexData in
             var dataRead = OmDecoder_dataRead_t()
             om_decoder_init_data_read(&dataRead, &indexRead)
             var error: OmError_t = ERROR_OK

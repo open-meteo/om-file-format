@@ -56,7 +56,7 @@ public struct OmFileReader<Backend: OmFileReaderBackend> {
     }
 
     public func isLegacyFormat() async throws -> Bool {
-        return try await fn.withData(offset: 0, count: om_header_size()) {
+        return try await fn.withDataChecked(offset: 0, count: om_header_size()) {
             return om_header_type($0.baseAddress) == OM_HEADER_LEGACY
         }
     }
