@@ -12,7 +12,7 @@ extension FileHandle {
     public static func createNewFile(file: String, size: Int? = nil, sparseSize: Int? = nil, overwrite: Bool = false, temporary: Bool = false) throws -> FileHandle {
         let flagOverwrite = overwrite ? O_TRUNC : O_EXCL
         #if os(Linux)
-        let flagTemporary = temporary ? O_TMPFILE : 0
+        let flagTemporary = temporary ? __O_TMPFILE : 0
         #else
         let flagTemporary = Int32(0)
         #endif
@@ -37,7 +37,7 @@ extension FileHandle {
         try handle.seek(toOffset: 0)
         return handle
     }
-    
+
     /// If the file was created using `temporary: true` in `createNewFile`. Move the file to its final destination
     func moveTemporary(file: String) throws {
         #if os(Linux)
@@ -46,7 +46,7 @@ extension FileHandle {
         try FileManager.default.moveItem(atPath: "\(file)~", toPath: file)
         #endif
     }
-    
+
     /// Link the file descriptor to a named file. Only works on Linux. Used in combination with `O_TMPFILE`
     func linkAt(file: String) throws {
         #if os(Linux)
@@ -114,5 +114,5 @@ extension FileHandle {
 
 /// Make `FileHandle` work as writer
 extension FileHandle: OmFileWriterBackend {
-    
+
 }
