@@ -62,7 +62,7 @@ fn configure_build_flags(build: &mut cc::Build, config: &BuildConfig, compiler: 
                     // No special flags needed for MSVC atm
                 } else {
                     // x86-64-v3 has AVX2 (2013 Haswell Architecture) and should be a safe and performant baseline
-                    build.flag("-march=x86-64-v3");
+                    build.flag("-march=x86-64-v2");
                 }
             }
             _ => {

@@ -5,6 +5,9 @@ include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 
 #[cfg(test)]
 mod tests {
+    use fastpfor::{BlockCodec, FastPForBlock128, FastPForBlock256};
+    use std::slice;
+
     #[test]
     fn test_round_trip_p4n() {
         const n: usize = 3;
@@ -151,4 +154,105 @@ mod tests {
         let expected: Vec<i16> = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
         assert_eq!(buffer, expected);
     }
+
+    #[test]
+    fn test_p4_compatibility_128v16() {
+        // Test compatibility between C p4enc128v16 and Rust FastPForBlock128
+        let data: Vec<u16> = (0..128).map(|i| (i % 31) as u16).collect();
+        let mut input_c = data.clone();
+        let mut compressed = vec![0_u8; 1024];
+        let mut decompressed_c = vec![0_u16; 128];
+        let mut decompressed_rs = vec![0_u32; 128];
+
+        let out_ptr =
+            unsafe { crate::p4enc128v16(input_c.as_mut_ptr(), 128, compressed.as_mut_ptr()) };
+        let c_size = unsafe { out_ptr.offset_from(compressed.as_ptr()) as usize };
+
+        // Decompress with C
+        unsafe {
+            crate::p4dec128v16(compressed.as_mut_ptr(), 128, decompressed_c.as_mut_ptr());
+        }
+        assert_eq!(data, decompressed_c, "C roundtrip failed");
+
+        // Verify with fastpfor-rs block codec (u32 internal)
+        let compressed_u32 =
+            unsafe { slice::from_raw_parts(compressed.as_ptr() as *const u32, (c_size + 3) / 4) };
+        let mut codec = FastPForBlock128::default();
+        let mut out_vec = Vec::with_capacity(128);
+        codec
+            .decode_blocks(compressed_u32, Some(128), &mut out_vec)
+            .unwrap();
+
+        let data_u32: Vec<u32> = data.iter().map(|&x| x as u32).collect();
+        assert_eq!(
+            data_u32, out_vec,
+            "fastpfor-rs FastPForBlock128 failed to decode C p4enc128v16 data"
+        );
+    }
+
+    #[test]
+    fn test_p4_compatibility_128v32() {
+        let data: Vec<u32> = (0..128).map(|i| (i % 63) as u32).collect();
+        let mut input_c = data.clone();
+        let mut compressed = vec![0_u8; 1024];
+        let mut decompressed_c = vec![0_u32; 128];
+        let mut decompressed_rs = vec![0_u32; 128];
+
+        let out_ptr =
+            unsafe { crate::p4enc128v32(input_c.as_mut_ptr(), 128, compressed.as_mut_ptr()) };
+        let c_size = unsafe { out_ptr.offset_from(compressed.as_ptr()) as usize };
+
+        // Decompress with C
+        unsafe {
+            crate::p4dec128v32(compressed.as_mut_ptr(), 128, decompressed_c.as_mut_ptr());
+        }
+        assert_eq!(data, decompressed_c, "C roundtrip failed");
+
+        // Verify with fastpfor-rs
+        let compressed_u32 =
+            unsafe { slice::from_raw_parts(compressed.as_ptr() as *const u32, (c_size + 3) / 4) };
+        let mut codec = FastPForBlock128::default();
+        let mut out_vec = Vec::with_capacity(128);
+        codec
+            .decode_blocks(compressed_u32, Some(128), &mut out_vec)
+            .unwrap();
+
+        assert_eq!(
+            data, out_vec,
+            "fastpfor-rs FastPForBlock128 failed to decode C p4enc128v32 data"
+        );
+    }
+
+    // #[test]
+    // fn test_p4_compatibility_256v32() {
+    //     let data: Vec<u32> = (0..256).map(|i| (i % 127) as u32).collect();
+    //     let mut input_c = data.clone();
+    //     let mut compressed = vec![0_u8; 2048];
+    //     let mut decompressed_c = vec![0_u32; 256];
+    //     let mut decompressed_rs = vec![0_u32; 256];
+
+    //     let out_ptr =
+    //         unsafe { crate::p4enc256v32(input_c.as_mut_ptr(), 256, compressed.as_mut_ptr()) };
+    //     let c_size = unsafe { out_ptr.offset_from(compressed.as_ptr()) as usize };
+
+    //     // Decompress with C
+    //     unsafe {
+    //         crate::p4dec256v32(compressed.as_mut_ptr(), 256, decompressed_c.as_mut_ptr());
+    //     }
+    //     assert_eq!(data, decompressed_c, "C roundtrip failed");
+
+    //     // Verify with fastpfor-rs
+    //     let compressed_u32 =
+    //         unsafe { slice::from_raw_parts(compressed.as_ptr() as *const u32, (c_size + 3) / 4) };
+    //     let mut codec = FastPForBlock256::default();
+    //     let mut out_vec = Vec::with_capacity(256);
+    //     codec
+    //         .decode_blocks(compressed_u32, Some(256), &mut out_vec)
+    //         .unwrap();
+
+    //     assert_eq!(
+    //         data, out_vec,
+    //         "fastpfor-rs FastPForBlock256 failed to decode C p4enc256v32 data"
+    //     );
+    // }
 }
