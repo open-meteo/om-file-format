@@ -53,6 +53,38 @@ public struct OmFileReaderArray<Backend: OmFileReaderBackend, OmType: OmFileArra
             return body(UnsafeBufferPointer<UInt64>(start: dimensions, count: Int(count)))
         })
     }
+    
+    /// Get number of dimensions
+    public func getDimensionsCount() -> UInt64 {
+        return variable.withUnsafeBytes({
+            let variable = om_variable_init($0.baseAddress)
+            return om_variable_get_dimensions_count(variable)
+        })
+    }
+    
+    /// Get dimensions as InlineArray
+    public func getDimensionsInline<let nDimensions: Int>() -> InlineArray<nDimensions, UInt64> {
+        return variable.withUnsafeBytes({
+            let variable = om_variable_init($0.baseAddress)
+            let count = om_variable_get_dimensions_count(variable)
+            precondition(count == nDimensions)
+            let dimensions = om_variable_get_dimensions(variable)
+            let d = UnsafeBufferPointer<UInt64>(start: dimensions, count: Int(count))
+            return .init({ d[$0] })
+        })
+    }
+    
+    /// Get chunk dimensions as InlineArray
+    public func getChunkDimensionsInline<let nDimensions: Int>() -> InlineArray<nDimensions, UInt64> {
+        return variable.withUnsafeBytes({
+            let variable = om_variable_init($0.baseAddress)
+            let count = om_variable_get_dimensions_count(variable)
+            precondition(count == nDimensions)
+            let dimensions = om_variable_get_chunks(variable)
+            let d = UnsafeBufferPointer<UInt64>(start: dimensions, count: Int(count))
+            return .init({ d[$0] })
+        })
+    }
 
     public func getDimensions() -> [UInt64] {
         return withDimensions(Array.init)
@@ -63,9 +95,9 @@ public struct OmFileReaderArray<Backend: OmFileReaderBackend, OmType: OmFileArra
     }
 
     /// Read variable as float array
-    public func read(offset: [UInt64], count: [UInt64]) async throws -> [OmType] {
-        let n = count.reduce(1, *)
-        let intoCubeOffset = [UInt64](repeating: 0, count: count.count)
+    public func read<let nDimensions: Int>(offset: InlineArray<nDimensions, UInt64>, count: InlineArray<nDimensions, UInt64>) async throws -> [OmType] {
+        let n = (0..<nDimensions).reduce(1, {$0 * count[$1]})
+        let intoCubeOffset = InlineArray<nDimensions, UInt64>(repeating: 0)
         var out = [OmType].init(unsafeUninitializedCapacity: Int(n)) {
             $1 += Int(n)
         }
@@ -74,17 +106,15 @@ public struct OmFileReaderArray<Backend: OmFileReaderBackend, OmType: OmFileArra
             offset: offset,
             count: count,
             intoCubeOffset: intoCubeOffset,
-            intoCubeDimension: count,
-            nDimensions: offset.count
+            intoCubeDimension: count
         )
         return out
     }
 
     /// Read variable as float array
-    public func read(range: [Range<UInt64>]? = nil) async throws -> [OmType] {
-        let range = range ?? self.getDimensions().map({ 0..<$0 })
-        let outDims = range.map({UInt64($0.count)})
-        let n = outDims.reduce(1, *)
+    public func read<let nDimensions: Int>(range: InlineArray<nDimensions, Range<UInt64>>) async throws -> [OmType] {
+        let outDims: InlineArray<nDimensions, UInt64> = .init({UInt64(range[$0].count)})
+        let n = (0..<nDimensions).reduce(1, {$0 * outDims[$1]})
         var out = [OmType].init(unsafeUninitializedCapacity: Int(n)) {
             $1 += Int(n)
         }
@@ -96,43 +126,51 @@ public struct OmFileReaderArray<Backend: OmFileReaderBackend, OmType: OmFileArra
     }
     
     /// Prefetch data
-    public func willNeed(range: [Range<UInt64>]? = nil) async throws {
-        let range = range ?? self.getDimensions().map({ 0..<$0 })
-        let offset = range.map({$0.lowerBound})
-        let count = range.map({UInt64($0.count)})
-        try await self.willNeed(offset: offset, count: count, nDimensions: offset.count)
+    public func willNeed<let nDimensions: Int>(range: InlineArray<nDimensions, Range<UInt64>>) async throws {
+        //let range = range ?? self.getDimensions().map({ 0..<$0 })
+        let offset: InlineArray<nDimensions, UInt64> = .init({range[$0].lowerBound})
+        let count: InlineArray<nDimensions, UInt64> = .init({UInt64(range[$0].count)})
+        try await self.willNeed(offset: offset, count: count)
     }
-
+    
     /// Read a variable as an array of dynamic type.
-    public func read(into: UnsafeMutablePointer<OmType>, range: [Range<UInt64>], intoCubeOffset: [UInt64]? = nil, intoCubeDimension: [UInt64]? = nil) async throws {
-        let offset = range.map({$0.lowerBound})
-        let count = range.map({UInt64($0.count)})
+    public func read<let nDimensions: Int>(into: UnsafeMutablePointer<OmType>, range: InlineArray<nDimensions, Range<UInt64>>, intoCubeOffset: InlineArray<nDimensions, UInt64>? = nil, intoCubeDimension: InlineArray<nDimensions, UInt64>? = nil) async throws {
+        let offset: InlineArray<nDimensions, UInt64> = .init({range[$0].lowerBound})
+        let count: InlineArray<nDimensions, UInt64> = .init({UInt64(range[$0].count)})
         let nDimensions = count.count
-        let intoCubeOffset = intoCubeOffset ?? .init(repeating: 0, count: nDimensions)
+        let intoCubeOffset = intoCubeOffset ?? .init(repeating: 0)
         let intoCubeDimension = intoCubeDimension ?? count
         assert(intoCubeOffset.count == nDimensions)
         assert(intoCubeDimension.count == nDimensions)
         assert(offset.count == nDimensions)
         assert(count.count == nDimensions)
-        try await self.read(into: into, offset: offset, count: count, intoCubeOffset: intoCubeOffset, intoCubeDimension: intoCubeDimension, nDimensions: nDimensions)
+        try await self.read(into: into, offset: offset, count: count, intoCubeOffset: intoCubeOffset, intoCubeDimension: intoCubeDimension)
     }
 
     /// Read data by offset and count
-    public func read(into: UnsafeMutablePointer<OmType>, offset: UnsafePointer<UInt64>, count: UnsafePointer<UInt64>, intoCubeOffset: UnsafePointer<UInt64>, intoCubeDimension: UnsafePointer<UInt64>, nDimensions: Int) async throws {
+    public func read<let nDimensions: Int>(into: UnsafeMutablePointer<OmType>, offset: InlineArray<nDimensions, UInt64>, count: InlineArray<nDimensions, UInt64>, intoCubeOffset: InlineArray<nDimensions, UInt64>, intoCubeDimension: InlineArray<nDimensions, UInt64>) async throws {
         var decoder = try variable.withUnsafeBytes({
             let variable = om_variable_init($0.baseAddress)
             var decoder = OmDecoder_t()
-            let error = om_decoder_init(
-                &decoder,
-                variable,
-                UInt64(nDimensions),
-                offset,
-                count,
-                intoCubeOffset,
-                intoCubeDimension,
-                io_size_merge,
-                io_size_max
-            )
+            let error = withUnsafePointer(to: offset[0]) { offset in
+                withUnsafePointer(to: count[0]) { count in
+                    withUnsafePointer(to: intoCubeOffset[0]) { intoCubeOffset in
+                        withUnsafePointer(to: intoCubeDimension[0]) { intoCubeDimension in
+                            return om_decoder_init(
+                                &decoder,
+                                variable,
+                                UInt64(nDimensions),
+                                offset,
+                                count,
+                                intoCubeOffset,
+                                intoCubeDimension,
+                                io_size_merge,
+                                io_size_max
+                            )
+                        }
+                    }
+                }
+            }
             guard error == ERROR_OK else {
                 throw OmFileFormatSwiftError.omDecoder(error: String(cString: om_error_string(error)))
             }
@@ -143,21 +181,25 @@ public struct OmFileReaderArray<Backend: OmFileReaderBackend, OmType: OmFileArra
     }
 
     /// Prefetch data
-    public func willNeed(offset: UnsafePointer<UInt64>, count: UnsafePointer<UInt64>, nDimensions: Int) async throws {
+    public func willNeed<let nDimensions: Int>(offset: InlineArray<nDimensions, UInt64>, count: InlineArray<nDimensions, UInt64>) async throws {
         var decoder = try variable.withUnsafeBytes({
             let variable = om_variable_init($0.baseAddress)
             var decoder = OmDecoder_t()
-            let error = om_decoder_init(
-                &decoder,
-                variable,
-                UInt64(nDimensions),
-                offset,
-                count,
-                nil,
-                nil,
-                io_size_merge,
-                io_size_max
-            )
+            let error = withUnsafePointer(to: offset[0]) { offset in
+                withUnsafePointer(to: count[0]) { count in
+                    return om_decoder_init(
+                        &decoder,
+                        variable,
+                        UInt64(nDimensions),
+                        offset,
+                        count,
+                        nil,
+                        nil,
+                        io_size_merge,
+                        io_size_max
+                    )
+                }
+            }
             guard error == ERROR_OK else {
                 throw OmFileFormatSwiftError.omDecoder(error: String(cString: om_error_string(error)))
             }
@@ -168,28 +210,25 @@ public struct OmFileReaderArray<Backend: OmFileReaderBackend, OmType: OmFileArra
     }
 
     /// Read variable as float array
-    public func readConcurrent(offset: [UInt64], count: [UInt64]) async throws -> [OmType] {
-        let n = count.reduce(1, *)
+    public func readConcurrent<let nDimensions: Int>(offset: InlineArray<nDimensions, UInt64>, count: InlineArray<nDimensions, UInt64>) async throws -> [OmType] {
+        let n = (0..<nDimensions).reduce(1, {$0 * count[$1]})
         var out = [OmType].init(unsafeUninitializedCapacity: Int(n)) {
             $1 += Int(n)
         }
-        let intoCubeOffset = [UInt64](repeating: 0, count: count.count)
         try await readConcurrent(
             into: &out,
             offset: offset,
             count: count,
-            intoCubeOffset: intoCubeOffset,
-            intoCubeDimension: count,
-            nDimensions: offset.count
+            intoCubeOffset: .init(repeating: 0),
+            intoCubeDimension: count
         )
         return out
     }
 
     /// Read variable as float array
-    public func readConcurrent(range: [Range<UInt64>]? = nil) async throws -> [OmType] {
-        let range = range ?? self.getDimensions().map({ 0..<$0 })
-        let outDims = range.map({UInt64($0.count)})
-        let n = outDims.reduce(1, *)
+    public func readConcurrent<let nDimensions: Int>(range: InlineArray<nDimensions, Range<UInt64>>) async throws -> [OmType] {
+        let outDims: InlineArray<nDimensions, UInt64> = .init({UInt64(range[$0].count)})
+        let n = (0..<nDimensions).reduce(1, {$0 * outDims[$1]})
         var out = [OmType].init(unsafeUninitializedCapacity: Int(n)) {
             $1 += Int(n)
         }
@@ -201,36 +240,44 @@ public struct OmFileReaderArray<Backend: OmFileReaderBackend, OmType: OmFileArra
     }
 
     /// Read a variable as an array of dynamic type.
-    public func readConcurrent(into: UnsafeMutablePointer<OmType>, range: [Range<UInt64>], intoCubeOffset: [UInt64]? = nil, intoCubeDimension: [UInt64]? = nil) async throws {
+    public func readConcurrent<let nDimensions: Int>(into: UnsafeMutablePointer<OmType>, range: InlineArray<nDimensions, Range<UInt64>>, intoCubeOffset: InlineArray<nDimensions, UInt64>? = nil, intoCubeDimension: InlineArray<nDimensions, UInt64>? = nil) async throws {
         let nDimensions = range.count
-        let offset = range.map({$0.lowerBound})
-        let count = range.map({UInt64($0.count)})
-        let intoCubeOffset = intoCubeOffset ?? .init(repeating: 0, count: nDimensions)
+        let offset: InlineArray<nDimensions, UInt64> = .init({range[$0].lowerBound})
+        let count: InlineArray<nDimensions, UInt64> = .init({UInt64(range[$0].count)})
+        let intoCubeOffset = intoCubeOffset ?? .init(repeating: 0)
         let intoCubeDimension = intoCubeDimension ?? count
         assert(intoCubeOffset.count == nDimensions)
         assert(intoCubeDimension.count == nDimensions)
         assert(offset.count == nDimensions)
-        try await self.readConcurrent(into: into, offset: offset, count: count, intoCubeOffset: intoCubeOffset, intoCubeDimension: intoCubeDimension, nDimensions: range.count)
+        try await self.readConcurrent(into: into, offset: offset, count: count, intoCubeOffset: intoCubeOffset, intoCubeDimension: intoCubeDimension)
     }
 
     /// Read data by offset and count
-    public func readConcurrent(into: UnsafeMutablePointer<OmType>, offset: UnsafePointer<UInt64>, count: UnsafePointer<UInt64>, intoCubeOffset: UnsafePointer<UInt64>, intoCubeDimension: UnsafePointer<UInt64>, nDimensions: Int) async throws {
+    public func readConcurrent<let nDimensions: Int>(into: UnsafeMutablePointer<OmType>, offset: InlineArray<nDimensions, UInt64>, count: InlineArray<nDimensions, UInt64>, intoCubeOffset: InlineArray<nDimensions, UInt64>, intoCubeDimension: InlineArray<nDimensions, UInt64>) async throws {
 
         // TODO allow null pointer for intoCubeOffset and intoCubeDimension
         var decoder = try variable.withUnsafeBytes({
             let variable = om_variable_init($0.baseAddress)
             var decoder = OmDecoder_t()
-            let error = om_decoder_init(
-                &decoder,
-                variable,
-                UInt64(nDimensions),
-                offset,
-                count,
-                intoCubeOffset,
-                intoCubeDimension,
-                io_size_merge,
-                io_size_max
-            )
+            let error = withUnsafePointer(to: offset[0]) { offset in
+                withUnsafePointer(to: count[0]) { count in
+                    withUnsafePointer(to: intoCubeOffset[0]) { intoCubeOffset in
+                        withUnsafePointer(to: intoCubeDimension[0]) { intoCubeDimension in
+                            om_decoder_init(
+                                &decoder,
+                                variable,
+                                UInt64(nDimensions),
+                                offset,
+                                count,
+                                intoCubeOffset,
+                                intoCubeDimension,
+                                io_size_merge,
+                                io_size_max
+                            )
+                        }
+                    }
+                }
+            }
             guard error == ERROR_OK else {
                 throw OmFileFormatSwiftError.omDecoder(error: String(cString: om_error_string(error)))
             }

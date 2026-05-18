@@ -1,4 +1,4 @@
-// swift-tools-version: 6.0
+// swift-tools-version: 6.2
 
 import PackageDescription
 import Foundation
@@ -23,7 +23,7 @@ let cFlagsPFor = [PackageDescription.CSetting.unsafeFlags(["-O3", "-Wall", "-Wer
 let package = Package(
     name: "om-file-format",
     platforms: [
-        .macOS(.v12)
+        .macOS(.v26)
     ],
     products: [
         .library(

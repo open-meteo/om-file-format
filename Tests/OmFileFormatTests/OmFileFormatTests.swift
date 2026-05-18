@@ -300,11 +300,13 @@ import OmFileFormatC
         #expect(read.compression == .pfor_delta2d_int16)
         #expect(read.scaleFactor == 1)
         #expect(read.addOffset == 0)
-        #expect(read.getDimensions().count == 2)
-        #expect(read.getDimensions()[0] == 5)
-        #expect(read.getDimensions()[1] == 5)
-        #expect(read.getChunkDimensions()[0] == 2)
-        #expect(read.getChunkDimensions()[1] == 2)
+        #expect(read.getDimensionsCount() == 2)
+        let dimensions: InlineArray<2, UInt64> = read.getDimensionsInline()
+        #expect(dimensions[0] == 5)
+        #expect(dimensions[1] == 5)
+        let chunks: InlineArray<2, UInt64> = read.getChunkDimensionsInline()
+        #expect(chunks[0] == 2)
+        #expect(chunks[1] == 2)
 
         let a = try await read.read(range: [0..<5, 0..<5])
         #expect(a == [0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0, 18.0, 19.0, 20.0, 21.0, 22.0, 23.0, 24.0])
@@ -944,7 +946,7 @@ import OmFileFormatC
         await #expect(throws: OmFileFormatSwiftError.self) {
             let reader = try await OmFileReader(fn: inMemoryBackend)
             let read = reader.asArray(of: Float.self)!
-            let _ = try await read.read()
+            let _ = try await read.read(range: [0..<2, 0..<2])
         }
     }
 
@@ -960,7 +962,7 @@ import OmFileFormatC
         }
         #expect(FileManager.default.fileExists(atPath: file))
         // Check contents
-        let content = try String(contentsOfFile: file)
+        let content = try String(contentsOfFile: file, encoding: .utf8)
         #expect(content == "Test")
     }
 }

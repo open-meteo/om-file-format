@@ -48,16 +48,16 @@ public protocol OmFileReaderArrayProtocol<OmType>: Sendable {
     func getDimensions() -> [UInt64]
     func getChunkDimensions() -> [UInt64]
     
-    func willNeed(range: [Range<UInt64>]?) async throws
-    func willNeed(offset: UnsafePointer<UInt64>, count: UnsafePointer<UInt64>, nDimensions: Int) async throws
+    func willNeed<let nDimensions: Int>(range: InlineArray<nDimensions, Range<UInt64>>) async throws
+    func willNeed<let nDimensions: Int>(offset: InlineArray<nDimensions, UInt64>, count: InlineArray<nDimensions, UInt64>) async throws
     
-    func read(offset: [UInt64], count: [UInt64]) async throws -> [OmType]
-    func read(range: [Range<UInt64>]?) async throws -> [OmType]
-    func read(into: UnsafeMutablePointer<OmType>, range: [Range<UInt64>], intoCubeOffset: [UInt64]?, intoCubeDimension: [UInt64]?) async throws
-    func read(into: UnsafeMutablePointer<OmType>, offset: UnsafePointer<UInt64>, count: UnsafePointer<UInt64>, intoCubeOffset: UnsafePointer<UInt64>, intoCubeDimension: UnsafePointer<UInt64>, nDimensions: Int) async throws
+    func read<let nDimensions: Int>(offset: InlineArray<nDimensions, UInt64>, count: InlineArray<nDimensions, UInt64>) async throws -> [OmType]
+    func read<let nDimensions: Int>(range: InlineArray<nDimensions, Range<UInt64>>) async throws -> [OmType]
+    func read<let nDimensions: Int>(into: UnsafeMutablePointer<OmType>, range: InlineArray<nDimensions, Range<UInt64>>, intoCubeOffset: InlineArray<nDimensions, UInt64>?, intoCubeDimension: InlineArray<nDimensions, UInt64>?) async throws
+    //func read(into: UnsafeMutablePointer<OmType>, offset: UnsafePointer<UInt64>, count: UnsafePointer<UInt64>, intoCubeOffset: UnsafePointer<UInt64>, intoCubeDimension: UnsafePointer<UInt64>, nDimensions: Int) async throws
     
-    func readConcurrent(offset: [UInt64], count: [UInt64]) async throws -> [OmType]
-    func readConcurrent(range: [Range<UInt64>]?) async throws -> [OmType]
-    func readConcurrent(into: UnsafeMutablePointer<OmType>, range: [Range<UInt64>], intoCubeOffset: [UInt64]?, intoCubeDimension: [UInt64]?) async throws
-    func readConcurrent(into: UnsafeMutablePointer<OmType>, offset: UnsafePointer<UInt64>, count: UnsafePointer<UInt64>, intoCubeOffset: UnsafePointer<UInt64>, intoCubeDimension: UnsafePointer<UInt64>, nDimensions: Int) async throws
+    func readConcurrent<let nDimensions: Int>(offset: InlineArray<nDimensions, UInt64>, count: InlineArray<nDimensions, UInt64>) async throws -> [OmType]
+    func readConcurrent<let nDimensions: Int>(range: InlineArray<nDimensions, Range<UInt64>>) async throws -> [OmType]
+    func readConcurrent<let nDimensions: Int>(into: UnsafeMutablePointer<OmType>, range: InlineArray<nDimensions, Range<UInt64>>, intoCubeOffset: InlineArray<nDimensions, UInt64>?, intoCubeDimension: InlineArray<nDimensions, UInt64>?) async throws
+    //func readConcurrent(into: UnsafeMutablePointer<OmType>, offset: UnsafePointer<UInt64>, count: UnsafePointer<UInt64>, intoCubeOffset: UnsafePointer<UInt64>, intoCubeDimension: UnsafePointer<UInt64>, nDimensions: Int) async throws
 }
