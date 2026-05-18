@@ -179,6 +179,42 @@ public struct OmFileReaderArray<Backend: OmFileReaderBackend, OmType: OmFileArra
         // TODO: Technically memory from `variable` is escaping through decoder. Consider copy all dimension information into decoder
         try await fn.decode(decoder: &decoder, into: into)
     }
+    
+    /// Read data by offset and count
+    func read(into: UnsafeMutablePointer<OmType>, offset: UnsafePointer<UInt64>, count: UnsafePointer<UInt64>, intoCubeOffset: UnsafePointer<UInt64>, intoCubeDimension: UnsafePointer<UInt64>, nDimensions: Int) async throws {
+        var decoder = try variable.withUnsafeBytes({
+            let variable = om_variable_init($0.baseAddress)
+            var decoder = OmDecoder_t()
+            let error = om_decoder_init(
+                &decoder,
+                variable,
+                UInt64(nDimensions),
+                offset,
+                count,
+                intoCubeOffset,
+                intoCubeDimension,
+                io_size_merge,
+                io_size_max
+            )
+            guard error == ERROR_OK else {
+                throw OmFileFormatSwiftError.omDecoder(error: String(cString: om_error_string(error)))
+            }
+            return decoder
+        })
+        // TODO: Technically memory from `variable` is escaping through decoder. Consider copy all dimension information into decoder
+        try await fn.decode(decoder: &decoder, into: into)
+    }
+    
+    public func read() async throws -> [OmType] {
+        let dimensions = getDimensions()
+        let offset = [UInt64](repeating: 0, count: dimensions.count)
+        let n = dimensions.reduce(1, *)
+        var out = [OmType].init(unsafeUninitializedCapacity: Int(n)) {
+            $1 += Int(n)
+        }
+        try await self.read(into: &out, offset: offset, count: dimensions, intoCubeOffset: offset, intoCubeDimension: dimensions, nDimensions: dimensions.count)
+        return out
+    }
 
     /// Prefetch data
     public func willNeed<let nDimensions: Int>(offset: InlineArray<nDimensions, UInt64>, count: InlineArray<nDimensions, UInt64>) async throws {

@@ -54,6 +54,7 @@ public protocol OmFileReaderArrayProtocol<OmType>: Sendable {
     func willNeed<let nDimensions: Int>(range: InlineArray<nDimensions, Range<UInt64>>) async throws
     func willNeed<let nDimensions: Int>(offset: InlineArray<nDimensions, UInt64>, count: InlineArray<nDimensions, UInt64>) async throws
     
+    func read() async throws -> [OmType]
     func read<let nDimensions: Int>(offset: InlineArray<nDimensions, UInt64>, count: InlineArray<nDimensions, UInt64>) async throws -> [OmType]
     func read<let nDimensions: Int>(range: InlineArray<nDimensions, Range<UInt64>>) async throws -> [OmType]
     func read<let nDimensions: Int>(into: UnsafeMutablePointer<OmType>, range: InlineArray<nDimensions, Range<UInt64>>, intoCubeOffset: InlineArray<nDimensions, UInt64>?, intoCubeDimension: InlineArray<nDimensions, UInt64>?) async throws
