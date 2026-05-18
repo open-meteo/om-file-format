@@ -45,8 +45,11 @@ public protocol OmFileReaderArrayProtocol<OmType>: Sendable {
     
     func withDimensions<R>(_ body: (_: UnsafeBufferPointer<UInt64>) -> R) -> R
     func withChunkDimensions<R>(_ body: (_: UnsafeBufferPointer<UInt64>) -> R) -> R
+    func getDimensionsCount() -> UInt64
     func getDimensions() -> [UInt64]
     func getChunkDimensions() -> [UInt64]
+    func getDimensionsInline<let nDimensions: Int>() -> InlineArray<nDimensions, UInt64>
+    func getChunkDimensionsInline<let nDimensions: Int>() -> InlineArray<nDimensions, UInt64>
     
     func willNeed<let nDimensions: Int>(range: InlineArray<nDimensions, Range<UInt64>>) async throws
     func willNeed<let nDimensions: Int>(offset: InlineArray<nDimensions, UInt64>, count: InlineArray<nDimensions, UInt64>) async throws
