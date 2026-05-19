@@ -137,9 +137,8 @@ public struct OmFileReaderArray<Backend: OmFileReaderBackend, OmType: OmFileArra
     public func read<let nDimensions: Int>(into: UnsafeMutablePointer<OmType>, range: InlineArray<nDimensions, Range<UInt64>>, intoCubeOffset: InlineArray<nDimensions, UInt64>? = nil, intoCubeDimension: InlineArray<nDimensions, UInt64>? = nil) async throws {
         let offset: InlineArray<nDimensions, UInt64> = .init({range[$0].lowerBound})
         let count: InlineArray<nDimensions, UInt64> = .init({UInt64(range[$0].count)})
-        let nDimensions = count.count
         let intoCubeOffset = intoCubeOffset ?? .init(repeating: 0)
-        let intoCubeDimension = intoCubeDimension ?? count
+        let intoCubeDimension = intoCubeDimension ?? .init({UInt64(range[$0].count)})
         assert(intoCubeOffset.count == nDimensions)
         assert(intoCubeDimension.count == nDimensions)
         assert(offset.count == nDimensions)
@@ -281,7 +280,7 @@ public struct OmFileReaderArray<Backend: OmFileReaderBackend, OmType: OmFileArra
         let offset: InlineArray<nDimensions, UInt64> = .init({range[$0].lowerBound})
         let count: InlineArray<nDimensions, UInt64> = .init({UInt64(range[$0].count)})
         let intoCubeOffset = intoCubeOffset ?? .init(repeating: 0)
-        let intoCubeDimension = intoCubeDimension ?? count
+        let intoCubeDimension = intoCubeDimension ?? .init({UInt64(range[$0].count)})
         assert(intoCubeOffset.count == nDimensions)
         assert(intoCubeDimension.count == nDimensions)
         assert(offset.count == nDimensions)
