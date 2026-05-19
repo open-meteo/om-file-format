@@ -152,9 +152,9 @@ public struct OmFileReaderArray<Backend: OmFileReaderBackend, OmType: OmFileArra
             let variable = om_variable_init($0.baseAddress)
             var decoder = OmDecoder_t()
             let error = withUnsafeBytes(of: offset) { offset in
-                withUnsafeBytes(of: count[0]) { count in
-                    withUnsafeBytes(of: intoCubeOffset[0]) { intoCubeOffset in
-                        withUnsafeBytes(of: intoCubeDimension[0]) { intoCubeDimension in
+                withUnsafeBytes(of: count) { count in
+                    withUnsafeBytes(of: intoCubeOffset) { intoCubeOffset in
+                        withUnsafeBytes(of: intoCubeDimension) { intoCubeDimension in
                             return om_decoder_init(
                                 &decoder,
                                 variable,
@@ -220,14 +220,14 @@ public struct OmFileReaderArray<Backend: OmFileReaderBackend, OmType: OmFileArra
         var decoder = try variable.withUnsafeBytes({
             let variable = om_variable_init($0.baseAddress)
             var decoder = OmDecoder_t()
-            let error = withUnsafePointer(to: offset[0]) { offset in
-                withUnsafePointer(to: count[0]) { count in
+            let error = withUnsafeBytes(of: offset) { offset in
+                withUnsafeBytes(of: count) { count in
                     return om_decoder_init(
                         &decoder,
                         variable,
                         UInt64(nDimensions),
-                        offset,
-                        count,
+                        offset.bindMemory(to: UInt64.self).baseAddress,
+                        count.bindMemory(to: UInt64.self).baseAddress,
                         nil,
                         nil,
                         io_size_merge,
@@ -294,10 +294,10 @@ public struct OmFileReaderArray<Backend: OmFileReaderBackend, OmType: OmFileArra
         var decoder = try variable.withUnsafeBytes({
             let variable = om_variable_init($0.baseAddress)
             var decoder = OmDecoder_t()
-            let error = withUnsafeBytes(of: offset[0]) { offset in
-                withUnsafeBytes(of: count[0]) { count in
-                    withUnsafeBytes(of: intoCubeOffset[0]) { intoCubeOffset in
-                        withUnsafeBytes(of: intoCubeDimension[0]) { intoCubeDimension in
+            let error = withUnsafeBytes(of: offset) { offset in
+                withUnsafeBytes(of: count) { count in
+                    withUnsafeBytes(of: intoCubeOffset) { intoCubeOffset in
+                        withUnsafeBytes(of: intoCubeDimension) { intoCubeDimension in
                             om_decoder_init(
                                 &decoder,
                                 variable,
