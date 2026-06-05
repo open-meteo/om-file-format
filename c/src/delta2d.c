@@ -116,7 +116,7 @@ void delta2d_decode_xor_double(const size_t length0, const size_t length1, doubl
     if (length0 <= 1) {
         return;
     }
-    int* chunkBufferInt = (int*)chunkBuffer;
+    uint64_t* chunkBufferInt = (uint64_t*)chunkBuffer;
     for (size_t d0 = 1; d0 < length0; d0++) {
         for (size_t d1 = 0; d1 < length1; d1++) {
             chunkBufferInt[d0*length1 + d1] ^= chunkBufferInt[(d0-1)*length1 + d1];
@@ -128,7 +128,7 @@ void delta2d_encode_xor_double(const size_t length0, const size_t length1, doubl
     if (length0 <= 1) {
         return;
     }
-    int* chunkBufferInt = (int*)chunkBuffer;
+    uint64_t* chunkBufferInt = (uint64_t*)chunkBuffer;
     for (size_t d0 = length0-1; d0 >= 1; d0--) {
         for (size_t d1 = 0; d1 < length1; d1++) {
             chunkBufferInt[d0*length1 + d1] ^= chunkBufferInt[(d0-1)*length1 + d1];

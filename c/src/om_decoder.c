@@ -841,5 +841,5 @@ bool om_decoder_decode_chunks(const OmDecoder_t *decoder, OmRange_t chunk, const
         (*error) = ERROR_DEFLATED_SIZE_MISMATCH;
         return false;
     }
-    return pos;
+    return true;
 }
