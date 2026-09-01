@@ -62,20 +62,16 @@ extension FileHandle {
     /// On linux flag `O_TMPFILE` is used with `linkat` and `proc` fd lookup. Other platt forms create append a `~` to the filename
     public func linkTemporary(file: String) throws {
         #if os(Linux)
-        let temporary: String
-        if isNamedTemporary() {
-            // Created through the `file~` fallback in `createNewFile` (no O_TMPFILE support).
-            temporary = "\(file)~"
-        } else {
-            temporary = "\(file).\(Int32.random(in: 0..<Int32.max))~"
-            let res = linkat(AT_FDCWD, "/proc/self/fd/\(fileDescriptor)", AT_FDCWD, temporary, AT_SYMLINK_FOLLOW)
+        guard isNamedTemporary() else {
+            // File was created using `O_TMPFILE`. Just link it in place
+            let res = linkat(AT_FDCWD, "/proc/self/fd/\(fileDescriptor)", AT_FDCWD, file, AT_SYMLINK_FOLLOW)
             guard res >= 0 else {
                 throw OmFileFormatSwiftError.linkAt(error: res)
             }
+            return
         }
-        #else
-        let temporary = "\(file)~"
         #endif
+        let temporary = "\(file)~"
         guard rename(temporary, file) != -1 else {
             let error = String(cString: strerror(errno))
             throw OmFileFormatSwiftError.cannotMoveFile(from: temporary, to: file, errno: errno, error: error)
