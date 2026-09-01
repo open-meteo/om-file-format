@@ -23,6 +23,13 @@ extension FileHandle {
                 .path
             let flags = O_RDWR | __O_TMPFILE   // O_CREAT must NOT be combined with O_TMPFILE
             fn = open(dir, flags, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH)
+            if fn < 0 && FileHandle.isTmpfileUnsupported(errno: errno) {
+                // Not every file system implements O_TMPFILE: virtiofs (Docker Desktop bind mounts),
+                // 9p, NFS, FUSE and pre-3.11 kernels return EOPNOTSUPP / EISDIR / EINVAL. Fall back to
+                // the named `file~` temporary that the non-Linux path uses; `linkTemporary` detects
+                // this case and renames instead of linkat().
+                fn = open("\(file)~", O_RDWR | O_CREAT | flagOverwrite, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH)
+            }
         } else {
             let flags = O_RDWR | O_CREAT | flagOverwrite
             fn = open(file, flags, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH)
@@ -55,10 +62,16 @@ extension FileHandle {
     /// On linux flag `O_TMPFILE` is used with `linkat` and `proc` fd lookup. Other platt forms create append a `~` to the filename
     public func linkTemporary(file: String) throws {
         #if os(Linux)
-        let temporary = "\(file).\(Int32.random(in: 0..<Int32.max))~"
-        let res = linkat(AT_FDCWD, "/proc/self/fd/\(fileDescriptor)", AT_FDCWD, temporary, AT_SYMLINK_FOLLOW)
-        guard res >= 0 else {
-            throw OmFileFormatSwiftError.linkAt(error: res)
+        let temporary: String
+        if isNamedTemporary(file: file) {
+            // Created through the `file~` fallback in `createNewFile` (no O_TMPFILE support).
+            temporary = "\(file)~"
+        } else {
+            temporary = "\(file).\(Int32.random(in: 0..<Int32.max))~"
+            let res = linkat(AT_FDCWD, "/proc/self/fd/\(fileDescriptor)", AT_FDCWD, temporary, AT_SYMLINK_FOLLOW)
+            guard res >= 0 else {
+                throw OmFileFormatSwiftError.linkAt(error: res)
+            }
         }
         #else
         let temporary = "\(file)~"
@@ -68,6 +81,24 @@ extension FileHandle {
             throw OmFileFormatSwiftError.cannotMoveFile(from: temporary, to: file, errno: errno, error: error)
         }
     }
+
+    #if os(Linux)
+    /// `open(2)` errors that mean "O_TMPFILE is not available here" rather than a real failure.
+    static func isTmpfileUnsupported(errno: Int32) -> Bool {
+        return errno == EOPNOTSUPP || errno == ENOTSUP || errno == EISDIR || errno == EINVAL
+    }
+
+    /// True if this handle is the named `file~` fallback temporary (same inode as that path), false
+    /// for an anonymous O_TMPFILE inode.
+    func isNamedTemporary(file: String) -> Bool {
+        var fdStat = stat()
+        var namedStat = stat()
+        guard fstat(fileDescriptor, &fdStat) == 0, stat("\(file)~", &namedStat) == 0 else {
+            return false
+        }
+        return fdStat.st_ino == namedStat.st_ino && fdStat.st_dev == namedStat.st_dev
+    }
+    #endif
 
     /// Allocate the required diskspace for a given file
     func preAllocate(size: Int) throws {
