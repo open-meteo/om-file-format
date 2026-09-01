@@ -63,7 +63,7 @@ extension FileHandle {
     public func linkTemporary(file: String) throws {
         #if os(Linux)
         let temporary: String
-        if isNamedTemporary(file: file) {
+        if isNamedTemporary() {
             // Created through the `file~` fallback in `createNewFile` (no O_TMPFILE support).
             temporary = "\(file)~"
         } else {
@@ -88,15 +88,16 @@ extension FileHandle {
         return errno == EOPNOTSUPP || errno == ENOTSUP || errno == EISDIR || errno == EINVAL
     }
 
-    /// True if this handle is the named `file~` fallback temporary (same inode as that path), false
-    /// for an anonymous O_TMPFILE inode.
-    func isNamedTemporary(file: String) -> Bool {
+    /// True if this handle is the named `file~` fallback temporary, false for an anonymous
+    /// O_TMPFILE inode. This must be called before linking the anonymous file into the filesystem.
+    func isNamedTemporary() -> Bool {
         var fdStat = stat()
-        var namedStat = stat()
-        guard fstat(fileDescriptor, &fdStat) == 0, stat("\(file)~", &namedStat) == 0 else {
+        guard fstat(fileDescriptor, &fdStat) == 0 else {
             return false
         }
-        return fdStat.st_ino == namedStat.st_ino && fdStat.st_dev == namedStat.st_dev
+
+        let isRegularFile = (fdStat.st_mode & mode_t(S_IFMT)) == mode_t(S_IFREG)
+        return isRegularFile && fdStat.st_nlink > 0
     }
     #endif
 
