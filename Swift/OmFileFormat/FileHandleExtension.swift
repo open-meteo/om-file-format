@@ -101,8 +101,13 @@ extension FileHandle {
     func preAllocate(size: Int) throws {
         #if os(Linux)
         let error = posix_fallocate(fileDescriptor, 0, size)
-        guard error == 0 else {
-            throw OmFileFormatSwiftError.posixFallocateFailed(error: error)
+        if error != 0 {
+            // Some filesystems used by Docker do not support posix_fallocate.
+            // Fall back to extending the file with zero-filled sparse space.
+            let truncateError = ftruncate(fileDescriptor, off_t(size))
+            if truncateError != 0 {
+                throw OmFileFormatSwiftError.ftruncateFailed(error: errno)
+            }
         }
         #else
         // Try to allocate continuous space first
