@@ -12,7 +12,7 @@ extension FileHandle {
     public static func createNewFile(file: String, size: Int? = nil, sparseSize: Int? = nil, overwrite: Bool = false, temporary: Bool = false) throws -> FileHandle {
         let flagOverwrite = overwrite ? O_TRUNC : O_EXCL
 
-        let fn: Int32
+        var fn: Int32
 
         #if os(Linux)
         if temporary {
