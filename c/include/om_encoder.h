@@ -35,9 +35,18 @@ typedef struct {
     uint8_t bytes_per_element_compressed;
 } OmEncoder_t;
 
-/// Initialise the OmEncoder structure with information about the shape of data
+/// Initialize the OmEncoder structure with information about the shape of data
 /// May return an error on invalid compression or data types
-OmError_t om_encoder_init(OmEncoder_t* encoder, float scale_factor, float add_offset, OmCompression_t compression, OmDataType_t data_type, const uint64_t* dimensions, const uint64_t* chunks, uint64_t dimension_count);
+OmError_t om_encoder_init(
+    OmEncoder_t* encoder,
+    float scale_factor,
+    float add_offset,
+    OmCompression_t compression,
+    OmDataType_t data_type,
+    const uint64_t* dimensions,
+    const uint64_t* chunks,
+    uint64_t dimension_count
+);
 
 /// Get the number of chunks that is calculated from dimensions and chunks
 uint64_t om_encoder_count_chunks(const OmEncoder_t* encoder);
@@ -58,6 +67,16 @@ uint64_t om_encoder_lut_buffer_size(const uint64_t* lookUpTable, uint64_t lookUp
 uint64_t om_encoder_compress_lut(const uint64_t* lookUpTable, uint64_t lookUpTableCount, uint8_t* out, uint64_t size_of_compressed_lut);
 
 /// Compress a single chunk. Chunk buffer must be of size `OmEncoder_chunkBufferSize`
-uint64_t om_encoder_compress_chunk(const OmEncoder_t* encoder, const void* array, const uint64_t* arrayDimensions, const uint64_t* arrayOffset, const uint64_t* arrayCount, uint64_t chunkIndex, uint64_t chunkIndexOffsetInThisArray, uint8_t* out, uint8_t* chunkBuffer);
+uint64_t om_encoder_compress_chunk(
+    const OmEncoder_t* encoder,
+    const void* array,
+    const uint64_t* arrayDimensions,
+    const uint64_t* arrayOffset,
+    const uint64_t* arrayCount,
+    uint64_t chunkIndex,
+    uint64_t chunkIndexOffsetInThisArray,
+    uint8_t* out,
+    uint8_t* chunkBuffer
+);
 
 #endif // OM_ENCODER_H

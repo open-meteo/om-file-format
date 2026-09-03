@@ -202,7 +202,51 @@ void om_decoder_init_data_read(OmDecoder_dataRead_t *data_read, const OmDecoder_
  *
  * @returns May return an out-of-bounds read error on corrupted data.
  */
-bool om_decoder_next_data_read(const OmDecoder_t *decoder, OmDecoder_dataRead_t* dataRead, const void* indexData, uint64_t indexDataCount, OmError_t* error);
+bool om_decoder_next_data_read(
+    const OmDecoder_t *decoder,
+    OmDecoder_dataRead_t* dataRead,
+    const void* indexData,
+    uint64_t indexDataCount,
+    OmError_t* error
+);
+
+/**
+ * @brief Extracts a partial chunk lookup table (LUT) from the provided index data
+ *
+ * This function decompresses or extracts a sequence of chunk offsets from the LUT data.
+ * It handles both V2 format (raw array of offsets) and V3 format (compressed chunked LUT).
+ * For V3 format, it will decompress LUT chunks as needed to extract the requested entries.
+ *
+ * @param decoder                   Pointer to an initialized decoder containing file format information
+ * @param index_data                Pointer to the raw index data (may be compressed for V3 format)
+ * @param index_data_size           Size of the index data in bytes
+ * @param lut_out                   Output buffer where the LUT entries will be stored (array of uint64_t)
+ * @param lut_out_size              Size of the output buffer (number of uint64_t entries it can hold)
+ * @param start_chunk_index         First chunk index to retrieve
+ * @param index_range_lower_bound   The lower bound of the index range (used for relative positioning in V3 format)
+ * @param num_chunks                Number of consecutive chunk entries to retrieve
+ *
+ * @return OmError_t                ERROR_OK on success, or an appropriate error code:
+ *                                  - ERROR_OUT_OF_BOUND_READ if the output buffer is too small
+ *                                  - ERROR_OUT_OF_BOUND_READ if attempting to read beyond available data
+ *
+ * @note The function extracts `num_chunks` LUT entries starting from `start_chunk_index`.
+ *       For V1 format, entries are read directly from the index_data.
+ *       For V3 format, entries may need to be decompressed from multiple LUT chunks.
+ *       Make sure lut_out_size is at least num_chunks to avoid buffer overflows.
+ *
+ * @see om_decoder_next_data_read
+ */
+OmError_t om_decoder_get_partial_lut(
+    const OmDecoder_t* decoder,
+    const void* index_data,
+    uint64_t index_data_size,
+    uint64_t* lut_out,
+    uint64_t lut_out_size,
+    uint64_t start_chunk_index,
+    uint64_t index_range_lower_bound,
+    uint64_t num_chunks
+);
 
 
 /**
@@ -257,6 +301,14 @@ uint64_t om_decoder_read_buffer_size(const OmDecoder_t* decoder);
  *
  * @returns `false` if an error occurred.
  */
-bool om_decoder_decode_chunks(const OmDecoder_t *decoder, OmRange_t chunkIndex, const void *data, uint64_t dataCount, void *into, void *chunkBuffer, OmError_t* error);
+bool om_decoder_decode_chunks(
+    const OmDecoder_t *decoder,
+    OmRange_t chunkIndex,
+    const void *data,
+    uint64_t dataCount,
+    void *into,
+    void *chunkBuffer,
+    OmError_t* error
+);
 
 #endif // OM_DECODER_H
