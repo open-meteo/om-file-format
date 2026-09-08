@@ -65,18 +65,38 @@ import OmFileFormatC
                         }
                         let input = encode(values, bits: bits, mode: mode)
                         let (length, output) = decode(input, count: count, bits: bits, mode: mode)
-                        #expect(length == input.count)
+                        #expect(length == input.count, "bits=\(bits), mode=\(mode), count=\(count), pattern=\(pattern)")
                         let expected = values.flatMap { value -> [UInt8] in
                             var v = value.littleEndian
                             return withUnsafeBytes(of: &v) { Array($0.prefix(bits / 8)) }
                         }
-                        #expect(output == expected)
+                        #expect(output == expected, "bits=\(bits), mode=\(mode), count=\(count), pattern=\(pattern)")
                         for end in 0..<input.count {
                             #expect(decode(Array(input.prefix(end)), count: count, bits: bits, mode: mode).0 == -1)
                         }
                     }
                 }
             }
+        }
+    }
+
+    @Test func packed64BitLaneOrder() {
+        // Equal wire bytes across 32/64-bit sources verify lane order without
+        // relying on a matching encoder/decoder bug to cancel out.
+        // Width 31 has a different header convention for 64-bit PFOR.
+        for bits in Array(1...30) + [32] {
+            let mask = UInt64.max >> (64 - bits)
+            var values64 = (0..<128).map { (UInt64($0) * 0x9e3779b9) & mask }
+            var values32 = values64.map { UInt32($0) }
+            var packed64 = [UInt8](repeating: 0, count: 1024)
+            var packed32 = packed64
+            let size = 1 + 128 * bits / 8
+            _ = p4enc128v64(&values64, 128, &packed64)
+            _ = p4enc128v32(&values32, 128, &packed32)
+            #expect(packed64.prefix(size) == packed32.prefix(size), "bits=\(bits)")
+            var decoded = [UInt64](repeating: 0, count: 128)
+            _ = p4dec128v64(&packed32, 128, &decoded)
+            #expect(decoded == values64, "bits=\(bits)")
         }
     }
 
