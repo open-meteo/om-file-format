@@ -11,6 +11,7 @@
 #include "conf.h"
 #include "delta2d.h"
 #include "om_decoder.h"
+#include "om_compression.h"
 
 #pragma clang diagnostic error "-Wswitch"
 
@@ -133,6 +134,7 @@ ALWAYS_INLINE uint64_t om_decode_decompress(
     OmDataType_t data_type,
     OmCompression_t compression_type,
     const void* input,
+    uint64_t input_size,
     uint64_t count,
     void* output
 ) {
@@ -142,47 +144,47 @@ ALWAYS_INLINE uint64_t om_decode_decompress(
         case COMPRESSION_PFOR_DELTA2D_INT16:
         case COMPRESSION_PFOR_DELTA2D_INT16_LOGARITHMIC:
             assert(data_type == DATA_TYPE_FLOAT_ARRAY && "Expecting float array");
-            result = p4nzdec128v16((unsigned char*)input, (size_t)count, (uint16_t*)output);
+            result = om_pfor_decode(input, input_size, count, output, 16, true);
             break;
         case COMPRESSION_FPX_XOR2D:
             assert(data_type == DATA_TYPE_FLOAT_ARRAY || data_type == DATA_TYPE_DOUBLE_ARRAY && "Expecting float or double array");
             if (data_type == DATA_TYPE_FLOAT_ARRAY) {
-                result = om_common_decompress_fpxdec32((unsigned char*)input, (size_t)count, (float*)output);
+                result = om_fpx_decode(input, input_size, count, output, 32);
             } else if (data_type == DATA_TYPE_DOUBLE_ARRAY) {
-                result = om_common_decompress_fpxdec64((unsigned char*)input, (size_t)count, (double*)output);
+                result = om_fpx_decode(input, input_size, count, output, 64);
             }
             break;
         case COMPRESSION_PFOR_DELTA2D:
             switch (data_type) {
                 case DATA_TYPE_INT8_ARRAY:
-                    result = p4nzdec8((unsigned char*)input, (size_t)count, (uint8_t*)output);
+                    result = om_pfor_decode(input, input_size, count, output, 8, true);
                     break;
                 case DATA_TYPE_UINT8_ARRAY:
-                    result = p4nddec8((unsigned char*)input, (size_t)count, (uint8_t*)output);
+                    result = om_pfor_decode(input, input_size, count, output, 8, false);
                     break;
                 case DATA_TYPE_INT16_ARRAY:
-                    result = p4nzdec128v16((unsigned char*)input, (size_t)count, (uint16_t*)output);
+                    result = om_pfor_decode(input, input_size, count, output, 16, true);
                     break;
                 case DATA_TYPE_UINT16_ARRAY:
-                    result = p4nddec128v16((unsigned char*)input, (size_t)count, (uint16_t*)output);
+                    result = om_pfor_decode(input, input_size, count, output, 16, false);
                     break;
                 case DATA_TYPE_INT32_ARRAY:
-                    result = p4nzdec128v32((unsigned char*)input, (size_t)count, (uint32_t*)output);
+                    result = om_pfor_decode(input, input_size, count, output, 32, true);
                     break;
                 case DATA_TYPE_UINT32_ARRAY:
-                    result = p4nddec128v32((unsigned char*)input, (size_t)count, (uint32_t*)output);
+                    result = om_pfor_decode(input, input_size, count, output, 32, false);
                     break;
                 case DATA_TYPE_INT64_ARRAY:
-                    result = p4nzdec64((unsigned char*)input, (size_t)count, (uint64_t*)output);
+                    result = om_pfor_decode(input, input_size, count, output, 64, true);
                     break;
                 case DATA_TYPE_UINT64_ARRAY:
-                    result = p4nddec64((unsigned char*)input, (size_t)count, (uint64_t*)output);
+                    result = om_pfor_decode(input, input_size, count, output, 64, false);
                     break;
                 case DATA_TYPE_FLOAT_ARRAY:
-                    result = p4nzdec128v32((unsigned char*)input, (size_t)count, (uint32_t*)output);
+                    result = om_pfor_decode(input, input_size, count, output, 32, true);
                     break;
                 case DATA_TYPE_DOUBLE_ARRAY:
-                    result = p4nzdec64((unsigned char*)input, (size_t)count, (uint64_t*)output);
+                    result = om_pfor_decode(input, input_size, count, output, 64, true);
                     break;
                 case DATA_TYPE_NONE:
                 case DATA_TYPE_STRING:
@@ -535,6 +537,11 @@ bool om_decoder_next_data_read(const OmDecoder_t *decoder, OmDecoder_dataRead_t*
             }
             const uint64_t dataEndPos = data[readPos];
 
+            if (dataEndPos < endPos) {
+                *error = ERROR_DEFLATED_SIZE_MISMATCH;
+                return false;
+            }
+
             // Merge and split IO requests, ensuring at least one IO request is sent
             if (startPos != endPos && (dataEndPos - startPos > decoder->io_size_max || dataEndPos - endPos > decoder->io_size_merge)) {
                 break;
@@ -585,13 +592,16 @@ bool om_decoder_next_data_read(const OmDecoder_t *decoder, OmDecoder_dataRead_t*
     {
         const uint64_t thisLutChunkElementCount = om_min((lutChunk + 1) * LUT_CHUNK_COUNT, number_of_chunks+1) - lutChunk * LUT_CHUNK_COUNT;
         const uint64_t start = lutChunk * lutChunkLength - lutOffset;
-        if (start + lutChunkLength > index_data_size || thisLutChunkElementCount > LUT_CHUNK_COUNT) {
+        if (start > index_data_size || lutChunkLength > index_data_size - start || thisLutChunkElementCount > LUT_CHUNK_COUNT) {
             (*error) = ERROR_OUT_OF_BOUND_READ;
             return false;
         }
 
         // Decompress LUT chunk
-        p4nddec64(indexDataPtr + start, thisLutChunkElementCount, uncompressedLut);
+        if (om_pfor_decode(indexDataPtr + start, lutChunkLength, thisLutChunkElementCount, uncompressedLut, 64, false) == SIZE_MAX) {
+            *error = ERROR_DEFLATED_SIZE_MISMATCH;
+            return false;
+        }
     }
 
     // Index data relative to start index
@@ -606,17 +616,25 @@ bool om_decoder_next_data_read(const OmDecoder_t *decoder, OmDecoder_dataRead_t*
         if (nextLutChunk != lutChunk) {
             const uint64_t nextLutChunkElementCount = om_min((nextLutChunk + 1) * LUT_CHUNK_COUNT, number_of_chunks+1) - nextLutChunk * LUT_CHUNK_COUNT;
             const uint64_t start = nextLutChunk * lutChunkLength - lutOffset;
-            if (start + lutChunkLength > index_data_size || nextLutChunkElementCount > LUT_CHUNK_COUNT) {
+            if (start > index_data_size || lutChunkLength > index_data_size - start || nextLutChunkElementCount > LUT_CHUNK_COUNT) {
                 (*error) = ERROR_OUT_OF_BOUND_READ;
                 return false;
             }
 
             // Decompress LUT chunk
-            p4nddec64(indexDataPtr + start, nextLutChunkElementCount, uncompressedLut);
+            if (om_pfor_decode(indexDataPtr + start, lutChunkLength, nextLutChunkElementCount, uncompressedLut, 64, false) == SIZE_MAX) {
+                *error = ERROR_DEFLATED_SIZE_MISMATCH;
+                return false;
+            }
             lutChunk = nextLutChunk;
         }
 
         const uint64_t dataEndPos = uncompressedLut[(data_read->nextChunk.lowerBound + 1) % LUT_CHUNK_COUNT];
+
+        if (dataEndPos < endPos) {
+            *error = ERROR_DEFLATED_SIZE_MISMATCH;
+            return false;
+        }
 
         // Merge and split IO requests, ensuring at least one IO request is sent
         if (startPos != endPos && (dataEndPos - startPos > decoder->io_size_max || dataEndPos - endPos > decoder->io_size_merge)) {
@@ -652,6 +670,7 @@ uint64_t _om_decoder_decode_chunk(
     const OmDecoder_t *decoder,
     uint64_t chunkIndex,
     const void *data,
+    uint64_t data_size,
     uint8_t *into,
     uint8_t *chunk_buffer
 ) {
@@ -731,11 +750,12 @@ uint64_t _om_decoder_decode_chunk(
         decoder->data_type,
         decoder->compression,
         data,
+        data_size,
         lengthInChunk,
         chunk_buffer
     );
 
-    if (no_data) {
+    if (uncompressedBytes == SIZE_MAX || no_data) {
         return uncompressedBytes;
     }
 
@@ -832,7 +852,11 @@ bool om_decoder_decode_chunks(const OmDecoder_t *decoder, OmRange_t chunk, const
         if (*error != ERROR_OK) {
             return false;
         }
-        uint64_t uncompressedBytes = _om_decoder_decode_chunk(decoder, chunkNum, (const uint8_t *)data + pos, into, chunkBuffer);
+        uint64_t uncompressedBytes = _om_decoder_decode_chunk(decoder, chunkNum, (const uint8_t *)data + pos, data_size - pos, into, chunkBuffer);
+        if (uncompressedBytes == SIZE_MAX || uncompressedBytes > data_size - pos) {
+            *error = ERROR_DEFLATED_SIZE_MISMATCH;
+            return false;
+        }
         pos += uncompressedBytes;
     }
     // printf("%lu %lu \n", pos, data_size);

@@ -338,12 +338,17 @@ unsigned char *bitpack128v32(unsigned       *__restrict in, unsigned n, unsigned
 unsigned char *bitpack256w32(unsigned       *__restrict in, unsigned n, unsigned char *__restrict out, unsigned b) { unsigned char *_out=out; unsigned *_in=in;
 BITPACK128V32(in, b, out, 0); in = _in+128; out = _out+PAD8(128*b); BITPACK128V32(in, b, out, 0); return _out+PAD8(256*b); }
 
-#ifdef __ARM_NEON
-//#define IP32(_ip_, i, iv)     _mm_or_si128(_mm_shuffle_epi32(    _mm_loadu_si128(_ip_++),_MM_SHUFFLE(3, 1, 2, 0)), _mm_shuffle_epi32(     _mm_loadu_si128(_ip_++),_MM_SHUFFLE(2, 0, 3, 1)) )
-#define IP32(_ip_, _i_, _iv_) _mm_or_si128(mm_shuffle_3120_epi32(_mm_loadu_si128(_ip_++)                        ), mm_shuffle_2031_epi32(_mm_loadu_si128(_ip++)                        ) ) // optimized shuffle
-#else
-#define IP32(_ip_, i, iv)     _mm_or_si128(_mm_shuffle_epi32(    _mm_loadu_si128(_ip_++),_MM_SHUFFLE(2, 0, 3, 1)), _mm_shuffle_epi32(     _mm_loadu_si128(_ip_++),_MM_SHUFFLE(3, 1, 2, 0)) )
-#endif
+// Narrow four 64-bit values in their original order. The old expression
+// incremented the input pointer twice in different function arguments, so
+// Clang and GCC could select different orders for the two loads.
+static ALWAYS_INLINE __m128i bitpack_load64x4(const __m128i *in) {
+  __m128i lo = _mm_loadu_si128(in);
+  __m128i hi = _mm_loadu_si128(in + 1);
+  lo = _mm_shuffle_epi32(lo, _MM_SHUFFLE(3, 1, 2, 0));
+  hi = _mm_shuffle_epi32(hi, _MM_SHUFFLE(3, 1, 2, 0));
+  return _mm_unpacklo_epi64(lo, hi);
+}
+#define IP32(_ip_, _i_, _iv_) bitpack_load64x4((_ip_ += 2) - 2)
 #include "bitpack_.h"
 unsigned char *bitpack128v64(uint64_t       *__restrict in, unsigned n, unsigned char *__restrict out, unsigned b) {
   if(b<=32) { unsigned char *pout = out+PAD8(128*b); BITPACK128V32(in, b, out, 0); return pout; } else return bitpack64(in,n,out,b);
