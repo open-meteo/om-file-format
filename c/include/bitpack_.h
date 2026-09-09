@@ -2258,10 +2258,11 @@
   BITBLK64_64(ip, 31, op, parm);  IPI(ip); op += 64*4/sizeof(op[0]);\
 }
 
+// Partial blocks must not read uninitialized lanes or persist arbitrary padding bits.
 #define BP(_b_,_usize_) unsigned char *out_=out+PAD8(n*_b_),*op, bout[PAD8(64*_b_)]; TEMPLATE3(uint,_usize_,_t) bin[64],*ip,*in_=in+n, v,x; \
-  do { ip = in+32; op = out+PAD8(32*_b_); if(ip > in_) { memcpy(bin, in, (in_-in)*(_usize_/8)); in = bin; out = bout; } \
+  do { ip = in+32; op = out+PAD8(32*_b_); if(ip > in_) { memset(bin, 0, 32*(_usize_/8)); memcpy(bin, in, (in_-in)*(_usize_/8)); in = bin; out = bout; } \
     TEMPLATE2(BITPACK64_,_b_)(in, out, start); in = ip; out = op; PREFETCH(in+384,0);\
-  } while(in<in_); if(in>in_) { out -= PAD8(32*_b_); memcpy(out,bout,PAD8((in_-(in-32))*_b_)); }  return out_
+  } while(in<in_); if(in>in_) { out -= PAD8(32*_b_); memcpy(out,bout,PAD8((in_-(in-32))*_b_)); if((n*_b_)&7) out_[-1] &= (1u<<((n*_b_)&7))-1; }  return out_
 
 #ifndef DELTA
 #define USIZE 8
