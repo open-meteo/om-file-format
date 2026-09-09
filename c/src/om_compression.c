@@ -1,4 +1,5 @@
 #include "om_compression.h"
+#include "conf.h"
 #include "vp4.h"
 #include "fp.h"
 #include <string.h>
@@ -13,7 +14,7 @@ static bool take(size_t *pos, size_t size, size_t n) {
     return true;
 }
 
-static bool block_size(const uint8_t *in, size_t size, unsigned n,
+static ALWAYS_INLINE bool block_size(const uint8_t *in, size_t size, unsigned n,
                        unsigned bits, size_t *length) {
     size_t p = 0;
     if (!take(&p, size, 1)) return false;
@@ -96,90 +97,110 @@ static bool seed(const uint8_t *in, size_t size, unsigned bits, size_t *p, uint6
 // and their positions. Extra bytes cover the unpackers' wide tail loads.
 #define BLOCK_CAPACITY 2432
 #define PADDING 64
-union block_output { uint8_t u8[192]; uint16_t u16[192]; uint32_t u32[192]; uint64_t u64[192]; };
-
-size_t om_pfor_decode(const void *input, size_t size, size_t count, void *output, unsigned bits, bool zigzag) {
-    if (bits != 8 && bits != 16 && bits != 32 && bits != 64) return SIZE_MAX;
-    if (!count) return 0;
-    const uint8_t *in = input;
-    size_t pos;
-    uint64_t start;
-    if (!seed(in, size, bits, &pos, &start)) return SIZE_MAX;
-    // memcpy from the matching integer type also supports unaligned output.
-    #define STORE_SEED(B) case B: { uint##B##_t v = (uint##B##_t)start; memcpy(output, &v, sizeof(v)); break; }
-    switch (bits) { STORE_SEED(8) STORE_SEED(16) STORE_SEED(32) STORE_SEED(64) }
-    #undef STORE_SEED
-    uint8_t *out = (uint8_t *)output + bits / 8;
-    for (--count; count;) {
-        unsigned n = count < 128 ? (unsigned)count : 128;
-        size_t length;
-        if (!block_size(in + pos, size - pos, n, bits, &length) || length > BLOCK_CAPACITY - PADDING) return SIZE_MAX;
-        uint8_t padded[BLOCK_CAPACITY];
-        unsigned char *block = (unsigned char *)in + pos;
-        if (size - pos - length < PADDING) {
-            memcpy(padded, block, length);
-            memset(padded + length, 0, PADDING);
-            block = padded;
-        }
-        union block_output decoded;
-        unsigned char *end;
-        #define DECODE(B, FULL) case B: \
-            if (n == 128) end = zigzag ? p4zdec##FULL(block, n, decoded.u##B, (uint##B##_t)start) : p4ddec##FULL(block, n, decoded.u##B, (uint##B##_t)start); \
-            else end = zigzag ? p4zdec##B(block, n, decoded.u##B, (uint##B##_t)start) : p4ddec##B(block, n, decoded.u##B, (uint##B##_t)start); \
-            start = decoded.u##B[n - 1]; break;
-        switch (bits) { DECODE(8, 8) DECODE(16, 128v16) DECODE(32, 128v32) DECODE(64, 64) default: return SIZE_MAX; }
-        #undef DECODE
-        if ((size_t)(end - block) != length) return SIZE_MAX;
-        memcpy(out, &decoded, n * (bits / 8));
-        out += n * (bits / 8);
-        pos += length;
-        count -= n;
-    }
-    return pos;
+// Dispatch once per stream. B and MODE are compile-time constants in each
+// generated loop, including the bounds validator and the scratch-buffer type.
+#define DEFINE_PFOR_DECODER(B, MODE, FULL) \
+static size_t pfor_decode_##MODE##B(const uint8_t *in, size_t size, size_t count, void *output) { \
+    if (!count) return 0; \
+    size_t pos; \
+    uint64_t initial; \
+    if (!seed(in, size, B, &pos, &initial)) return SIZE_MAX; \
+    uint##B##_t start = (uint##B##_t)initial; \
+    memcpy(output, &start, sizeof(start)); \
+    uint8_t *out = (uint8_t *)output + sizeof(start); \
+    for (--count; count;) { \
+        unsigned n = count < 128 ? (unsigned)count : 128; \
+        size_t length; \
+        if (!block_size(in + pos, size - pos, n, B, &length) || length > BLOCK_CAPACITY - PADDING) return SIZE_MAX; \
+        uint8_t padded[BLOCK_CAPACITY]; \
+        unsigned char *block = (unsigned char *)in + pos; \
+        if (size - pos - length < PADDING) { \
+            memcpy(padded, block, length); \
+            memset(padded + length, 0, PADDING); \
+            block = padded; \
+        } \
+        uint##B##_t decoded[192]; \
+        unsigned char *end = n == 128 \
+            ? p4##MODE##dec##FULL(block, n, decoded, start) \
+            : p4##MODE##dec##B(block, n, decoded, start); \
+        if ((size_t)(end - block) != length) return SIZE_MAX; \
+        start = decoded[n - 1]; \
+        memcpy(out, decoded, n * sizeof(start)); \
+        out += n * sizeof(start); \
+        pos += length; \
+        count -= n; \
+    } \
+    return pos; \
 }
 
-size_t om_fpx_decode(const void *input, size_t size, size_t count, void *output, unsigned bits) {
-    if (bits != 32 && bits != 64) return SIZE_MAX;
-    const uint8_t *in = input;
-    uint8_t *out = output;
-    size_t pos = 0;
-    uint64_t start = 0;
-    while (count) {
-        if (pos == size) return SIZE_MAX;
-        unsigned shift = in[pos++], n = count < 128 ? (unsigned)count : 128;
-        size_t length;
-        if (shift > bits || !block_size(in + pos, size - pos, n, bits, &length) || length >= BLOCK_CAPACITY - PADDING) return SIZE_MAX;
-        // Include the FPX shift header when calling the optimized codec.
-        uint8_t padded[BLOCK_CAPACITY];
-        unsigned char *block = (unsigned char *)in + pos - 1;
-        if (size - pos - length < PADDING) {
-            memcpy(padded, block, length + 1);
-            memset(padded + length + 1, 0, PADDING);
-            block = padded;
-        }
-        union block_output decoded;
-        if (shift == bits) {
-            // Every XOR difference is zero. Avoid a scalar shift by the
-            // type width, which is undefined in the original FPX tail path.
-            for (unsigned i = 0; i < n; ++i) {
-                if (bits == 32) decoded.u32[i] = (uint32_t)start;
-                else decoded.u64[i] = start;
-            }
-        } else {
-            size_t consumed;
-            if (bits == 32) {
-                consumed = fpxdec32(block, n, decoded.u32, (uint32_t)start);
-                start = decoded.u32[n - 1];
-            } else {
-                consumed = fpxdec64(block, n, decoded.u64, start);
-                start = decoded.u64[n - 1];
-            }
-            if (consumed != length + 1) return SIZE_MAX;
-        }
-        memcpy(out, &decoded, n * (bits / 8));
-        out += n * (bits / 8);
-        pos += length;
-        count -= n;
+DEFINE_PFOR_DECODER(8, d, 8)
+DEFINE_PFOR_DECODER(8, z, 8)
+DEFINE_PFOR_DECODER(16, d, 128v16)
+DEFINE_PFOR_DECODER(16, z, 128v16)
+DEFINE_PFOR_DECODER(32, d, 128v32)
+DEFINE_PFOR_DECODER(32, z, 128v32)
+DEFINE_PFOR_DECODER(64, d, 64)
+DEFINE_PFOR_DECODER(64, z, 64)
+#undef DEFINE_PFOR_DECODER
+
+size_t om_pfor_decode(const void *input, size_t size, size_t count, void *output, unsigned bits, bool zigzag) {
+    #define DISPATCH(B) case B: return zigzag \
+        ? pfor_decode_z##B(input, size, count, output) \
+        : pfor_decode_d##B(input, size, count, output);
+    switch (bits) {
+        DISPATCH(8)
+        DISPATCH(16)
+        DISPATCH(32)
+        DISPATCH(64)
+        default: return SIZE_MAX;
     }
-    return pos;
+    #undef DISPATCH
+}
+
+// Include the FPX shift header when calling the optimized codec. A shift of
+// B means every XOR difference is zero; handle it without the original
+// scalar tail's undefined shift by the type width.
+#define DEFINE_FPX_DECODER(B) \
+static size_t fpx_decode_##B(const uint8_t *in, size_t size, size_t count, void *output) { \
+    uint8_t *out = output; \
+    size_t pos = 0; \
+    uint##B##_t start = 0; \
+    while (count) { \
+        if (pos == size) return SIZE_MAX; \
+        unsigned shift = in[pos++], n = count < 128 ? (unsigned)count : 128; \
+        size_t length; \
+        if (shift > B || !block_size(in + pos, size - pos, n, B, &length) || length >= BLOCK_CAPACITY - PADDING) return SIZE_MAX; \
+        uint8_t padded[BLOCK_CAPACITY]; \
+        unsigned char *block = (unsigned char *)in + pos - 1; \
+        if (size - pos - length < PADDING) { \
+            memcpy(padded, block, length + 1); \
+            memset(padded + length + 1, 0, PADDING); \
+            block = padded; \
+        } \
+        uint##B##_t decoded[192]; \
+        if (shift == B) { \
+            for (unsigned i = 0; i < n; ++i) decoded[i] = start; \
+        } else { \
+            size_t consumed = fpxdec##B(block, n, decoded, start); \
+            if (consumed != length + 1) return SIZE_MAX; \
+            start = decoded[n - 1]; \
+        } \
+        memcpy(out, decoded, n * sizeof(start)); \
+        out += n * sizeof(start); \
+        pos += length; \
+        count -= n; \
+    } \
+    return pos; \
+}
+
+DEFINE_FPX_DECODER(32)
+DEFINE_FPX_DECODER(64)
+#undef DEFINE_FPX_DECODER
+
+size_t om_fpx_decode(const void *input, size_t size, size_t count, void *output, unsigned bits) {
+    switch (bits) {
+        case 32: return fpx_decode_32(input, size, count, output);
+        case 64: return fpx_decode_64(input, size, count, output);
+        default: return SIZE_MAX;
+    }
 }
