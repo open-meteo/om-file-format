@@ -1042,12 +1042,21 @@ final class SuspendingBackend: OmFileReaderBackend {
 
     func prefetchData(offset: Int, count: Int) async throws {}
 
-    func getData(offset: Int, count: Int) async throws -> Data {
+    func getData(offset: Int, count: Int) async throws -> Bytes {
         try await Task.sleep(nanoseconds: 100_000)
-        return data[offset..<offset + count]
+        return Bytes(data: data[offset..<offset + count])
     }
 
     func withData<T>(offset: Int, count: Int, fn: @Sendable (UnsafeRawBufferPointer) throws -> T) async throws -> T {
         try await getData(offset: offset, count: count).withUnsafeBytes(fn)
+    }
+}
+
+/// Bytes whose `withUnsafeBytes` is not inlined into the reader, like NIO's `ByteBuffer` used from another module
+struct Bytes: ContiguousBytes, Sendable {
+    let data: Data
+
+    @inline(never) func withUnsafeBytes<R>(_ body: (UnsafeRawBufferPointer) throws -> R) rethrows -> R {
+        try data.withUnsafeBytes(body)
     }
 }
