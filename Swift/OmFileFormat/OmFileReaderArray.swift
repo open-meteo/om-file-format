@@ -148,40 +148,19 @@ public struct OmFileReaderArray<Backend: OmFileReaderBackend, OmType: OmFileArra
 
     /// Read data by offset and count
     public func read<let nDimensions: Int>(into: UnsafeMutablePointer<OmType>, offset: InlineArray<nDimensions, UInt64>, count: InlineArray<nDimensions, UInt64>, intoCubeOffset: InlineArray<nDimensions, UInt64>, intoCubeDimension: InlineArray<nDimensions, UInt64>) async throws {
-        var decoder = try variable.withUnsafeBytes({
-            let variable = om_variable_init($0.baseAddress)
-            var decoder = OmDecoder_t()
-            let error = withUnsafeBytes(of: offset) { offset in
-                withUnsafeBytes(of: count) { count in
-                    withUnsafeBytes(of: intoCubeOffset) { intoCubeOffset in
-                        withUnsafeBytes(of: intoCubeDimension) { intoCubeDimension in
-                            return om_decoder_init(
-                                &decoder,
-                                variable,
-                                UInt64(nDimensions),
-                                offset.bindMemory(to: UInt64.self).baseAddress,
-                                count.bindMemory(to: UInt64.self).baseAddress,
-                                intoCubeOffset.bindMemory(to: UInt64.self).baseAddress,
-                                intoCubeDimension.bindMemory(to: UInt64.self).baseAddress,
-                                io_size_merge,
-                                io_size_max
-                            )
-                        }
-                    }
-                }
-            }
-            guard error == ERROR_OK else {
-                throw OmFileFormatSwiftError.omDecoder(error: String(cString: om_error_string(error)))
-            }
-            return decoder
-        })
-        // TODO: Technically memory from `variable` is escaping through decoder. Consider copy all dimension information into decoder
-        try await fn.decode(decoder: &decoder, into: into)
+        /// The decoder keeps these pointers until decoding finished, so they are passed as arrays that live for the whole call
+        try await read(into: into, offset: offset.toArray(), count: count.toArray(), intoCubeOffset: intoCubeOffset.toArray(), intoCubeDimension: intoCubeDimension.toArray(), nDimensions: nDimensions)
     }
     
-    /// Read data by offset and count
+    /// Read data by offset and count. All pointers must stay valid until this function returns
     func read(into: UnsafeMutablePointer<OmType>, offset: UnsafePointer<UInt64>, count: UnsafePointer<UInt64>, intoCubeOffset: UnsafePointer<UInt64>, intoCubeDimension: UnsafePointer<UInt64>, nDimensions: Int) async throws {
-        var decoder = try variable.withUnsafeBytes({
+        var decoder = try makeDecoder(offset: offset, count: count, intoCubeOffset: intoCubeOffset, intoCubeDimension: intoCubeDimension, nDimensions: nDimensions)
+        try await fn.decode(decoder: &decoder, into: into)
+    }
+
+    /// The decoder keeps the four pointers and reads them during decoding. Callers must keep them valid across the async decode, which a `withUnsafeBytes(of:)` scope does not
+    private func makeDecoder(offset: UnsafePointer<UInt64>, count: UnsafePointer<UInt64>, intoCubeOffset: UnsafePointer<UInt64>?, intoCubeDimension: UnsafePointer<UInt64>?, nDimensions: Int) throws -> OmDecoder_t {
+        return try variable.withUnsafeBytes({
             let variable = om_variable_init($0.baseAddress)
             var decoder = OmDecoder_t()
             let error = om_decoder_init(
@@ -198,10 +177,9 @@ public struct OmFileReaderArray<Backend: OmFileReaderBackend, OmType: OmFileArra
             guard error == ERROR_OK else {
                 throw OmFileFormatSwiftError.omDecoder(error: String(cString: om_error_string(error)))
             }
+            // TODO: Technically memory from `variable` is escaping through decoder. Consider copy all dimension information into decoder
             return decoder
         })
-        // TODO: Technically memory from `variable` is escaping through decoder. Consider copy all dimension information into decoder
-        try await fn.decode(decoder: &decoder, into: into)
     }
     
     public func read() async throws -> [OmType] {
@@ -217,30 +195,11 @@ public struct OmFileReaderArray<Backend: OmFileReaderBackend, OmType: OmFileArra
 
     /// Prefetch data
     public func willNeed<let nDimensions: Int>(offset: InlineArray<nDimensions, UInt64>, count: InlineArray<nDimensions, UInt64>) async throws {
-        var decoder = try variable.withUnsafeBytes({
-            let variable = om_variable_init($0.baseAddress)
-            var decoder = OmDecoder_t()
-            let error = withUnsafeBytes(of: offset) { offset in
-                withUnsafeBytes(of: count) { count in
-                    return om_decoder_init(
-                        &decoder,
-                        variable,
-                        UInt64(nDimensions),
-                        offset.bindMemory(to: UInt64.self).baseAddress,
-                        count.bindMemory(to: UInt64.self).baseAddress,
-                        nil,
-                        nil,
-                        io_size_merge,
-                        io_size_max
-                    )
-                }
-            }
-            guard error == ERROR_OK else {
-                throw OmFileFormatSwiftError.omDecoder(error: String(cString: om_error_string(error)))
-            }
-            return decoder
-        })
-        // TODO: Technically memory from `variable` is escaping through decoder. Consider copy all dimension information into decoder
+        try await willNeed(offset: offset.toArray(), count: count.toArray(), nDimensions: nDimensions)
+    }
+
+    private func willNeed(offset: UnsafePointer<UInt64>, count: UnsafePointer<UInt64>, nDimensions: Int) async throws {
+        var decoder = try makeDecoder(offset: offset, count: count, intoCubeOffset: nil, intoCubeDimension: nil, nDimensions: nDimensions)
         try await fn.decodePrefetch(decoder: &decoder)
     }
 
@@ -289,37 +248,18 @@ public struct OmFileReaderArray<Backend: OmFileReaderBackend, OmType: OmFileArra
 
     /// Read data by offset and count
     public func readConcurrent<let nDimensions: Int>(into: UnsafeMutablePointer<OmType>, offset: InlineArray<nDimensions, UInt64>, count: InlineArray<nDimensions, UInt64>, intoCubeOffset: InlineArray<nDimensions, UInt64>, intoCubeDimension: InlineArray<nDimensions, UInt64>) async throws {
+        try await readConcurrent(into: into, offset: offset.toArray(), count: count.toArray(), intoCubeOffset: intoCubeOffset.toArray(), intoCubeDimension: intoCubeDimension.toArray(), nDimensions: nDimensions)
+    }
 
-        // TODO allow null pointer for intoCubeOffset and intoCubeDimension
-        var decoder = try variable.withUnsafeBytes({
-            let variable = om_variable_init($0.baseAddress)
-            var decoder = OmDecoder_t()
-            let error = withUnsafeBytes(of: offset) { offset in
-                withUnsafeBytes(of: count) { count in
-                    withUnsafeBytes(of: intoCubeOffset) { intoCubeOffset in
-                        withUnsafeBytes(of: intoCubeDimension) { intoCubeDimension in
-                            om_decoder_init(
-                                &decoder,
-                                variable,
-                                UInt64(nDimensions),
-                                offset.bindMemory(to: UInt64.self).baseAddress,
-                                count.bindMemory(to: UInt64.self).baseAddress,
-                                intoCubeOffset.bindMemory(to: UInt64.self).baseAddress,
-                                intoCubeDimension.bindMemory(to: UInt64.self).baseAddress,
-                                io_size_merge,
-                                io_size_max
-                            )
-                        }
-                    }
-                }
-            }
-            guard error == ERROR_OK else {
-                throw OmFileFormatSwiftError.omDecoder(error: String(cString: om_error_string(error)))
-            }
-            return decoder
-        })
-        // TODO: Technically memory from `variable` is escaping through decoder. Consider copy all dimension information into decoder
+    private func readConcurrent(into: UnsafeMutablePointer<OmType>, offset: UnsafePointer<UInt64>, count: UnsafePointer<UInt64>, intoCubeOffset: UnsafePointer<UInt64>, intoCubeDimension: UnsafePointer<UInt64>, nDimensions: Int) async throws {
+        var decoder = try makeDecoder(offset: offset, count: count, intoCubeOffset: intoCubeOffset, intoCubeDimension: intoCubeDimension, nDimensions: nDimensions)
         try await fn.decodeConcurrent(decoder: &decoder, into: into)
+    }
+}
+
+fileprivate extension InlineArray where Element == UInt64 {
+    func toArray() -> [UInt64] {
+        indices.map { self[$0] }
     }
 }
 

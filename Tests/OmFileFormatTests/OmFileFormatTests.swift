@@ -277,6 +277,36 @@ import OmFileFormatC
         //XCTAssertTrue(bytes == [79, 77, 3, 0, 4, 130, 0, 2, 3, 34, 0, 4, 194, 2, 10, 4, 178, 0, 12, 4, 242, 0, 14, 197, 17, 20, 194, 2, 22, 194, 2, 24, 3, 3, 228, 200, 109, 1, 0, 0, 20, 0, 4, 0, 0, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0, 32, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 128, 63, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 100, 97, 116, 97, 0, 0, 0, 0, 79, 77, 3, 0, 0, 0, 0, 0, 40, 0, 0, 0, 0, 0, 0, 0, 76, 0, 0, 0, 0, 0, 0, 0] || bytes == [79, 77, 3, 0, 4, 130, 64, 2, 3, 34, 16, 4, 194, 2, 10, 4, 178, 64, 12, 4, 242, 64, 14, 197, 17, 20, 194, 2, 22, 194, 2, 24, 3, 3, 228, 200, 109, 1, 0, 0, 20, 0, 4, 0, 0, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0, 32, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 128, 63, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 100, 97, 116, 97, 0, 0, 0, 0, 79, 77, 3, 0, 0, 0, 0, 0, 40, 0, 0, 0, 0, 0, 0, 0, 76, 0, 0, 0, 0, 0, 0, 0])
     }
 
+    /// The decoder keeps pointers to the read offset, count and target cube. They must stay valid while a backend suspends between reads.
+    /// Without the fix, reads failed in release builds of a package using this one, but not in this package's own builds
+    @Test func readWithSuspendingBackend() async throws {
+        let data = (0..<20 * 30 * 8).map { Float($0 % 1000) / 20 }
+        let file = "readWithSuspendingBackend.om"
+        defer { try? FileManager.default.removeItem(atPath: file) }
+        let fn = try FileHandle.createNewFile(file: file, overwrite: true)
+        let fileWriter = OmFileWriter(fn: fn, initialCapacity: 1024)
+        let writer = try fileWriter.prepareArray(type: Float.self, dimensions: [20, 30, 8], chunkDimensions: [1, 7, 8], compression: .pfor_delta2d_int16, scale_factor: 20, add_offset: 0)
+        try writer.writeData(array: data)
+        let variable = try fileWriter.write(array: try writer.finalise(), name: "", children: [])
+        try fileWriter.writeTrailer(rootVariable: variable)
+        try fn.close()
+
+        let expected = (5..<11).flatMap { y in (10..<20).flatMap { x in (0..<8).map { data[(y * 30 + x) * 8 + $0] } } }
+        let read = try await OmFileReader(fn: SuspendingBackend(data: try #require(FileManager.default.contents(atPath: file)))).asArray(of: Float.self, io_size_max: 512, io_size_merge: 64)!
+        for _ in 0..<5 {
+            #expect(try await read.read(range: [5..<11, 10..<20, 0..<8]) == expected)
+            #expect(try await read.readConcurrent(range: [5..<11, 10..<20, 0..<8]) == expected)
+            let into = UnsafeMutableBufferPointer<Float>.allocate(capacity: expected.count)
+            defer { into.deallocate() }
+            into.initialize(repeating: .nan)
+            try await read.read(into: into.baseAddress!, range: [5..<11, 10..<20, 0..<8], intoCubeOffset: [0, 0, 0], intoCubeDimension: [6, 10, 8])
+            #expect(Array(into) == expected)
+            into.initialize(repeating: .nan)
+            try await read.readConcurrent(into: into.baseAddress!, range: [5..<11, 10..<20, 0..<8], intoCubeOffset: [0, 0, 0], intoCubeDimension: [6, 10, 8])
+            #expect(Array(into) == expected)
+        }
+    }
+
     @Test func offsetWrite() async throws {
         let file = "offsetWrite.om"
         let fn = try FileHandle.createNewFile(file: file, overwrite: true)
@@ -995,5 +1025,38 @@ extension Array where Element: FloatingPoint {
             }
         }
         return true
+    }
+}
+
+/// In-memory backend that suspends before every read, like a network backend
+final class SuspendingBackend: OmFileReaderBackend {
+    let data: Data
+
+    init(data: Data) {
+        self.data = data
+    }
+
+    var count: Int {
+        data.count
+    }
+
+    func prefetchData(offset: Int, count: Int) async throws {}
+
+    func getData(offset: Int, count: Int) async throws -> Bytes {
+        try await Task.sleep(nanoseconds: 100_000)
+        return Bytes(data: data[offset..<offset + count])
+    }
+
+    func withData<T>(offset: Int, count: Int, fn: @Sendable (UnsafeRawBufferPointer) throws -> T) async throws -> T {
+        try await getData(offset: offset, count: count).withUnsafeBytes(fn)
+    }
+}
+
+/// Bytes whose `withUnsafeBytes` is not inlined into the reader, like NIO's `ByteBuffer` used from another module
+struct Bytes: ContiguousBytes, Sendable {
+    let data: Data
+
+    @inline(never) func withUnsafeBytes<R>(_ body: (UnsafeRawBufferPointer) throws -> R) rethrows -> R {
+        try data.withUnsafeBytes(body)
     }
 }
