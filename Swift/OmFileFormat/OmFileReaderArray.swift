@@ -148,18 +148,22 @@ public struct OmFileReaderArray<Backend: OmFileReaderBackend, OmType: OmFileArra
 
     /// Read data by offset and count
     public func read<let nDimensions: Int>(into: UnsafeMutablePointer<OmType>, offset: InlineArray<nDimensions, UInt64>, count: InlineArray<nDimensions, UInt64>, intoCubeOffset: InlineArray<nDimensions, UInt64>, intoCubeDimension: InlineArray<nDimensions, UInt64>) async throws {
-        /// The decoder keeps these pointers until decoding finished, so they are passed as arrays that live for the whole call
-        try await read(into: into, offset: offset.toArray(), count: count.toArray(), intoCubeOffset: intoCubeOffset.toArray(), intoCubeDimension: intoCubeDimension.toArray(), nDimensions: nDimensions)
+        // The decoder keeps these pointers until decoding finished. These implicit pointers remain valid for the entire awaited call.
+        var offset = offset
+        var count = count
+        var intoCubeOffset = intoCubeOffset
+        var intoCubeDimension = intoCubeDimension
+        try await read(into: into, offset: &offset, count: &count, intoCubeOffset: &intoCubeOffset, intoCubeDimension: &intoCubeDimension, nDimensions: nDimensions)
     }
     
     /// Read data by offset and count. All pointers must stay valid until this function returns
-    func read(into: UnsafeMutablePointer<OmType>, offset: UnsafePointer<UInt64>, count: UnsafePointer<UInt64>, intoCubeOffset: UnsafePointer<UInt64>, intoCubeDimension: UnsafePointer<UInt64>, nDimensions: Int) async throws {
+    func read(into: UnsafeMutablePointer<OmType>, offset: UnsafeRawPointer, count: UnsafeRawPointer, intoCubeOffset: UnsafeRawPointer, intoCubeDimension: UnsafeRawPointer, nDimensions: Int) async throws {
         var decoder = try makeDecoder(offset: offset, count: count, intoCubeOffset: intoCubeOffset, intoCubeDimension: intoCubeDimension, nDimensions: nDimensions)
         try await fn.decode(decoder: &decoder, into: into)
     }
 
     /// The decoder keeps the four pointers and reads them during decoding. Callers must keep them valid across the async decode, which a `withUnsafeBytes(of:)` scope does not
-    private func makeDecoder(offset: UnsafePointer<UInt64>, count: UnsafePointer<UInt64>, intoCubeOffset: UnsafePointer<UInt64>?, intoCubeDimension: UnsafePointer<UInt64>?, nDimensions: Int) throws -> OmDecoder_t {
+    private func makeDecoder(offset: UnsafeRawPointer, count: UnsafeRawPointer, intoCubeOffset: UnsafeRawPointer?, intoCubeDimension: UnsafeRawPointer?, nDimensions: Int) throws -> OmDecoder_t {
         return try variable.withUnsafeBytes({
             let variable = om_variable_init($0.baseAddress)
             var decoder = OmDecoder_t()
@@ -167,10 +171,10 @@ public struct OmFileReaderArray<Backend: OmFileReaderBackend, OmType: OmFileArra
                 &decoder,
                 variable,
                 UInt64(nDimensions),
-                offset,
-                count,
-                intoCubeOffset,
-                intoCubeDimension,
+                offset.assumingMemoryBound(to: UInt64.self),
+                count.assumingMemoryBound(to: UInt64.self),
+                intoCubeOffset?.assumingMemoryBound(to: UInt64.self),
+                intoCubeDimension?.assumingMemoryBound(to: UInt64.self),
                 io_size_merge,
                 io_size_max
             )
@@ -195,10 +199,13 @@ public struct OmFileReaderArray<Backend: OmFileReaderBackend, OmType: OmFileArra
 
     /// Prefetch data
     public func willNeed<let nDimensions: Int>(offset: InlineArray<nDimensions, UInt64>, count: InlineArray<nDimensions, UInt64>) async throws {
-        try await willNeed(offset: offset.toArray(), count: count.toArray(), nDimensions: nDimensions)
+        // These implicit pointers remain valid for the entire awaited call.
+        var offset = offset
+        var count = count
+        try await willNeed(offset: &offset, count: &count, nDimensions: nDimensions)
     }
 
-    private func willNeed(offset: UnsafePointer<UInt64>, count: UnsafePointer<UInt64>, nDimensions: Int) async throws {
+    private func willNeed(offset: UnsafeRawPointer, count: UnsafeRawPointer, nDimensions: Int) async throws {
         var decoder = try makeDecoder(offset: offset, count: count, intoCubeOffset: nil, intoCubeDimension: nil, nDimensions: nDimensions)
         try await fn.decodePrefetch(decoder: &decoder)
     }
@@ -248,18 +255,17 @@ public struct OmFileReaderArray<Backend: OmFileReaderBackend, OmType: OmFileArra
 
     /// Read data by offset and count
     public func readConcurrent<let nDimensions: Int>(into: UnsafeMutablePointer<OmType>, offset: InlineArray<nDimensions, UInt64>, count: InlineArray<nDimensions, UInt64>, intoCubeOffset: InlineArray<nDimensions, UInt64>, intoCubeDimension: InlineArray<nDimensions, UInt64>) async throws {
-        try await readConcurrent(into: into, offset: offset.toArray(), count: count.toArray(), intoCubeOffset: intoCubeOffset.toArray(), intoCubeDimension: intoCubeDimension.toArray(), nDimensions: nDimensions)
+        // These implicit pointers remain valid for the entire awaited call.
+        var offset = offset
+        var count = count
+        var intoCubeOffset = intoCubeOffset
+        var intoCubeDimension = intoCubeDimension
+        try await readConcurrent(into: into, offset: &offset, count: &count, intoCubeOffset: &intoCubeOffset, intoCubeDimension: &intoCubeDimension, nDimensions: nDimensions)
     }
 
-    private func readConcurrent(into: UnsafeMutablePointer<OmType>, offset: UnsafePointer<UInt64>, count: UnsafePointer<UInt64>, intoCubeOffset: UnsafePointer<UInt64>, intoCubeDimension: UnsafePointer<UInt64>, nDimensions: Int) async throws {
+    private func readConcurrent(into: UnsafeMutablePointer<OmType>, offset: UnsafeRawPointer, count: UnsafeRawPointer, intoCubeOffset: UnsafeRawPointer, intoCubeDimension: UnsafeRawPointer, nDimensions: Int) async throws {
         var decoder = try makeDecoder(offset: offset, count: count, intoCubeOffset: intoCubeOffset, intoCubeDimension: intoCubeDimension, nDimensions: nDimensions)
         try await fn.decodeConcurrent(decoder: &decoder, into: into)
-    }
-}
-
-fileprivate extension InlineArray where Element == UInt64 {
-    func toArray() -> [UInt64] {
-        indices.map { self[$0] }
     }
 }
 
