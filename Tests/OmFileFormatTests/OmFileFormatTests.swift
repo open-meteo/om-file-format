@@ -277,6 +277,37 @@ import OmFileFormatC
         //XCTAssertTrue(bytes == [79, 77, 3, 0, 4, 130, 0, 2, 3, 34, 0, 4, 194, 2, 10, 4, 178, 0, 12, 4, 242, 0, 14, 197, 17, 20, 194, 2, 22, 194, 2, 24, 3, 3, 228, 200, 109, 1, 0, 0, 20, 0, 4, 0, 0, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0, 32, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 128, 63, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 100, 97, 116, 97, 0, 0, 0, 0, 79, 77, 3, 0, 0, 0, 0, 0, 40, 0, 0, 0, 0, 0, 0, 0, 76, 0, 0, 0, 0, 0, 0, 0] || bytes == [79, 77, 3, 0, 4, 130, 64, 2, 3, 34, 16, 4, 194, 2, 10, 4, 178, 64, 12, 4, 242, 64, 14, 197, 17, 20, 194, 2, 22, 194, 2, 24, 3, 3, 228, 200, 109, 1, 0, 0, 20, 0, 4, 0, 0, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0, 32, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 128, 63, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 100, 97, 116, 97, 0, 0, 0, 0, 79, 77, 3, 0, 0, 0, 0, 0, 40, 0, 0, 0, 0, 0, 0, 0, 76, 0, 0, 0, 0, 0, 0, 0])
     }
 
+    @Test func writeCompressedChunks() async throws {
+        // Chunks of 2x2 in a 5x5 array, in file order. The last row and column of chunks are smaller
+        let shapes: [[UInt64]] = (0..<9).map { [$0 < 6 ? 2 : 1, $0 % 3 == 2 ? 1 : 2] }
+        let values: [[Float]] = shapes.enumerated().map { i, shape in (0..<Int(shape[0] * shape[1])).map { Float(i * 4 + $0) } }
+
+        let expected = try writeChunksOf5x5 { writer in
+            for (shape, chunk) in zip(shapes, values) { try writer.writeData(array: chunk, arrayDimensions: shape) }
+        }
+        let copied = try writeChunksOf5x5 { writer in
+            for (i, chunk) in values.enumerated() { try writer.writeCompressedChunk(writer.compressChunk(chunkIndex: i, array: chunk)) }
+        }
+        #expect(copied == expected)
+
+        // One pre-compressed NaN chunk is appended for every full-size chunk and one for every edge chunk
+        let nan = try writeChunksOf5x5 { writer in
+            let full = try writer.compressChunk(chunkIndex: 0, array: [Float](repeating: .nan, count: 4))
+            let edge = try writer.compressChunk(chunkIndex: 2, array: [Float](repeating: .nan, count: 2))
+            for i in 0..<6 { try writer.writeCompressedChunk(i % 3 == 2 ? edge : full) }
+            for i in 6..<9 { try writer.writeCompressedChunk(writer.compressChunk(chunkIndex: i, array: [Float](repeating: .nan, count: values[i].count))) }
+        }
+        let read = try await OmFileReader(fn: DataAsClass(data: nan)).asArray(of: Float.self)!
+        #expect(try await read.read(range: [0..<5, 0..<5]).allSatisfy { $0.isNaN })
+
+        // Empty bytes and a chunk of the wrong size are rejected
+        _ = try writeChunksOf5x5 { writer in
+            #expect(throws: OmFileFormatSwiftError.self) { try writer.writeCompressedChunk([]) }
+            #expect(throws: OmFileFormatSwiftError.self) { _ = try writer.compressChunk(chunkIndex: 2, array: [1, 2, 3, 4]) }
+            for (shape, chunk) in zip(shapes, values) { try writer.writeData(array: chunk, arrayDimensions: shape) }
+        }
+    }
+
     @Test func offsetWrite() async throws {
         let file = "offsetWrite.om"
         let fn = try FileHandle.createNewFile(file: file, overwrite: true)
@@ -996,4 +1027,18 @@ extension Array where Element: FloatingPoint {
         }
         return true
     }
+}
+
+/// Write a 5x5 Float array in 2x2 chunks through `body` and return the file bytes
+func writeChunksOf5x5(_ body: (OmFileWriterArray<Float, FileHandle>) throws -> Void) throws -> Data {
+    let file = FileManager.default.temporaryDirectory.appendingPathComponent("chunksOf5x5-\(UUID()).om").path
+    defer { try? FileManager.default.removeItem(atPath: file) }
+    let fn = try FileHandle.createNewFile(file: file, overwrite: true)
+    let fileWriter = OmFileWriter(fn: fn, initialCapacity: 8)
+    let writer = try fileWriter.prepareArray(type: Float.self, dimensions: [5, 5], chunkDimensions: [2, 2], compression: .pfor_delta2d_int16, scale_factor: 1, add_offset: 0)
+    try body(writer)
+    let variable = try fileWriter.write(array: try writer.finalise(), name: "data", children: [])
+    try fileWriter.writeTrailer(rootVariable: variable)
+    try fn.close()
+    return try Data(contentsOf: URL(fileURLWithPath: file))
 }

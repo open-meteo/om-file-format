@@ -223,26 +223,70 @@ public final class OmFileWriterArray<OmType: OmFileArrayDataTypeProtocol, FileHa
         // This loop could be done in parallel. However, the order of chunks must remain the same in the LUT and final output buffer.
         // For multithreading, multiple buffers are required that need to be copied into the final buffer afterwards
         for chunkIndexOffsetInThisArray in 0..<numberOfChunksInArray {
-            try buffer.reallocate(minimumCapacity: Int(compressedChunkBufferSize))
-
-            let bytes_written = om_encoder_compress_chunk(
-                &encoder,
-                pointer.baseAddress,
-                arrayDimensions,
-                arrayOffset,
-                arrayCount,
-                UInt64(chunkIndex),
-                chunkIndexOffsetInThisArray,
-                buffer.bufferAtWritePosition,
-                chunkBuffer.baseAddress
-            )
-
-            buffer.incrementWritePosition(by: Int(bytes_written))
-
-            // Store chunk offset in LUT
-            lookUpTable[chunkIndex+1] = UInt64(buffer.totalBytesWritten)
-            chunkIndex += 1
+            try appendChunk(maxByteCount: Int(compressedChunkBufferSize)) { output in
+                Int(om_encoder_compress_chunk(
+                    &encoder,
+                    pointer.baseAddress,
+                    arrayDimensions,
+                    arrayOffset,
+                    arrayCount,
+                    UInt64(chunkIndex),
+                    chunkIndexOffsetInThisArray,
+                    output,
+                    chunkBuffer.baseAddress
+                ))
+            }
         }
+    }
+
+    /// Compress chunk `chunkIndex` without writing it. `array` holds exactly the values of this chunk, so chunks at the upper edges are smaller.
+    /// Use it with `writeCompressedChunk` to compress a chunk once and write it many times, or to copy chunks between files without compressing again.
+    public func compressChunk(chunkIndex: Int, array: [OmType]) throws -> [UInt8] {
+        guard chunkIndex >= 0, chunkIndex + 1 < lookUpTable.count else {
+            throw OmFileFormatSwiftError.chunkHasWrongNumberOfElements
+        }
+        var chunkDimensions = dimensions
+        var rest = UInt64(chunkIndex)
+        for i in dimensions.indices.reversed() {
+            let nChunks = (dimensions[i] + chunks[i] - 1) / chunks[i]
+            let position = rest % nChunks
+            rest /= nChunks
+            chunkDimensions[i] = min((position + 1) * chunks[i], dimensions[i]) - position * chunks[i]
+        }
+        let count = Int(chunkDimensions.reduce(1, *))
+        guard array.count == count else {
+            throw OmFileFormatSwiftError.requireDimensionsToMatch(required: count, actual: array.count)
+        }
+        let offset = [UInt64](repeating: 0, count: chunkDimensions.count)
+        return array.withUnsafeBufferPointer { array in
+            [UInt8](unsafeUninitializedCapacity: Int(compressedChunkBufferSize)) { out, initialisedCount in
+                initialisedCount = Int(om_encoder_compress_chunk(&encoder, array.baseAddress, chunkDimensions, offset, chunkDimensions, UInt64(chunkIndex), 0, out.baseAddress, chunkBuffer.baseAddress))
+            }
+        }
+    }
+
+    /// Append the bytes of an already compressed chunk as the next chunk, e.g. from `compressChunk`. It can be mixed with `writeData`.
+    /// The bytes are not checked: they must come from a chunk of the same shape in an array with the same compression.
+    public func writeCompressedChunk(_ bytes: [UInt8]) throws {
+        // An empty chunk would give two equal lookup table entries, which a reader cannot decode
+        guard !bytes.isEmpty, chunkIndex + 1 < lookUpTable.count else {
+            throw OmFileFormatSwiftError.chunkHasWrongNumberOfElements
+        }
+        if chunkIndex == 0 {
+            lookUpTable[chunkIndex] = UInt64(buffer.totalBytesWritten)
+        }
+        try appendChunk(maxByteCount: bytes.count) { output in
+            bytes.withUnsafeBytes { output.copyMemory(from: $0.baseAddress!, byteCount: $0.count) }
+            return bytes.count
+        }
+    }
+
+    /// Reserve space, let `write` put one chunk at the pointer and return its size, then record the chunk end in the lookup table.
+    private func appendChunk(maxByteCount: Int, _ write: (UnsafeMutableRawPointer) -> Int) throws {
+        try buffer.reallocate(minimumCapacity: maxByteCount)
+        buffer.incrementWritePosition(by: write(buffer.bufferAtWritePosition))
+        lookUpTable[chunkIndex+1] = UInt64(buffer.totalBytesWritten)
+        chunkIndex += 1
     }
 
     /// Compress the lookup table and write it to the output buffer
