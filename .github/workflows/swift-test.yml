@@ -9,6 +9,7 @@ env:
   swift_package_resolve: swift package resolve
   swift_build: swift build --build-tests
   swift_test: swift test
+  swift_test_asan: swift test -c release --sanitize=address
   cache_version: 1
 
 jobs:
@@ -16,14 +17,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        xcode: ["26.4", "26.3.0"]
         include:
           - xcode: "26.4"
+            swift: "6.3"
             macos: "macos-26"
-          - xcode: "26.3.0"
-            macos: "macos-26"
+          - xcode: "27.0"
+            swift: "6.4"
+            macos: "xcode-27"
     runs-on: ${{ matrix.macos }}
-    name: macOS
+    name: macOS (Swift ${{ matrix.swift }})
     steps:
       - uses: actions/checkout@v6
       - name: Select Xcode version
@@ -50,19 +52,21 @@ jobs:
         run: ${{ env.swift_build }}
       - name: Test
         run: ${{ env.swift_test }}
+      - name: Test release with Address Sanitizer
+        run: ${{ env.swift_test_asan }}
   linux:
     strategy:
       fail-fast: false
       matrix:
-        swift: ["6.2", "6.3"]
+        swift: ["6.3", "6.4"]
         include:
-          - swift: "6.2"
-            container: "swift:6.2"
           - swift: "6.3"
             container: "swift:6.3"
+          - swift: "6.4"
+            container: "swift:6.4"
     runs-on: ubuntu-latest
     container: ${{ matrix.container }}
-    name: Linux
+    name: Linux (Swift ${{ matrix.swift }})
     steps:
       - name: Get Swift Version
         id: get-swift-version
@@ -87,3 +91,5 @@ jobs:
         run: ${{ env.swift_build }} --enable-test-discovery
       - name: Test
         run: ${{ env.swift_test }} --enable-test-discovery
+      - name: Test release with Address Sanitizer
+        run: ${{ env.swift_test_asan }}
