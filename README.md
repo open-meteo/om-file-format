@@ -147,6 +147,12 @@ Legacy Binary Format:
 New Binary Format:
 - 3 byte: header (magic number "OM" + version)
 - Blob: Compressed data and lookup table LUT
+
+For version 3 floating-point arrays, equal adjacent LUT offsets represent an
+all-NaN chunk with no payload bytes. Readers reconstruct these chunks as NaNs;
+NaN sign and payload bits are not preserved for such chunks, including FPX.
+Integer chunks always retain their compressed payload. Files using empty chunks
+require a reader that supports this convention; older readers cannot decode them.
 - Blob: Binary encoded meta data
 - 24 byte: Trailer with address to root variable
 
