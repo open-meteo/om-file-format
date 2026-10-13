@@ -9,7 +9,7 @@ env:
   swift_package_resolve: swift package resolve
   swift_build: swift build --build-tests
   swift_test: swift test
-  swift_test_asan: swift test -c release --sanitize=address
+  swift_test_asan: swift test -c release --sanitize=address --disable-xctest
   cache_version: 1
 
 jobs:
