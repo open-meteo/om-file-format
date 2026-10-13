@@ -245,50 +245,6 @@ public final class OmFileWriterArray<OmType: OmFileArrayDataTypeProtocol, FileHa
         }
     }
 
-    /// Write all-NaN chunks without allocating or compressing an input array.
-    /// The dimensions describe a region starting at the next unwritten chunk.
-    /// It must cover whole chunks (including partial chunks at the array edges)
-    /// and be contiguous in chunk order, as with sequential calls to `writeData`.
-    public func writeNaN(arrayDimensions: [UInt64]) throws where OmType: BinaryFloatingPoint {
-        guard arrayDimensions.count == dimensions.count else {
-            throw OmFileFormatSwiftError.requireDimensionsToMatch(required: dimensions.count, actual: arrayDimensions.count)
-        }
-        guard chunkIndex < lookUpTable.count - 1 else {
-            throw OmFileFormatSwiftError.omEncoder(error: "No chunks remaining to write")
-        }
-
-        var remainingIndex = UInt64(chunkIndex)
-        var numberOfChunks: UInt64 = 1
-        var span: UInt64 = 1
-        var stride: UInt64 = 1
-        for i in dimensions.indices.reversed() {
-            let gridCount = (dimensions[i] - 1) / chunks[i] + 1
-            let start = remainingIndex % gridCount
-            remainingIndex /= gridCount
-            let extent = arrayDimensions[i]
-            let available = dimensions[i] - start * chunks[i]
-            guard extent > 0, extent <= available,
-                  extent % chunks[i] == 0 || extent == available else {
-                throw OmFileFormatSwiftError.omEncoder(error: "NaN dimensions must cover whole chunks within the array")
-            }
-            let count = (extent - 1) / chunks[i] + 1
-            numberOfChunks *= count
-            span += (count - 1) * stride
-            stride *= gridCount
-        }
-        guard span == numberOfChunks,
-              numberOfChunks <= UInt64(lookUpTable.count - 1 - chunkIndex) else {
-            throw OmFileFormatSwiftError.omEncoder(error: "NaN dimensions must describe consecutive unwritten chunks")
-        }
-
-        let end = chunkIndex + Int(numberOfChunks)
-        let offset = UInt64(buffer.totalBytesWritten)
-        for index in chunkIndex...end {
-            lookUpTable[index] = offset
-        }
-        chunkIndex = end
-    }
-
     /// Compress the lookup table and write it to the output buffer
     public func finalise() throws -> OmFileWriterArrayFinalised {
         let lut_offset = buffer.totalBytesWritten

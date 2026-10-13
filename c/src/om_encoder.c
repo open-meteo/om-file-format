@@ -7,7 +7,6 @@
 
 #include "om_encoder.h"
 #include <assert.h>
-#include <math.h>
 #include "vp4.h"
 #include "fp.h"
 #include "delta2d.h"
@@ -372,18 +371,10 @@ uint64_t om_encoder_compress_chunk(
     }
 
     const uint64_t lengthInChunk = rollingMultiplyChunkLength;
-    bool all_nan = encoder->data_type == DATA_TYPE_FLOAT_ARRAY || encoder->data_type == DATA_TYPE_DOUBLE_ARRAY;
 
     while (true) {
         assert(readCoordinate + linearReadCount <= arrayTotalCount);
         assert(writeCoordinate + linearReadCount <= lengthInChunk);
-
-        // Inspect the source values before lossy scaling or delta filtering.
-        for (uint64_t j = 0; all_nan && j < linearReadCount; j++) {
-            all_nan = encoder->data_type == DATA_TYPE_FLOAT_ARRAY
-                ? isnan(((const float*)array)[readCoordinate + j])
-                : isnan(((const double*)array)[readCoordinate + j]);
-        }
 
         om_encode_copy(
             encoder->data_type,
@@ -428,8 +419,6 @@ uint64_t om_encoder_compress_chunk(
             rollingMultiplyTargetCube *= arrayDimensions[i];
 
             if (i == 0) {
-                // Equal adjacent LUT offsets represent an all-NaN chunk.
-                if (all_nan) return 0;
                 om_encode_filter(encoder->data_type, encoder->compression, chunkBuffer, lengthInChunk, lengthLast);
                 uint64_t compressed_length = om_encode_compress(encoder->data_type, encoder->compression, chunkBuffer, lengthInChunk, out);
                 return compressed_length;

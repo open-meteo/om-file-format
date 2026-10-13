@@ -6,7 +6,6 @@
 //
 
 #include <assert.h>
-#include <math.h>
 #include "vp4.h"
 #include "fp.h"
 #include "conf.h"
@@ -611,13 +610,6 @@ bool om_decoder_next_data_read(const OmDecoder_t *decoder, OmDecoder_dataRead_t*
 
     // Loop to the next chunk until the end is reached
     while (true) {
-        // Keep empty chunks separate from compressed data. Also avoid merging
-        // across skipped chunks, whose empty/nonempty status is not inspected.
-        if (data_read->nextChunk.lowerBound != data_read->chunkIndex.lowerBound
-            && data_read->nextChunk.lowerBound != chunkIndex + 1) {
-            break;
-        }
-        const uint64_t dataStartPos = uncompressedLut[data_read->nextChunk.lowerBound % LUT_CHUNK_COUNT];
         const uint64_t nextLutChunk = (data_read->nextChunk.lowerBound + 1) / LUT_CHUNK_COUNT;
 
         // Maybe the next LUT chunk needs to be uncompressed
@@ -642,11 +634,6 @@ bool om_decoder_next_data_read(const OmDecoder_t *decoder, OmDecoder_dataRead_t*
         if (dataEndPos < endPos) {
             *error = ERROR_DEFLATED_SIZE_MISMATCH;
             return false;
-        }
-
-        if (data_read->nextChunk.lowerBound != data_read->chunkIndex.lowerBound
-            && ((dataEndPos == dataStartPos) != (endPos == startPos))) {
-            break;
         }
 
         // Merge and split IO requests, ensuring at least one IO request is sent
@@ -759,8 +746,7 @@ uint64_t _om_decoder_decode_chunk(
 
     const uint64_t lengthInChunk = rollingMultiplyChunkLength;
 
-    const bool empty = data_size == 0;
-    const uint64_t uncompressedBytes = empty ? 0 : om_decode_decompress(
+    const uint64_t uncompressedBytes = om_decode_decompress(
         decoder->data_type,
         decoder->compression,
         data,
@@ -774,20 +760,12 @@ uint64_t _om_decoder_decode_chunk(
     }
 
     // Perform 2D decoding
-    if (!empty) om_decode_filter(decoder->data_type, decoder->compression, chunk_buffer, lengthInChunk, lengthLast);
+    om_decode_filter(decoder->data_type, decoder->compression, chunk_buffer, lengthInChunk, lengthLast);
 
     // Copy data from the chunk buffer to the output buffer.
     while (true) {
         // Copy values from chunk buffer into output buffer
-        if (empty) {
-            for (int64_t j = 0; j < linearReadCount; j++) {
-                if (decoder->data_type == DATA_TYPE_FLOAT_ARRAY) {
-                    ((float*)into)[q + j] = NAN;
-                } else {
-                    ((double*)into)[q + j] = NAN;
-                }
-            }
-        } else om_decode_copy(
+        om_decode_copy(
             decoder->data_type,
             decoder->compression,
             linearReadCount,
@@ -863,20 +841,18 @@ uint64_t _om_decoder_decode_chunk(
 }
 
 bool om_decoder_decode_chunks(const OmDecoder_t *decoder, OmRange_t chunk, const void *data, uint64_t data_size, void *into, void *chunkBuffer, OmError_t *error) {
-    const bool empty = data_size == 0 && decoder->lut_chunk_length != 0
-        && (decoder->data_type == DATA_TYPE_FLOAT_ARRAY || decoder->data_type == DATA_TYPE_DOUBLE_ARRAY);
     uint64_t pos = 0;
     // printf("chunkIndex.lowerBound %lu %lu\n",chunk.lowerBound,chunk.upperBound);
     for (uint64_t chunkNum = chunk.lowerBound; chunkNum < chunk.upperBound; ++chunkNum) {
         // printf("chunkIndex %lu pos=%lu dataCount=%lu \n",chunkNum, pos, data_size);
-        if (!empty && pos >= data_size) {
+        if (pos >= data_size) {
             (*error) = ERROR_DEFLATED_SIZE_MISMATCH;
             return false;
         }
         if (*error != ERROR_OK) {
             return false;
         }
-        uint64_t uncompressedBytes = _om_decoder_decode_chunk(decoder, chunkNum, empty ? NULL : (const uint8_t *)data + pos, data_size - pos, into, chunkBuffer);
+        uint64_t uncompressedBytes = _om_decoder_decode_chunk(decoder, chunkNum, (const uint8_t *)data + pos, data_size - pos, into, chunkBuffer);
         if (uncompressedBytes == SIZE_MAX || uncompressedBytes > data_size - pos) {
             *error = ERROR_DEFLATED_SIZE_MISMATCH;
             return false;

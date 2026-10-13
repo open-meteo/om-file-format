@@ -186,9 +186,6 @@ void om_decoder_init_data_read(OmDecoder_dataRead_t *data_read, const OmDecoder_
  *
  * The function reads from a specified index data and updates the `data_read` structure
  * with the offset and size of the next data block to be read.
- * Version 3 floating-point all-NaN chunks produce a zero-byte read. These must
- * still be passed to om_decoder_decode_chunks; data may be NULL for that call.
- * Empty and nonempty chunks are never combined in one returned range.
  *
  * @param[in]  decoder           A pointer to the `om_decoder_t` structure, which contains
  *                               information about the file format, compression settings,
