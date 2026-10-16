@@ -7,6 +7,7 @@
 
 #include "om_encoder.h"
 #include <assert.h>
+#include <math.h>
 #include "vp4.h"
 #include "fp.h"
 #include "delta2d.h"
@@ -254,6 +255,43 @@ uint64_t om_encoder_count_chunks(const OmEncoder_t* encoder) {
     return n;
 }
 
+OmError_t om_encoder_count_nan_chunks(const OmEncoder_t* encoder, const uint64_t* array_dimensions, uint64_t array_dimension_count, uint64_t chunk_index, uint64_t* number_of_chunks) {
+    if (encoder->data_type != DATA_TYPE_FLOAT_ARRAY && encoder->data_type != DATA_TYPE_DOUBLE_ARRAY) {
+        return ERROR_INVALID_DATA_TYPE;
+    }
+    if (array_dimension_count == 0 || array_dimension_count != encoder->dimension_count) {
+        return ERROR_INVALID_DIMENSIONS;
+    }
+
+    uint64_t remaining_index = chunk_index;
+    uint64_t count = 1;
+    uint64_t span = 1;
+    uint64_t stride = 1;
+    for (uint64_t i = encoder->dimension_count; i-- > 0;) {
+        const uint64_t grid_count = (encoder->dimensions[i] - 1) / encoder->chunks[i] + 1;
+        const uint64_t start = remaining_index % grid_count;
+        remaining_index /= grid_count;
+        const uint64_t extent = array_dimensions[i];
+        const uint64_t available = encoder->dimensions[i] - start * encoder->chunks[i];
+        if (extent == 0 || extent > available || (extent % encoder->chunks[i] != 0 && extent != available)) {
+            return ERROR_INVALID_CHUNK_DIMENSIONS;
+        }
+        const uint64_t chunks = (extent - 1) / encoder->chunks[i] + 1;
+        if (count > UINT64_MAX / chunks || stride > UINT64_MAX / grid_count ||
+            chunks - 1 > (UINT64_MAX - span) / stride) {
+            return ERROR_INVALID_DIMENSIONS;
+        }
+        count *= chunks;
+        span += (chunks - 1) * stride;
+        stride *= grid_count;
+    }
+    if (remaining_index != 0 || span != count || count > stride - chunk_index) {
+        return ERROR_INVALID_CHUNK_DIMENSIONS;
+    }
+    *number_of_chunks = count;
+    return ERROR_OK;
+}
+
 uint64_t om_encoder_count_chunks_in_array(const OmEncoder_t* encoder, const uint64_t* array_count) {
     uint64_t numberOfChunksInArray = 1;
     for (uint64_t i = 0; i < encoder->dimension_count; i++) {
@@ -371,10 +409,19 @@ uint64_t om_encoder_compress_chunk(
     }
 
     const uint64_t lengthInChunk = rollingMultiplyChunkLength;
+    // PZ 2026-10-16: Do not enable `all_nan` detection yet. It might break compatibility with older library versions
+    //bool all_nan = encoder->data_type == DATA_TYPE_FLOAT_ARRAY || encoder->data_type == DATA_TYPE_DOUBLE_ARRAY;
 
     while (true) {
         assert(readCoordinate + linearReadCount <= arrayTotalCount);
         assert(writeCoordinate + linearReadCount <= lengthInChunk);
+
+        // Inspect the source values before lossy scaling or delta filtering.
+        /*for (uint64_t j = 0; all_nan && j < linearReadCount; j++) {
+            all_nan = encoder->data_type == DATA_TYPE_FLOAT_ARRAY
+                ? isnan(((const float*)array)[readCoordinate + j])
+                : isnan(((const double*)array)[readCoordinate + j]);
+        }*/
 
         om_encode_copy(
             encoder->data_type,
@@ -419,6 +466,8 @@ uint64_t om_encoder_compress_chunk(
             rollingMultiplyTargetCube *= arrayDimensions[i];
 
             if (i == 0) {
+                // Equal adjacent LUT offsets represent an all-NaN chunk.
+                //if (all_nan) return 0;
                 om_encode_filter(encoder->data_type, encoder->compression, chunkBuffer, lengthInChunk, lengthLast);
                 uint64_t compressed_length = om_encode_compress(encoder->data_type, encoder->compression, chunkBuffer, lengthInChunk, out);
                 return compressed_length;

@@ -245,6 +245,27 @@ public final class OmFileWriterArray<OmType: OmFileArrayDataTypeProtocol, FileHa
         }
     }
 
+    /// Write all-NaN chunks without allocating or compressing an input array.
+    /// The dimensions describe a region starting at the next unwritten chunk.
+    /// It must cover whole chunks (including partial chunks at the array edges)
+    /// and be contiguous in chunk order, as with sequential calls to `writeData`.
+    public func writeNaN(arrayDimensions: [UInt64]) throws where OmType: BinaryFloatingPoint {
+        var numberOfChunks: UInt64 = 0
+        let error = om_encoder_count_nan_chunks(
+            &encoder, arrayDimensions, UInt64(arrayDimensions.count), UInt64(chunkIndex), &numberOfChunks
+        )
+        guard error == ERROR_OK else {
+            throw OmFileFormatSwiftError.omEncoder(error: String(cString: om_error_string(error)))
+        }
+
+        let end = chunkIndex + Int(numberOfChunks)
+        let offset = UInt64(buffer.totalBytesWritten)
+        for index in chunkIndex...end {
+            lookUpTable[index] = offset
+        }
+        chunkIndex = end
+    }
+
     /// Compress the lookup table and write it to the output buffer
     public func finalise() throws -> OmFileWriterArrayFinalised {
         let lut_offset = buffer.totalBytesWritten
