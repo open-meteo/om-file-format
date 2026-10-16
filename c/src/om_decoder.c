@@ -611,37 +611,46 @@ bool om_decoder_next_data_read(const OmDecoder_t *decoder, OmDecoder_dataRead_t*
 
     // Loop to the next chunk until the end is reached
     while (true) {
-        // Keep empty chunks separate from compressed data. Also avoid merging
-        // across skipped chunks, whose empty/nonempty status is not inspected.
-        if (data_read->nextChunk.lowerBound != data_read->chunkIndex.lowerBound
-            && data_read->nextChunk.lowerBound != chunkIndex + 1) {
-            break;
-        }
-        const uint64_t dataStartPos = uncompressedLut[data_read->nextChunk.lowerBound % LUT_CHUNK_COUNT];
-        const uint64_t nextLutChunk = (data_read->nextChunk.lowerBound + 1) / LUT_CHUNK_COUNT;
+        const uint64_t nextChunk = data_read->nextChunk.lowerBound;
+        const uint64_t firstChunk = nextChunk == data_read->chunkIndex.lowerBound ? nextChunk : chunkIndex + 1;
+        uint64_t dataStartPos = endPos;
+        uint64_t dataEndPos = endPos;
+        bool skippedEmptyChunk = false;
 
-        // Maybe the next LUT chunk needs to be uncompressed
-        if (nextLutChunk != lutChunk) {
-            const uint64_t nextLutChunkElementCount = om_min((nextLutChunk + 1) * LUT_CHUNK_COUNT, number_of_chunks+1) - nextLutChunk * LUT_CHUNK_COUNT;
-            const uint64_t start = nextLutChunk * lutChunkLength - lutOffset;
-            if (start > index_data_size || lutChunkLength > index_data_size - start || nextLutChunkElementCount > LUT_CHUNK_COUNT) {
-                (*error) = ERROR_OUT_OF_BOUND_READ;
-                return false;
+        // Inspect every skipped chunk before merging. The payload decoder walks
+        // the whole merged range and cannot locate an empty chunk without its LUT.
+        for (uint64_t inspectChunk = firstChunk; inspectChunk <= nextChunk; inspectChunk++) {
+            const uint64_t nextLutChunk = (inspectChunk + 1) / LUT_CHUNK_COUNT;
+            if (nextLutChunk != lutChunk) {
+                const uint64_t nextLutChunkElementCount = om_min((nextLutChunk + 1) * LUT_CHUNK_COUNT, number_of_chunks+1) - nextLutChunk * LUT_CHUNK_COUNT;
+                const uint64_t start = nextLutChunk * lutChunkLength - lutOffset;
+                if (start > index_data_size || lutChunkLength > index_data_size - start || nextLutChunkElementCount > LUT_CHUNK_COUNT) {
+                    (*error) = ERROR_OUT_OF_BOUND_READ;
+                    return false;
+                }
+
+                if (om_pfor_decode(indexDataPtr + start, lutChunkLength, nextLutChunkElementCount, uncompressedLut, 64, false) == SIZE_MAX) {
+                    *error = ERROR_DEFLATED_SIZE_MISMATCH;
+                    return false;
+                }
+                lutChunk = nextLutChunk;
             }
 
-            // Decompress LUT chunk
-            if (om_pfor_decode(indexDataPtr + start, lutChunkLength, nextLutChunkElementCount, uncompressedLut, 64, false) == SIZE_MAX) {
+            dataStartPos = dataEndPos;
+            dataEndPos = uncompressedLut[(inspectChunk + 1) % LUT_CHUNK_COUNT];
+            if (dataEndPos < dataStartPos) {
                 *error = ERROR_DEFLATED_SIZE_MISMATCH;
                 return false;
             }
-            lutChunk = nextLutChunk;
+            if (inspectChunk < nextChunk && (dataEndPos == dataStartPos || startPos == endPos)) {
+                // Also keep an existing all-empty range separate from skipped
+                // nonempty chunks.
+                skippedEmptyChunk = true;
+                break;
+            }
         }
-
-        const uint64_t dataEndPos = uncompressedLut[(data_read->nextChunk.lowerBound + 1) % LUT_CHUNK_COUNT];
-
-        if (dataEndPos < endPos) {
-            *error = ERROR_DEFLATED_SIZE_MISMATCH;
-            return false;
+        if (skippedEmptyChunk) {
+            break;
         }
 
         if (data_read->nextChunk.lowerBound != data_read->chunkIndex.lowerBound

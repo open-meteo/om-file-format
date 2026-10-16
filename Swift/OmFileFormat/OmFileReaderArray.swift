@@ -371,7 +371,9 @@ extension OmFileReaderBackend {
             var error: OmError_t = ERROR_OK
             /// Loop over data blocks and read compressed data chunks
             while indexData.withUnsafeBytes({ om_decoder_next_data_read(decoder, &dataRead, $0.baseAddress, UInt64(indexRead.count), &error) }) {
-                try await self.prefetchData(offset: Int(dataRead.offset), count: Int(dataRead.count))
+                if dataRead.count > 0 {
+                    try await self.prefetchData(offset: Int(dataRead.offset), count: Int(dataRead.count))
+                }
             }
             guard error == ERROR_OK else {
                 throw OmFileFormatSwiftError.omDecoder(error: String(cString: om_error_string(error)))

@@ -229,7 +229,9 @@ import OmFileFormatC
             }
             let variable = try fileWriter.write(array: metadata, name: "data", children: [])
             try fileWriter.writeTrailer(rootVariable: variable)
-            let reader = try await OmFileReader(fn: backend).asArray(of: T.self)!
+            // Reject zero-byte backend requests, as HTTP Range readers do.
+            let reader = try await OmFileReader(fn: SuspendingBackend(data: backend.data)).asArray(of: T.self)!
+            try await reader.willNeed(range: [0..<3, 0..<45])
             let decoded = try await reader.read()
             #expect(zip(decoded, data).allSatisfy { $0.isNaN ? $1.isNaN : $0 == $1 })
             let concurrent = try await reader.readConcurrent(range: [0..<3, 0..<45])
@@ -1140,9 +1142,16 @@ final class SuspendingBackend: OmFileReaderBackend {
         data.count
     }
 
-    func prefetchData(offset: Int, count: Int) async throws {}
+    func prefetchData(offset: Int, count: Int) async throws {
+        guard count > 0 else {
+            throw OmFileFormatSwiftError.omDecoder(error: "Empty backend prefetch")
+        }
+    }
 
     func getData(offset: Int, count: Int) async throws -> Bytes {
+        guard count > 0 else {
+            throw OmFileFormatSwiftError.omDecoder(error: "Empty backend read")
+        }
         try await Task.sleep(nanoseconds: 100_000)
         return Bytes(data: data[offset..<offset + count])
     }

@@ -31,6 +31,11 @@ extension OmFileReaderBackend {
         guard offset + count <= self.count else {
             throw OmFileFormatSwiftError.omDecoder(error: "Read out of bounds")
         }
+        // Empty chunks contain only NaNs. Decode them without issuing an
+        // invalid zero-byte range request to the backend.
+        if count == 0 {
+            return try fn(UnsafeRawBufferPointer(start: nil, count: 0))
+        }
         return try await self.withData(offset: offset, count: count, fn: fn)
     }
 }
