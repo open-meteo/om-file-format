@@ -5,24 +5,68 @@ import OmFileFormatC
 
 /// Write one Float array through a temporary file and return the file bytes.
 /// A file backend is used because `DataAsClass` as a writer crashes in release builds.
-func writeFloatFile(dimensions: [UInt64], chunks: [UInt64], _ body: (OmFileWriterArray<Float, FileHandle>) throws -> Void) throws -> Data {
+func writeFloatFile(dimensions: [UInt64], chunks: [UInt64], _ body: (OmFileWriterArray<Float, FileHandle>) async throws -> Void) async throws -> Data {
     let file = FileManager.default.temporaryDirectory.appendingPathComponent("chunk-copy-\(UUID()).om").path
     defer { try? FileManager.default.removeItem(atPath: file) }
     let fn = try FileHandle.createNewFile(file: file, overwrite: true)
     let fileWriter = OmFileWriter(fn: fn, initialCapacity: 8)
     let writer = try fileWriter.prepareArray(type: Float.self, dimensions: dimensions, chunkDimensions: chunks, compression: .pfor_delta2d_int16, scale_factor: 20, add_offset: 0)
-    try body(writer)
+    try await body(writer)
     let variable = try fileWriter.write(array: try writer.finalise(), name: "data", children: [])
     try fileWriter.writeTrailer(rootVariable: variable)
     try fn.close()
     return try Data(contentsOf: URL(fileURLWithPath: file))
 }
 
+/// Offset and element count of chunk `chunkIndex` in a row-major array. Chunks at the upper edges are smaller.
+func chunkRegion(dimensions: [UInt64], chunks: [UInt64], chunkIndex: Int) -> (offset: [UInt64], count: [UInt64]) {
+    var offset = dimensions
+    var count = dimensions
+    var rest = UInt64(chunkIndex)
+    for i in dimensions.indices.reversed() {
+        let grid = (dimensions[i] + chunks[i] - 1) / chunks[i]
+        offset[i] = rest % grid * chunks[i]
+        count[i] = min(chunks[i], dimensions[i] - offset[i])
+        rest /= grid
+    }
+    return (offset, count)
+}
+
+/// Copy the chunks `keep` selects without decoding them and write the others as NaN.
+/// Neighbouring kept chunks are fetched with one read, as a caller reading over a network would.
+func copyChunks<Backend: OmFileReaderBackend>(from reader: OmFileReaderArray<Backend, Float>, into writer: OmFileWriterArray<Float, FileHandle>, keep: (Int) -> Bool) async throws {
+    let ranges = try await reader.chunkByteRanges()
+    let dimensions = reader.getDimensions()
+    let chunks = reader.getChunkDimensions()
+    func kept(_ chunk: Int) -> Bool { keep(chunk) && ranges[chunk].count > 0 }
+    var first = 0
+    while first < ranges.count {
+        guard kept(first) else {
+            try writer.writeNaN(arrayDimensions: chunkRegion(dimensions: dimensions, chunks: chunks, chunkIndex: first).count)
+            first += 1
+            continue
+        }
+        var end = first + 1
+        while end < ranges.count && kept(end) {
+            end += 1
+        }
+        let start = ranges[first].offset
+        let bytes = try await reader.fn.getData(offset: Int(start), count: Int(ranges[end - 1].offset + ranges[end - 1].count - start))
+        try bytes.withUnsafeBytes { bytes in
+            for chunk in first..<end {
+                let lower = Int(ranges[chunk].offset - start)
+                try writer.writeCompressedChunk(UnsafeRawBufferPointer(rebasing: bytes[lower..<lower + Int(ranges[chunk].count)]))
+            }
+        }
+        first = end
+    }
+}
+
 @Suite struct ChunkCopyTests {
     /// Dimensions [3, 45] in chunks of [1, 2] give 69 chunks, which crosses a 64 entry lookup table block.
     /// Row 0 is data, row 1 is NaN, row 2 alternates data and NaN chunks, with a one element chunk at the end.
-    static func writeMixed() throws -> (file: Data, isNaN: [Bool]) {
-        let file = try writeFloatFile(dimensions: [3, 45], chunks: [1, 2]) { writer in
+    static func writeMixed() async throws -> (file: Data, isNaN: [Bool]) {
+        let file = try await writeFloatFile(dimensions: [3, 45], chunks: [1, 2]) { writer in
             try writer.writeData(array: (0..<45).map { Float($0 % 7) }, arrayDimensions: [1, 45])
             try writer.writeNaN(arrayDimensions: [1, 45])
             for chunk in 0..<23 {
@@ -38,7 +82,7 @@ func writeFloatFile(dimensions: [UInt64], chunks: [UInt64], _ body: (OmFileWrite
     }
 
     @Test func chunkByteRangesOfMixedFile() async throws {
-        let (file, isNaN) = try Self.writeMixed()
+        let (file, isNaN) = try await Self.writeMixed()
         // A small, the default and a large io size must give the same ranges
         let ioSizes: [(max: UInt64, merge: UInt64)] = [(64, 16), (65536, 512), (1 << 20, 1 << 16)]
         for io in ioSizes {
@@ -56,6 +100,46 @@ func writeFloatFile(dimensions: [UInt64], chunks: [UInt64], _ body: (OmFileWrite
             #expect(wrong == 0)
             // The compressed lookup table follows the last chunk
             #expect(end < UInt64(file.count))
+        }
+    }
+
+    @Test func copyChunksOfMixedFile() async throws {
+        let (file, isNaN) = try await Self.writeMixed()
+        let source = try await OmFileReader(fn: DataAsClass(data: file)).asArray(of: Float.self)!
+        let values = try await source.read()
+        // Drop every third chunk, which also breaks up runs of kept chunks
+        let keep: (Int) -> Bool = { $0 % 3 != 0 }
+        let copy = try await writeFloatFile(dimensions: [3, 45], chunks: [1, 2]) { writer in
+            try await copyChunks(from: source, into: writer, keep: keep)
+        }
+        let result = try await OmFileReader(fn: DataAsClass(data: copy)).asArray(of: Float.self)!
+        let copied = try await result.read()
+        for chunk in 0..<isNaN.count {
+            let region = chunkRegion(dimensions: [3, 45], chunks: [1, 2], chunkIndex: chunk)
+            for column in region.offset[1]..<region.offset[1] + region.count[1] {
+                let i = Int(region.offset[0] * 45 + column)
+                if keep(chunk) {
+                    #expect(copied[i].isNaN ? values[i].isNaN : copied[i] == values[i])
+                } else {
+                    #expect(copied[i].isNaN)
+                }
+            }
+        }
+        // Copying again keeps the bytes of a kept chunk as they are
+        let ranges = try await source.chunkByteRanges()
+        let copyRanges = try await result.chunkByteRanges()
+        for chunk in 0..<ranges.count {
+            #expect(copyRanges[chunk].count == (keep(chunk) ? ranges[chunk].count : 0))
+        }
+    }
+
+    @Test func writeCompressedChunkRefusesWrongCalls() async throws {
+        _ = try await writeFloatFile(dimensions: [1, 4], chunks: [1, 2]) { writer in
+            #expect(throws: OmFileFormatSwiftError.self) { try writer.writeCompressedChunk(UnsafeRawBufferPointer(start: nil, count: 0)) }
+            try writer.writeData(array: [1, 2, 3, 4], arrayDimensions: [1, 4])
+            // Both chunks are written
+            let byte: [UInt8] = [0]
+            #expect(throws: OmFileFormatSwiftError.self) { try byte.withUnsafeBytes { try writer.writeCompressedChunk($0) } }
         }
     }
 }
