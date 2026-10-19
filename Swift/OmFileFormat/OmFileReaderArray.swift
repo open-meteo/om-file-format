@@ -210,6 +210,20 @@ public struct OmFileReaderArray<Backend: OmFileReaderBackend, OmType: OmFileArra
         try await fn.decodePrefetch(decoder: &decoder)
     }
 
+    /// Absolute file offset and size in bytes of every compressed chunk, in chunk order, for both lookup table layouts.
+    /// A NaN chunk has size 0. The lookup table is read with the `io_size_max` and `io_size_merge` of this array, so pass a large `io_size_max` to `asArray` to read it in few requests.
+    /// Together with `fn` and `OmFileWriterArray.writeCompressedChunk` this copies chunks without decoding them.
+    public func chunkByteRanges() async throws -> [(offset: UInt64, count: UInt64)] {
+        let n = Int(getDimensionsCount())
+        // The decoder keeps these pointers, so they must outlive the awaits below. The first half is the zero offset, the second half the whole array.
+        let region = UnsafeMutablePointer<UInt64>.allocate(capacity: 2 * n)
+        defer { region.deallocate() }
+        region.initialize(repeating: 0, count: n)
+        withDimensions { (region + n).initialize(from: $0.baseAddress!, count: n) }
+        var decoder = try makeDecoder(offset: region, count: region + n, intoCubeOffset: nil, intoCubeDimension: nil, nDimensions: n)
+        return try await fn.chunkByteRanges(decoder: &decoder)
+    }
+
     /// Read variable as float array
     public func readConcurrent<let nDimensions: Int>(offset: InlineArray<nDimensions, UInt64>, count: InlineArray<nDimensions, UInt64>) async throws -> [OmType] {
         let n = (0..<nDimensions).reduce(1, {$0 * count[$1]})
@@ -353,6 +367,37 @@ extension OmFileReaderBackend {
             }
             try await group.waitForAll()
         }
+    }
+
+    /// Walk the lookup table of a whole-array read and return the byte range of each chunk
+    func chunkByteRanges(decoder: UnsafePointer<OmDecoder_t>) async throws -> [(offset: UInt64, count: UInt64)] {
+        // A tiny `io_size_max` stops the decoder merging chunks, so every returned range is one chunk, or only empty chunks. The lookup table is still read with the caller's io sizes.
+        var perChunk = decoder.pointee
+        perChunk.io_size_max = 1
+        perChunk.io_size_merge = 0
+        var ranges = [(offset: UInt64, count: UInt64)](repeating: (0, 0), count: Int(perChunk.number_of_chunks))
+        var indexRead = OmDecoder_indexRead_t()
+        om_decoder_init_index_read(decoder, &indexRead)
+        while om_decoder_next_index_read(decoder, &indexRead) {
+            var indexRead = indexRead
+            let indexData = try await self.getDataChecked(offset: Int(indexRead.offset), count: Int(indexRead.count))
+            var dataRead = OmDecoder_dataRead_t()
+            om_decoder_init_data_read(&dataRead, &indexRead)
+            var error: OmError_t = ERROR_OK
+            while indexData.withUnsafeBytes({ om_decoder_next_data_read(&perChunk, &dataRead, $0.baseAddress, UInt64(indexRead.count), &error) }) {
+                let chunks = dataRead.chunkIndex
+                guard dataRead.count == 0 || chunks.upperBound - chunks.lowerBound == 1 else {
+                    throw OmFileFormatSwiftError.omDecoder(error: "Chunks were merged")
+                }
+                for chunk in chunks.lowerBound..<chunks.upperBound {
+                    ranges[Int(chunk)] = (dataRead.offset, dataRead.count)
+                }
+            }
+            guard error == ERROR_OK else {
+                throw OmFileFormatSwiftError.omDecoder(error: String(cString: om_error_string(error)))
+            }
+        }
+        return ranges
     }
 
     /// Do an madvice to load data chunks from disk into page cache in the background
