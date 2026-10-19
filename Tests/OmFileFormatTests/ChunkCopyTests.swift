@@ -142,4 +142,69 @@ func copyChunks<Backend: OmFileReaderBackend>(from reader: OmFileReaderArray<Bac
             #expect(throws: OmFileFormatSwiftError.self) { try byte.withUnsafeBytes { try writer.writeCompressedChunk($0) } }
         }
     }
+
+    /// A legacy file stores flat dimensions [ny * nx, t], an uncompressed lookup table of chunk end offsets after a 40 byte header, and the chunks after that.
+    @Test func copyChunksOfLegacyFile() async throws {
+        let dimensions: [UInt64] = [30, 11]
+        let chunks: [UInt64] = [4, 3]
+        let nChunks = 8 * 4
+        let values: [Float] = (0..<330).map { Float($0 % 97) / 20 }
+        // Chunks compressed by the current writer have the legacy encoding for this compression
+        let modern = try await writeFloatFile(dimensions: dimensions, chunks: chunks) { writer in
+            for chunk in 0..<nChunks {
+                let region = chunkRegion(dimensions: dimensions, chunks: chunks, chunkIndex: chunk)
+                // The elements of this chunk alone: the encoder cannot read a region that ends at the last column of a wider array
+                var dense: [Float] = []
+                for row in region.offset[0]..<region.offset[0] + region.count[0] {
+                    let start = Int(row * 11 + region.offset[1])
+                    let end = start + Int(region.count[1])
+                    dense.append(contentsOf: values[start..<end])
+                }
+                try writer.writeData(array: dense, arrayDimensions: region.count)
+            }
+        }
+        let modernReader = try await OmFileReader(fn: DataAsClass(data: modern)).asArray(of: Float.self)!
+        let modernRanges = try await modernReader.chunkByteRanges()
+        var legacy = Data([79, 77, 2, 0])
+        withUnsafeBytes(of: Float(20)) { legacy += $0 }
+        var header: [UInt64] = dimensions
+        header.append(contentsOf: chunks)
+        let firstOffset: UInt64 = modernRanges[0].offset
+        for range in modernRanges {
+            header.append(range.offset + range.count - firstOffset)
+        }
+        for value in header {
+            withUnsafeBytes(of: value.littleEndian) { legacy += $0 }
+        }
+        legacy += modern[Int(modernRanges[0].offset)..<Int(modernRanges[nChunks - 1].offset + modernRanges[nChunks - 1].count)]
+
+        let source = try await OmFileReader(fn: DataAsClass(data: legacy))
+        #expect(try await source.isLegacyFormat())
+        let legacyReader = source.asArray(of: Float.self, io_size_max: 256, io_size_merge: 16)!
+        let legacyRanges = try await legacyReader.chunkByteRanges()
+        #expect(legacyRanges.count == nChunks)
+        // Offsets are absolute in the legacy file, which has a different header and lookup table
+        let headerAndLut = UInt64(40 + 8 * nChunks)
+        for (legacyRange, modernRange) in zip(legacyRanges, modernRanges) {
+            #expect(legacyRange.offset == modernRange.offset - firstOffset + headerAndLut)
+            #expect(legacyRange.count == modernRange.count)
+        }
+
+        // Into a version 3 array of the same dimensions, dropping chunks 2 to 4 and 20
+        let keep: (Int) -> Bool = { !(2...4).contains($0) && $0 != 20 }
+        let copy = try await writeFloatFile(dimensions: dimensions, chunks: chunks) { writer in
+            try await copyChunks(from: legacyReader, into: writer, keep: keep)
+        }
+        var expected = values
+        for chunk in 0..<nChunks where !keep(chunk) {
+            let region = chunkRegion(dimensions: dimensions, chunks: chunks, chunkIndex: chunk)
+            for row in region.offset[0]..<region.offset[0] + region.count[0] {
+                for column in region.offset[1]..<region.offset[1] + region.count[1] {
+                    expected[Int(row * 11 + column)] = .nan
+                }
+            }
+        }
+        let result = try await OmFileReader(fn: DataAsClass(data: copy)).asArray(of: Float.self)!
+        #expect(try await result.read().elementsEqual(expected, by: { $0 == $1 || ($0.isNaN && $1.isNaN) }))
+    }
 }
