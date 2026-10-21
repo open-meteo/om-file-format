@@ -45,6 +45,13 @@ uint64_t om_encoder_count_chunks(const OmEncoder_t* encoder);
 /// Calculate how many chunks can be filled from a given input
 uint64_t om_encoder_count_chunks_in_array(const OmEncoder_t* encoder, const uint64_t* array_count);
 
+/// Validate a consecutive all-NaN region starting at chunk_index and return its chunk count.
+/// array_dimensions must contain array_dimension_count entries. The region must cover whole
+/// chunks, including partial edge chunks. Only float and double arrays support NaN chunks.
+/// On error, number_of_chunks is unchanged. On success, callers write no payload and set
+/// LUT entries chunk_index through chunk_index + number_of_chunks to the current byte offset.
+OmError_t om_encoder_count_nan_chunks(const OmEncoder_t* encoder, const uint64_t* array_dimensions, uint64_t array_dimension_count, uint64_t chunk_index, uint64_t* number_of_chunks);
+
 /// The buffer size required to collect a single chunk of data
 uint64_t om_encoder_chunk_buffer_size(const OmEncoder_t* encoder);
 

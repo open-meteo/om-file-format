@@ -6,6 +6,8 @@
 //
 
 #include "om_variable.h"
+#include "om_compression.h"
+#include <string.h>
 
 const OmVariable_t* om_variable_init(const void* src) {
     return src;
@@ -467,4 +469,66 @@ OmError_t om_variable_validate(const void* src, uint64_t buffer_size) {
         }
     }
     return ERROR_NOT_AN_OM_FILE;
+}
+
+OmError_t om_variable_chunk_index_read(const OmVariable_t* variable, uint64_t* offset, uint64_t* size, uint64_t* data_offset, uint64_t* entry_count) {
+    const OmMemoryLayout_t layout = _om_variable_memory_layout(variable);
+    if (layout == OM_MEMORY_LAYOUT_SCALAR) return ERROR_INVALID_DATA_TYPE;
+    const uint64_t dimension_count = om_variable_get_dimensions_count(variable);
+    const uint64_t* dimensions = om_variable_get_dimensions(variable);
+    const uint64_t* chunks = om_variable_get_chunks(variable);
+    if (dimension_count == 0) return ERROR_INVALID_DIMENSIONS;
+    uint64_t n = 1;
+    for (uint64_t i = 0; i < dimension_count; i++) {
+        if (dimensions[i] == 0) return ERROR_INVALID_DIMENSIONS;
+        if (chunks[i] == 0 || chunks[i] > dimensions[i]) return ERROR_INVALID_CHUNK_DIMENSIONS;
+        const uint64_t count = (dimensions[i] - 1) / chunks[i] + 1;
+        if (n > (UINT64_MAX - 1) / count) return ERROR_INVALID_DIMENSIONS;
+        n *= count;
+    }
+    *entry_count = n + 1;
+    *data_offset = 0;
+    if (layout == OM_MEMORY_LAYOUT_LEGACY) {
+        if (n > (UINT64_MAX - sizeof(OmHeaderV1_t)) / sizeof(uint64_t)) return ERROR_OUT_OF_BOUND_READ;
+        *offset = sizeof(OmHeaderV1_t);
+        *size = n * sizeof(uint64_t);
+        *data_offset = sizeof(OmHeaderV1_t) + *size;
+    } else {
+        const uint64_t blocks = n / LUT_CHUNK_COUNT + 1;
+        const OmVariableArrayV3_t* meta = (const OmVariableArrayV3_t*)variable;
+        *offset = meta->lut_offset;
+        *size = meta->lut_size;
+        if (*size == 0 || *size % blocks != 0) return ERROR_DEFLATED_SIZE_MISMATCH;
+    }
+    if (*size > UINT64_MAX - *offset) return ERROR_OUT_OF_BOUND_READ;
+    return ERROR_OK;
+}
+
+OmError_t om_variable_decode_chunk_index(const OmVariable_t* variable, const void* input, uint64_t input_size, uint64_t* output, uint64_t output_count) {
+    uint64_t offset, size, data_offset, entry_count;
+    OmError_t error = om_variable_chunk_index_read(variable, &offset, &size, &data_offset, &entry_count);
+    if (error != ERROR_OK) return error;
+    if (input_size != size || output_count != entry_count
+        || size > SIZE_MAX || output_count > SIZE_MAX / sizeof(uint64_t)
+        || input == NULL || output == NULL) return ERROR_OUT_OF_BOUND_READ;
+    if (_om_variable_memory_layout(variable) == OM_MEMORY_LAYOUT_LEGACY) {
+        output[0] = 0;
+        // memcpy also supports unaligned backend buffers.
+        memcpy(output + 1, input, (size_t)size);
+    } else {
+        const uint64_t lut_chunk_length = size / ((entry_count - 1) / LUT_CHUNK_COUNT + 1);
+        for (uint64_t i = 0, pos = 0; i < output_count; pos += lut_chunk_length) {
+            const uint64_t count = om_min(LUT_CHUNK_COUNT, output_count - i);
+            if (om_pfor_decode((const uint8_t*)input + pos, lut_chunk_length, count, output + i, 64, false) == SIZE_MAX) {
+                return ERROR_DEFLATED_SIZE_MISMATCH;
+            }
+            i += count;
+        }
+    }
+    for (uint64_t i = 0; i < output_count; i++) {
+        if (output[i] > UINT64_MAX - data_offset || (i > 0 && output[i] < output[i-1])) {
+            return ERROR_DEFLATED_SIZE_MISMATCH;
+        }
+    }
+    return ERROR_OK;
 }

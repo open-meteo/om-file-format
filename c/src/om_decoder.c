@@ -6,6 +6,7 @@
 //
 
 #include <assert.h>
+#include <math.h>
 #include "vp4.h"
 #include "fp.h"
 #include "conf.h"
@@ -610,30 +611,51 @@ bool om_decoder_next_data_read(const OmDecoder_t *decoder, OmDecoder_dataRead_t*
 
     // Loop to the next chunk until the end is reached
     while (true) {
-        const uint64_t nextLutChunk = (data_read->nextChunk.lowerBound + 1) / LUT_CHUNK_COUNT;
+        const uint64_t nextChunk = data_read->nextChunk.lowerBound;
+        const uint64_t firstChunk = nextChunk == data_read->chunkIndex.lowerBound ? nextChunk : chunkIndex + 1;
+        uint64_t dataStartPos = endPos;
+        uint64_t dataEndPos = endPos;
+        bool skippedEmptyChunk = false;
 
-        // Maybe the next LUT chunk needs to be uncompressed
-        if (nextLutChunk != lutChunk) {
-            const uint64_t nextLutChunkElementCount = om_min((nextLutChunk + 1) * LUT_CHUNK_COUNT, number_of_chunks+1) - nextLutChunk * LUT_CHUNK_COUNT;
-            const uint64_t start = nextLutChunk * lutChunkLength - lutOffset;
-            if (start > index_data_size || lutChunkLength > index_data_size - start || nextLutChunkElementCount > LUT_CHUNK_COUNT) {
-                (*error) = ERROR_OUT_OF_BOUND_READ;
-                return false;
+        // Inspect every skipped chunk before merging. The payload decoder walks
+        // the whole merged range and cannot locate an empty chunk without its LUT.
+        for (uint64_t inspectChunk = firstChunk; inspectChunk <= nextChunk; inspectChunk++) {
+            const uint64_t nextLutChunk = (inspectChunk + 1) / LUT_CHUNK_COUNT;
+            if (nextLutChunk != lutChunk) {
+                const uint64_t nextLutChunkElementCount = om_min((nextLutChunk + 1) * LUT_CHUNK_COUNT, number_of_chunks+1) - nextLutChunk * LUT_CHUNK_COUNT;
+                const uint64_t start = nextLutChunk * lutChunkLength - lutOffset;
+                if (start > index_data_size || lutChunkLength > index_data_size - start || nextLutChunkElementCount > LUT_CHUNK_COUNT) {
+                    (*error) = ERROR_OUT_OF_BOUND_READ;
+                    return false;
+                }
+
+                if (om_pfor_decode(indexDataPtr + start, lutChunkLength, nextLutChunkElementCount, uncompressedLut, 64, false) == SIZE_MAX) {
+                    *error = ERROR_DEFLATED_SIZE_MISMATCH;
+                    return false;
+                }
+                lutChunk = nextLutChunk;
             }
 
-            // Decompress LUT chunk
-            if (om_pfor_decode(indexDataPtr + start, lutChunkLength, nextLutChunkElementCount, uncompressedLut, 64, false) == SIZE_MAX) {
+            dataStartPos = dataEndPos;
+            dataEndPos = uncompressedLut[(inspectChunk + 1) % LUT_CHUNK_COUNT];
+            if (dataEndPos < dataStartPos) {
                 *error = ERROR_DEFLATED_SIZE_MISMATCH;
                 return false;
             }
-            lutChunk = nextLutChunk;
+            if (inspectChunk < nextChunk && (dataEndPos == dataStartPos || startPos == endPos)) {
+                // Also keep an existing all-empty range separate from skipped
+                // nonempty chunks.
+                skippedEmptyChunk = true;
+                break;
+            }
+        }
+        if (skippedEmptyChunk) {
+            break;
         }
 
-        const uint64_t dataEndPos = uncompressedLut[(data_read->nextChunk.lowerBound + 1) % LUT_CHUNK_COUNT];
-
-        if (dataEndPos < endPos) {
-            *error = ERROR_DEFLATED_SIZE_MISMATCH;
-            return false;
+        if (data_read->nextChunk.lowerBound != data_read->chunkIndex.lowerBound
+            && ((dataEndPos == dataStartPos) != (endPos == startPos))) {
+            break;
         }
 
         // Merge and split IO requests, ensuring at least one IO request is sent
@@ -746,7 +768,8 @@ uint64_t _om_decoder_decode_chunk(
 
     const uint64_t lengthInChunk = rollingMultiplyChunkLength;
 
-    const uint64_t uncompressedBytes = om_decode_decompress(
+    const bool empty = data_size == 0;
+    const uint64_t uncompressedBytes = empty ? 0 : om_decode_decompress(
         decoder->data_type,
         decoder->compression,
         data,
@@ -760,12 +783,20 @@ uint64_t _om_decoder_decode_chunk(
     }
 
     // Perform 2D decoding
-    om_decode_filter(decoder->data_type, decoder->compression, chunk_buffer, lengthInChunk, lengthLast);
+    if (!empty) om_decode_filter(decoder->data_type, decoder->compression, chunk_buffer, lengthInChunk, lengthLast);
 
     // Copy data from the chunk buffer to the output buffer.
     while (true) {
         // Copy values from chunk buffer into output buffer
-        om_decode_copy(
+        if (empty) {
+            for (int64_t j = 0; j < linearReadCount; j++) {
+                if (decoder->data_type == DATA_TYPE_FLOAT_ARRAY) {
+                    ((float*)into)[q + j] = NAN;
+                } else {
+                    ((double*)into)[q + j] = NAN;
+                }
+            }
+        } else om_decode_copy(
             decoder->data_type,
             decoder->compression,
             linearReadCount,
@@ -841,18 +872,20 @@ uint64_t _om_decoder_decode_chunk(
 }
 
 bool om_decoder_decode_chunks(const OmDecoder_t *decoder, OmRange_t chunk, const void *data, uint64_t data_size, void *into, void *chunkBuffer, OmError_t *error) {
+    const bool empty = data_size == 0 && decoder->lut_chunk_length != 0
+        && (decoder->data_type == DATA_TYPE_FLOAT_ARRAY || decoder->data_type == DATA_TYPE_DOUBLE_ARRAY);
     uint64_t pos = 0;
     // printf("chunkIndex.lowerBound %lu %lu\n",chunk.lowerBound,chunk.upperBound);
     for (uint64_t chunkNum = chunk.lowerBound; chunkNum < chunk.upperBound; ++chunkNum) {
         // printf("chunkIndex %lu pos=%lu dataCount=%lu \n",chunkNum, pos, data_size);
-        if (pos >= data_size) {
+        if (!empty && pos >= data_size) {
             (*error) = ERROR_DEFLATED_SIZE_MISMATCH;
             return false;
         }
         if (*error != ERROR_OK) {
             return false;
         }
-        uint64_t uncompressedBytes = _om_decoder_decode_chunk(decoder, chunkNum, (const uint8_t *)data + pos, data_size - pos, into, chunkBuffer);
+        uint64_t uncompressedBytes = _om_decoder_decode_chunk(decoder, chunkNum, empty ? NULL : (const uint8_t *)data + pos, data_size - pos, into, chunkBuffer);
         if (uncompressedBytes == SIZE_MAX || uncompressedBytes > data_size - pos) {
             *error = ERROR_DEFLATED_SIZE_MISMATCH;
             return false;

@@ -140,6 +140,108 @@ import OmFileFormatC
         #expect(child.readScalar() == Int32(42))
     }
 
+    @Test func countNaNChunksC() {
+        let dimensions: [UInt64] = [3, 5]
+        let chunks: [UInt64] = [1, 2]
+        dimensions.withUnsafeBufferPointer { dimensions in
+            chunks.withUnsafeBufferPointer { chunks in
+                var encoder = OmEncoder_t()
+                #expect(om_encoder_init(&encoder, 1, 0, COMPRESSION_PFOR_DELTA2D,
+                                        DATA_TYPE_FLOAT_ARRAY, dimensions.baseAddress, chunks.baseAddress, 2) == ERROR_OK)
+                var count: UInt64 = 99
+                // A region ending in a partial edge chunk, starting midway through a row.
+                #expect(om_encoder_count_nan_chunks(&encoder, [1, 3], 2, 4, &count) == ERROR_OK)
+                #expect(count == 2)
+                // Errors must leave the caller's result unchanged.
+                #expect(om_encoder_count_nan_chunks(&encoder, [2, 2], 2, 0, &count) == ERROR_INVALID_CHUNK_DIMENSIONS)
+                #expect(om_encoder_count_nan_chunks(&encoder, [1, 2], 2, 9, &count) == ERROR_INVALID_CHUNK_DIMENSIONS)
+                #expect(om_encoder_count_nan_chunks(&encoder, [1, 2], 2, UInt64.max, &count) == ERROR_INVALID_CHUNK_DIMENSIONS)
+                #expect(om_encoder_count_nan_chunks(&encoder, [1], 1, 0, &count) == ERROR_INVALID_DIMENSIONS)
+                #expect(count == 2)
+                encoder.data_type = UInt8(DATA_TYPE_INT32_ARRAY.rawValue)
+                #expect(om_encoder_count_nan_chunks(&encoder, [1, 5], 2, 0, &count) == ERROR_INVALID_DATA_TYPE)
+                #expect(count == 2)
+            }
+        }
+    }
+
+    @Test func writeNaN() async throws {
+        let backend = DataAsClass(data: Data())
+        let fileWriter = OmFileWriter(fn: backend, initialCapacity: 8)
+        let writer = try fileWriter.prepareArray(
+            type: Float.self, dimensions: [3, 5], chunkDimensions: [1, 2],
+            compression: .pfor_delta2d_int16, scale_factor: 1, add_offset: 0
+        )
+        #expect(throws: OmFileFormatSwiftError.self) { try writer.writeNaN(arrayDimensions: [1]) }
+        #expect(throws: OmFileFormatSwiftError.self) { try writer.writeNaN(arrayDimensions: [1, 0]) }
+        #expect(throws: OmFileFormatSwiftError.self) { try writer.writeNaN(arrayDimensions: [1, 3]) }
+        #expect(throws: OmFileFormatSwiftError.self) { try writer.writeNaN(arrayDimensions: [2, 2]) }
+        let bytesBefore = writer.buffer.totalBytesWritten
+        try writer.writeNaN(arrayDimensions: [1, 5])
+        #expect(writer.buffer.totalBytesWritten == bytesBefore)
+        try writer.writeData(array: [1, 2], arrayDimensions: [1, 2])
+        try writer.writeNaN(arrayDimensions: [1, 3])
+        try writer.writeData(array: [3, 4, 5, 6, 7], arrayDimensions: [1, 5])
+        #expect(throws: OmFileFormatSwiftError.self) { try writer.writeNaN(arrayDimensions: [1, 2]) }
+        let metadata = try writer.finalise()
+        let variable = try fileWriter.write(array: metadata, name: "data", children: [])
+        try fileWriter.writeTrailer(rootVariable: variable)
+        let reader = try await OmFileReader(fn: backend).asArray(of: Float.self)!
+        let result = try await reader.read()
+        #expect(result[0..<5].allSatisfy { $0.isNaN })
+        #expect(Array(result[5..<7]) == [1, 2])
+        #expect(result[7..<10].allSatisfy { $0.isNaN })
+        #expect(Array(result[10..<15]) == [3, 4, 5, 6, 7])
+    }
+
+    @Test func allNaNChunks() async throws {
+        for compression in [OmCompressionType.pfor_delta2d_int16, .pfor_delta2d_int16_logarithmic, .pfor_delta2d, .fpx_xor2d] {
+            try await checkNaNChunks(type: Float.self, compression: compression)
+        }
+        for compression in [OmCompressionType.pfor_delta2d, .fpx_xor2d] {
+            try await checkNaNChunks(type: Double.self, compression: compression)
+        }
+    }
+
+    private func checkNaNChunks<T: OmFileArrayDataTypeProtocol & BinaryFloatingPoint>(
+        type: T.Type, compression: OmCompressionType
+    ) async throws {
+        // Includes consecutive empty chunks, mixed chunks, and a partial edge
+        // chunk, crossing the 64-entry LUT block boundary.
+        for allEmpty in [false, true] {
+            let data: [T] = (0..<135).map { i in
+                allEmpty || i / 2 % 4 < 2 ? T.nan : T(9)
+            }
+            let backend = DataAsClass(data: Data())
+            let fileWriter = OmFileWriter(fn: backend, initialCapacity: 8)
+            let writer = try fileWriter.prepareArray(
+                type: T.self, dimensions: [3, 45], chunkDimensions: [1, 2],
+                compression: compression, scale_factor: 10, add_offset: 0
+            )
+            if allEmpty {
+                try writer.writeNaN(arrayDimensions: [3, 45])
+            } else {
+                try writer.writeData(array: data)
+            }
+            let metadata = try writer.finalise()
+            if allEmpty {
+                #expect(metadata.lutOffset == UInt64(om_header_write_size()))
+            }
+            let variable = try fileWriter.write(array: metadata, name: "data", children: [])
+            try fileWriter.writeTrailer(rootVariable: variable)
+            // Reject zero-byte backend requests, as HTTP Range readers do.
+            let reader = try await OmFileReader(fn: SuspendingBackend(data: backend.data)).asArray(of: T.self)!
+            try await reader.willNeed(range: [0..<3, 0..<45])
+            let decoded = try await reader.read()
+            #expect(zip(decoded, data).allSatisfy { $0.isNaN ? $1.isNaN : $0 == $1 })
+            let concurrent = try await reader.readConcurrent(range: [0..<3, 0..<45])
+            #expect(zip(concurrent, data).allSatisfy { $0.isNaN ? $1.isNaN : $0 == $1 })
+            let subset = try await reader.read(range: [0..<3, 1..<4])
+            let expected = (0..<3).flatMap { Array(data[($0 * 45 + 1)..<($0 * 45 + 4)]) }
+            #expect(zip(subset, expected).allSatisfy { $0.isNaN ? $1.isNaN : $0 == $1 })
+        }
+    }
+
     @Test func inMemory() async throws {
         let inMemoryBackend = DataAsClass(data: Data())
         let fileWriter = OmFileWriter(fn: inMemoryBackend, initialCapacity: 8)
@@ -1040,9 +1142,16 @@ final class SuspendingBackend: OmFileReaderBackend {
         data.count
     }
 
-    func prefetchData(offset: Int, count: Int) async throws {}
+    func prefetchData(offset: Int, count: Int) async throws {
+        guard count > 0 else {
+            throw OmFileFormatSwiftError.omDecoder(error: "Empty backend prefetch")
+        }
+    }
 
     func getData(offset: Int, count: Int) async throws -> Bytes {
+        guard count > 0 else {
+            throw OmFileFormatSwiftError.omDecoder(error: "Empty backend read")
+        }
         try await Task.sleep(nanoseconds: 100_000)
         return Bytes(data: data[offset..<offset + count])
     }
