@@ -87,9 +87,10 @@ mod tests {
         unsafe { crate::delta2d_encode16(2, 5, buffer.as_mut_ptr()) };
         assert_eq!(buffer, vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
 
-        let mut buffer: Vec<u8> = vec![2, 0, 3, 0, 7, 0, 8, 0];
-        unsafe { crate::delta2d_encode16(4, 2, buffer.as_mut_ptr() as *mut i16) }
-        assert_eq!(&buffer, &[2, 0, 3, 0, 5, 0, 5, 0])
+        // Dimensions count i16 elements, not bytes: this buffer is 2 × 2.
+        let mut buffer: Vec<i16> = vec![2, 3, 7, 8];
+        unsafe { crate::delta2d_encode16(2, 2, buffer.as_mut_ptr()) }
+        assert_eq!(&buffer, &[2, 3, 5, 5])
     }
 
     #[test]
