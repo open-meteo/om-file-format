@@ -147,6 +147,10 @@ Legacy Binary Format:
 New Binary Format:
 - 3 byte: header (magic number "OM" + version)
 - Blob: Compressed data and lookup table LUT
+- Blob: Binary encoded meta data
+- 24 byte: Trailer with address to root variable
+
+#### Zero-byte NaN chunks
 
 For version 3 floating-point arrays, equal adjacent LUT offsets represent an
 all-NaN chunk with no payload bytes. Readers reconstruct these chunks as NaNs;
@@ -157,12 +161,17 @@ nonnil address behaves the same way. This is supported only for Float/Double
 arrays and includes partial edge chunks. Use `writeNaN(arrayDimensions:)` to
 write a region containing multiple whole chunks.
 
+This representation is opt-in: `writeData` still compresses all-NaN input normally.
 Integer chunks always retain their compressed payload. Files using empty chunks
 require a reader that supports this convention; older readers cannot decode them.
-- Blob: Binary encoded meta data
-- 24 byte: Trailer with address to root variable
+The Swift reader reconstructs empty chunks without issuing backend reads, including
+HTTP range requests.
 
-Binary representation:
+See the [Swift chunk inspection and copying examples](./Swift/README.md#inspecting-and-copying-chunks)
+for using `chunkIndex()`, `chunkLayout()`, and `writeCompressedChunk(_:)`.
+
+### Binary representation
+
 - File header with magic number and version
 - File trailer with offsets and size of the root variable
 - Variable has attributes: date type (8bit), compression type (8bit), size_of_name (16bit), count_of_attributes (32bit)
