@@ -471,7 +471,7 @@ OmError_t om_variable_validate(const void* src, uint64_t buffer_size) {
     return ERROR_NOT_AN_OM_FILE;
 }
 
-OmError_t om_variable_lut_read(const OmVariable_t* variable, uint64_t* offset, uint64_t* size, uint64_t* data_offset, uint64_t* entry_count) {
+OmError_t om_variable_chunk_index_read(const OmVariable_t* variable, uint64_t* offset, uint64_t* size, uint64_t* data_offset, uint64_t* entry_count) {
     const OmMemoryLayout_t layout = _om_variable_memory_layout(variable);
     if (layout == OM_MEMORY_LAYOUT_SCALAR) return ERROR_INVALID_DATA_TYPE;
     const uint64_t dimension_count = om_variable_get_dimensions_count(variable);
@@ -504,9 +504,9 @@ OmError_t om_variable_lut_read(const OmVariable_t* variable, uint64_t* offset, u
     return ERROR_OK;
 }
 
-OmError_t om_variable_decode_lut(const OmVariable_t* variable, const void* input, uint64_t input_size, uint64_t* output, uint64_t output_count) {
+OmError_t om_variable_decode_chunk_index(const OmVariable_t* variable, const void* input, uint64_t input_size, uint64_t* output, uint64_t output_count) {
     uint64_t offset, size, data_offset, entry_count;
-    OmError_t error = om_variable_lut_read(variable, &offset, &size, &data_offset, &entry_count);
+    OmError_t error = om_variable_chunk_index_read(variable, &offset, &size, &data_offset, &entry_count);
     if (error != ERROR_OK) return error;
     if (input_size != size || output_count != entry_count
         || size > SIZE_MAX || output_count > SIZE_MAX / sizeof(uint64_t)

@@ -54,7 +54,7 @@ import OmFileFormatC
         for io in Self.ioSizes {
             // SuspendingBackend refuses zero byte reads, like an HTTP range request
             let reader = try await OmFileReader(fn: SuspendingBackend(data: file)).asArray(of: Float.self, io_size_max: io.max, io_size_merge: io.merge)!
-            let ranges = try await reader.chunkByteRanges()
+            let ranges = try await reader.chunkIndex()
             #expect((0..<Self.chunkCount).allSatisfy { (ranges[$0].count == 0) == Self.isNaN(chunk: $0) })
             for range in Self.ranges {
                 let r3: InlineArray<3, Range<UInt64>> = [range[0], range[1], range[2]]

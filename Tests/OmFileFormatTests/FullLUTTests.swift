@@ -41,16 +41,16 @@ import OmFileFormatC
                     var size: UInt64 = 0
                     var dataOffset: UInt64 = 0
                     var entryCount: UInt64 = 0
-                    #expect(om_variable_lut_read(variable, &offset, &size, &dataOffset, &entryCount) == ERROR_OK)
+                    #expect(om_variable_chunk_index_read(variable, &offset, &size, &dataOffset, &entryCount) == ERROR_OK)
                     #expect(entryCount == UInt64(n + 1))
                     #expect(offset == (legacy ? 40 : 1000))
                     #expect(size == UInt64(input.count))
                     #expect(dataOffset == (legacy ? UInt64(40 + 8 * n) : 0))
                     var output = Array(repeating: UInt64.max, count: Int(entryCount))
-                    #expect(om_variable_decode_lut(variable, input, size, &output, entryCount) == ERROR_OK)
+                    #expect(om_variable_decode_chunk_index(variable, input, size, &output, entryCount) == ERROR_OK)
                     #expect(output == expected)
-                    #expect(om_variable_decode_lut(variable, input, size - 1, &output, entryCount) == ERROR_OUT_OF_BOUND_READ)
-                    #expect(om_variable_decode_lut(variable, input, size, &output, UInt64(n)) == ERROR_OUT_OF_BOUND_READ)
+                    #expect(om_variable_decode_chunk_index(variable, input, size - 1, &output, entryCount) == ERROR_OUT_OF_BOUND_READ)
+                    #expect(om_variable_decode_chunk_index(variable, input, size, &output, UInt64(n)) == ERROR_OUT_OF_BOUND_READ)
                 }
             }
         }
@@ -64,7 +64,7 @@ import OmFileFormatC
                 let input = offsets.flatMap { value in
                     withUnsafeBytes(of: value.littleEndian) { Array($0) }
                 }
-                #expect(om_variable_decode_lut(variable, input, 16, &output, 3) == ERROR_DEFLATED_SIZE_MISMATCH)
+                #expect(om_variable_decode_chunk_index(variable, input, 16, &output, 3) == ERROR_DEFLATED_SIZE_MISMATCH)
             }
         }
     }
@@ -77,7 +77,7 @@ import OmFileFormatC
                     var size: UInt64 = 0
                     var dataOffset: UInt64 = 0
                     var entryCount: UInt64 = 0
-                    #expect(om_variable_lut_read(om_variable_init($0.baseAddress), &offset, &size, &dataOffset, &entryCount) == ERROR_INVALID_DIMENSIONS)
+                    #expect(om_variable_chunk_index_read(om_variable_init($0.baseAddress), &offset, &size, &dataOffset, &entryCount) == ERROR_INVALID_DIMENSIONS)
                 }
             }
         }
@@ -88,7 +88,7 @@ import OmFileFormatC
                 var size: UInt64 = 0
                 var dataOffset: UInt64 = 0
                 var entryCount: UInt64 = 0
-                #expect(om_variable_lut_read(om_variable_init($0.baseAddress), &offset, &size, &dataOffset, &entryCount) == ERROR_DEFLATED_SIZE_MISMATCH)
+                #expect(om_variable_chunk_index_read(om_variable_init($0.baseAddress), &offset, &size, &dataOffset, &entryCount) == ERROR_DEFLATED_SIZE_MISMATCH)
             }
         }
     }

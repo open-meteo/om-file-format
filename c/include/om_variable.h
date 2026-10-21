@@ -86,12 +86,12 @@ float om_variable_get_add_offset(const OmVariable_t* variable);
 /// Describe one read of the entire LUT, ignoring IO limits. data_offset is
 /// added to decoded entries to obtain absolute file offsets (zero for v3).
 /// entry_count is the required output length, number_of_chunks + 1.
-OmError_t om_variable_lut_read(const OmVariable_t* variable, uint64_t* offset, uint64_t* size, uint64_t* data_offset, uint64_t* entry_count);
+OmError_t om_variable_chunk_index_read(const OmVariable_t* variable, uint64_t* offset, uint64_t* size, uint64_t* data_offset, uint64_t* entry_count);
 
 /// Decode the entire LUT into exactly number_of_chunks + 1 entries.
 /// Legacy tables gain an initial zero; v3 entries are absolute file offsets.
 /// Checks input/output sizes, monotonicity and offset overflow.
-OmError_t om_variable_decode_lut(const OmVariable_t* variable, const void* input, uint64_t input_size, uint64_t* output, uint64_t output_count);
+OmError_t om_variable_decode_chunk_index(const OmVariable_t* variable, const void* input, uint64_t input_size, uint64_t* output, uint64_t output_count);
 
 /// Get number of dimensions
 uint64_t om_variable_get_dimensions_count(const OmVariable_t* variable);

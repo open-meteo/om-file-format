@@ -1,6 +1,6 @@
 /// Compressed chunk ranges backed by a decoded lookup table.
 /// Equal adjacent entries represent an empty (all-NaN) chunk.
-public struct OmFileChunkByteRanges: RandomAccessCollection, Sendable {
+public struct OmFileChunkIndex: RandomAccessCollection, Sendable {
     /// One entry per chunk plus the final end offset.
     public let lut: [UInt64]
     /// Added to LUT entries to obtain file offsets. Nonzero for legacy files.

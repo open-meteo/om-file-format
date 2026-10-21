@@ -266,7 +266,7 @@ public final class OmFileWriterArray<OmType: OmFileArrayDataTypeProtocol, FileHa
         chunkIndex = end
     }
 
-    /// Append the bytes of an already compressed chunk as the next chunk, for example a range read with `chunkByteRanges` from a file with the same dimensions, chunks and compression.
+    /// Append the bytes of an already compressed chunk as the next chunk, for example a range read with `chunkIndex` from a file with the same dimensions, chunks and compression.
     /// The bytes are not checked. Use `writeNaN` for an empty chunk, as equal lookup table entries are only valid for floating point NaN chunks.
     public func writeCompressedChunk(_ bytes: UnsafeRawBufferPointer) throws {
         guard !bytes.isEmpty, chunkIndex + 1 < lookUpTable.count else {

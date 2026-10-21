@@ -35,14 +35,13 @@ func chunkRegion(dimensions: [UInt64], chunks: [UInt64], chunkIndex: Int) -> (of
 /// Copy the chunks `keep` selects without decoding them and write the others as NaN.
 /// Neighbouring kept chunks are fetched with one read, as a caller reading over a network would.
 func copyChunks<Backend: OmFileReaderBackend>(from reader: OmFileReaderArray<Backend, Float>, into writer: OmFileWriterArray<Float, FileHandle>, keep: (Int) -> Bool) async throws {
-    let ranges = try await reader.chunkByteRanges()
-    let dimensions = reader.getDimensions()
-    let chunks = reader.getChunkDimensions()
+    let ranges = try await reader.chunkIndex()
+    let layout = try reader.chunkLayout()
     func kept(_ chunk: Int) -> Bool { keep(chunk) && ranges[chunk].count > 0 }
     var first = 0
     while first < ranges.count {
         guard kept(first) else {
-            try writer.writeNaN(arrayDimensions: chunkRegion(dimensions: dimensions, chunks: chunks, chunkIndex: first).count)
+            try writer.writeNaN(arrayDimensions: layout[first].shape)
             first += 1
             continue
         }
@@ -81,7 +80,7 @@ func copyChunks<Backend: OmFileReaderBackend>(from reader: OmFileReaderArray<Bac
         return (file, (0..<69).map { $0 / 23 == 1 || ($0 >= 46 && $0 % 2 == 1) })
     }
 
-    @Test func chunkByteRangesOfMixedFile() async throws {
+    @Test func chunkIndexOfMixedFile() async throws {
         let (file, isNaN) = try await Self.writeMixed()
         // A small, the default and a large io size must give the same ranges
         let ioSizes: [(max: UInt64, merge: UInt64)] = [(1, 0), (64, 16), (65536, 512), (1 << 20, 1 << 16)]
@@ -89,13 +88,22 @@ func copyChunks<Backend: OmFileReaderBackend>(from reader: OmFileReaderArray<Bac
             let backend = LUTRecordingBackend(data: file)
             let reader = try await OmFileReader(fn: backend).asArray(of: Float.self, io_size_max: io.max, io_size_merge: io.merge)!
             let before = await backend.reads.count
-            let ranges = try await reader.chunkByteRanges()
+            let layout = try reader.chunkLayout()
+            #expect(await backend.reads.count == before)
+            let ranges = try await reader.chunkIndex()
             let reads = await backend.reads
             #expect(reads.count == before + 1)
             #expect(ranges.lut.count == isNaN.count + 1)
             #expect(ranges.dataOffset == 0)
             #expect(Array(ranges.reversed()) == Array(ranges).reversed())
             #expect(ranges.count == isNaN.count)
+            #expect(layout.count == ranges.count)
+            for (index, pair) in zip(ranges, layout).enumerated() {
+                let expected = chunkRegion(dimensions: [3, 45], chunks: [1, 2], chunkIndex: index)
+                #expect(pair.0 == ranges[index])
+                #expect(pair.1.shape == expected.count)
+                #expect(pair.1.offset == expected.offset)
+            }
             var end = UInt64(om_header_write_size())
             var wrong = 0
             for (range, empty) in zip(ranges, isNaN) {
@@ -134,8 +142,8 @@ func copyChunks<Backend: OmFileReaderBackend>(from reader: OmFileReaderArray<Bac
             }
         }
         // Copying again keeps the bytes of a kept chunk as they are
-        let ranges = try await source.chunkByteRanges()
-        let copyRanges = try await result.chunkByteRanges()
+        let ranges = try await source.chunkIndex()
+        let copyRanges = try await result.chunkIndex()
         for chunk in 0..<ranges.count {
             #expect(copyRanges[chunk].count == (keep(chunk) ? ranges[chunk].count : 0))
         }
@@ -172,7 +180,7 @@ func copyChunks<Backend: OmFileReaderBackend>(from reader: OmFileReaderArray<Bac
             }
         }
         let modernReader = try await OmFileReader(fn: DataAsClass(data: modern)).asArray(of: Float.self)!
-        let modernRanges = try await modernReader.chunkByteRanges()
+        let modernRanges = try await modernReader.chunkIndex()
         var legacy = Data([79, 77, 2, 0])
         withUnsafeBytes(of: Float(20)) { legacy += $0 }
         var header: [UInt64] = dimensions
@@ -191,7 +199,7 @@ func copyChunks<Backend: OmFileReaderBackend>(from reader: OmFileReaderArray<Bac
         #expect(try await source.isLegacyFormat())
         let legacyReader = source.asArray(of: Float.self, io_size_max: 256, io_size_merge: 16)!
         let before = await backend.reads.count
-        let legacyRanges = try await legacyReader.chunkByteRanges()
+        let legacyRanges = try await legacyReader.chunkIndex()
         let reads = await backend.reads
         #expect(reads.count == before + 1)
         #expect(reads.last == 40..<(40 + 8 * nChunks))
@@ -199,6 +207,15 @@ func copyChunks<Backend: OmFileReaderBackend>(from reader: OmFileReaderArray<Bac
         #expect(legacyRanges.lut.first == 0)
         #expect(legacyRanges.dataOffset == UInt64(40 + 8 * nChunks))
         #expect(legacyRanges.count == nChunks)
+        let legacyLayout = try legacyReader.chunkLayout()
+        #expect(legacyLayout.count == legacyRanges.count)
+        for (index, pair) in zip(legacyRanges, legacyLayout).enumerated() {
+            let (byteRange, chunk) = pair
+            let expected = chunkRegion(dimensions: dimensions, chunks: chunks, chunkIndex: index)
+            #expect(chunk.offset == expected.offset)
+            #expect(chunk.shape == expected.count)
+            #expect(byteRange == legacyRanges[index])
+        }
         // Offsets are absolute in the legacy file, which has a different header and lookup table
         let headerAndLut = UInt64(40 + 8 * nChunks)
         for (legacyRange, modernRange) in zip(legacyRanges, modernRanges) {
