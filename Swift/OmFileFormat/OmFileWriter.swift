@@ -266,6 +266,32 @@ public final class OmFileWriterArray<OmType: OmFileArrayDataTypeProtocol, FileHa
         chunkIndex = end
     }
 
+    /// Append an already compressed chunk, for example a range from `chunkIndex()`
+    /// of a file with the same dimensions, chunks, compression, scale factor and offset.
+    /// A nil base address or an empty buffer writes one zero-byte all-NaN chunk
+    /// (Float/Double arrays only), including partial edge chunks. No payload is written.
+    /// Nonempty compressed bytes are not validated. Throws if no chunks remain.
+    public func writeCompressedChunk(_ bytes: UnsafeRawBufferPointer) throws {
+        guard chunkIndex + 1 < lookUpTable.count else {
+            throw OmFileFormatSwiftError.chunkHasWrongNumberOfElements
+        }
+        let chunkOffset = UInt64(buffer.totalBytesWritten)
+        if let baseAddress = bytes.baseAddress, !bytes.isEmpty {
+            try buffer.reallocate(minimumCapacity: bytes.count)
+            buffer.bufferAtWritePosition.copyMemory(from: baseAddress, byteCount: bytes.count)
+            buffer.incrementWritePosition(by: bytes.count)
+        } else {
+            guard OmType.dataTypeArray == .float_array || OmType.dataTypeArray == .double_array else {
+                throw OmFileFormatSwiftError.invalidDataType
+            }
+        }
+        if chunkIndex == 0 {
+            lookUpTable[chunkIndex] = chunkOffset
+        }
+        lookUpTable[chunkIndex+1] = UInt64(buffer.totalBytesWritten)
+        chunkIndex += 1
+    }
+
     /// Compress the lookup table and write it to the output buffer
     public func finalise() throws -> OmFileWriterArrayFinalised {
         let lut_offset = buffer.totalBytesWritten

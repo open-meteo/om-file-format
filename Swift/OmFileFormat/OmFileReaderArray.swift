@@ -210,6 +210,49 @@ public struct OmFileReaderArray<Backend: OmFileReaderBackend, OmType: OmFileArra
         try await fn.decodePrefetch(decoder: &decoder)
     }
 
+    /// Shapes and array offsets in the same order as chunkIndex().
+    /// Uses metadata already loaded by the reader; performs no backend reads.
+    public func chunkLayout() throws -> OmFileChunkLayout {
+        try OmFileChunkLayout(dimensions: getDimensions(), chunkDimensions: getChunkDimensions())
+    }
+
+    /// Absolute file byte ranges of every compressed chunk, in chunk order, for both lookup table layouts.
+    /// A NaN chunk has an empty range. Reads the entire lookup table in one request, ignoring IO limits.
+    /// Together with `fn` and `OmFileWriterArray.writeCompressedChunk` this copies chunks without decoding them.
+    public func chunkIndex() async throws -> OmFileChunkIndex {
+        var offset: UInt64 = 0
+        var size: UInt64 = 0
+        var dataOffset: UInt64 = 0
+        var entryCount: UInt64 = 0
+        let error = variable.withUnsafeBytes {
+            om_variable_chunk_index_read(om_variable_init($0.baseAddress), &offset, &size, &dataOffset, &entryCount)
+        }
+        guard error == ERROR_OK else {
+            throw OmFileFormatSwiftError.omDecoder(error: String(cString: om_error_string(error)))
+        }
+        guard let readOffset = Int(exactly: offset), let readSize = Int(exactly: size),
+              readOffset <= fn.count, readSize <= fn.count - readOffset,
+              entryCount <= UInt64(Int.max / MemoryLayout<UInt64>.stride) else {
+            throw OmFileFormatSwiftError.omDecoder(error: "Lookup table is out of bounds")
+        }
+        let data = try await fn.getDataChecked(offset: readOffset, count: readSize)
+        let lut = try [UInt64](unsafeUninitializedCapacity: Int(entryCount)) { buffer, initializedCount in
+            let decodeError = variable.withUnsafeBytes { metadata in
+                data.withUnsafeBytes {
+                    om_variable_decode_chunk_index(om_variable_init(metadata.baseAddress), $0.baseAddress, UInt64($0.count), buffer.baseAddress, entryCount)
+                }
+            }
+            guard decodeError == ERROR_OK else {
+                throw OmFileFormatSwiftError.omDecoder(error: String(cString: om_error_string(decodeError)))
+            }
+            initializedCount = buffer.count
+        }
+        guard let last = lut.last, last <= UInt64(fn.count), dataOffset <= UInt64(fn.count) - last else {
+            throw OmFileFormatSwiftError.omDecoder(error: "Chunk data is out of bounds")
+        }
+        return OmFileChunkIndex(lut: lut, dataOffset: dataOffset)
+    }
+
     /// Read variable as float array
     public func readConcurrent<let nDimensions: Int>(offset: InlineArray<nDimensions, UInt64>, count: InlineArray<nDimensions, UInt64>) async throws -> [OmType] {
         let n = (0..<nDimensions).reduce(1, {$0 * count[$1]})
