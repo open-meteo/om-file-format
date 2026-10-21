@@ -2,8 +2,8 @@
 /// Matches the order of OmFileChunkIndex, including empty chunks.
 /// Stores only array layout metadata; each element is computed on access.
 public struct OmFileChunkLayout: RandomAccessCollection, Sendable {
-    private let dimensions: [UInt64]
-    private let chunkDimensions: [UInt64]
+    public let dimensions: [UInt64]
+    public let chunkDimensions: [UInt64]
 
     public var startIndex: Int { 0 }
     public let endIndex: Int
