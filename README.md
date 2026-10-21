@@ -151,6 +151,12 @@ New Binary Format:
 For version 3 floating-point arrays, equal adjacent LUT offsets represent an
 all-NaN chunk with no payload bytes. Readers reconstruct these chunks as NaNs;
 NaN sign and payload bits are not preserved for such chunks, including FPX.
+In Swift, `writeCompressedChunk(UnsafeRawBufferPointer(start: nil, count: 0))`
+appends one all-NaN chunk without writing payload bytes. An empty buffer with a
+nonnil address behaves the same way. This is supported only for Float/Double
+arrays and includes partial edge chunks. Use `writeNaN(arrayDimensions:)` to
+write a region containing multiple whole chunks.
+
 Integer chunks always retain their compressed payload. Files using empty chunks
 require a reader that supports this convention; older readers cannot decode them.
 - Blob: Binary encoded meta data

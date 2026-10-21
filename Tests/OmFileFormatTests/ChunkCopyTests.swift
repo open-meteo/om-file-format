@@ -151,12 +151,67 @@ func copyChunks<Backend: OmFileReaderBackend>(from reader: OmFileReaderArray<Bac
 
     @Test func writeCompressedChunkRefusesWrongCalls() async throws {
         _ = try await writeFloatFile(dimensions: [1, 4], chunks: [1, 2]) { writer in
-            #expect(throws: OmFileFormatSwiftError.self) { try writer.writeCompressedChunk(UnsafeRawBufferPointer(start: nil, count: 0)) }
             try writer.writeData(array: [1, 2, 3, 4], arrayDimensions: [1, 4])
-            // Both chunks are written
+            // Both empty and nonempty writes must reject a full array.
+            #expect(throws: OmFileFormatSwiftError.self) {
+                try writer.writeCompressedChunk(UnsafeRawBufferPointer(start: nil, count: 0))
+            }
             let byte: [UInt8] = [0]
             #expect(throws: OmFileFormatSwiftError.self) { try byte.withUnsafeBytes { try writer.writeCompressedChunk($0) } }
         }
+    }
+
+    @Test func writeEmptyCompressedChunks() async throws {
+        try await checkEmptyCompressedChunks(Float.self)
+        try await checkEmptyCompressedChunks(Double.self)
+    }
+
+    private func checkEmptyCompressedChunks<T: OmFileArrayDataTypeProtocol & BinaryFloatingPoint>(_ type: T.Type) async throws {
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent("empty-chunks-\(UUID()).om").path
+        defer { try? FileManager.default.removeItem(atPath: file) }
+        let handle = try FileHandle.createNewFile(file: file, overwrite: true)
+        defer { try? handle.close() }
+        let fileWriter = OmFileWriter(fn: handle, initialCapacity: 8)
+        let writer = try fileWriter.prepareArray(
+            type: type, dimensions: [1, 7], chunkDimensions: [1, 2],
+            compression: .fpx_xor2d, scale_factor: 1, add_offset: 0
+        )
+        let empty = UnsafeRawBufferPointer(start: nil, count: 0)
+        let before = writer.buffer.totalBytesWritten
+        try writer.writeCompressedChunk(empty)
+        #expect(writer.buffer.totalBytesWritten == before)
+        try writer.writeData(array: [T(1), T(2)], arrayDimensions: [1, 2])
+        let afterData = writer.buffer.totalBytesWritten
+        try [UInt8(42)].withUnsafeBytes {
+            // Empty with a nonnil address must behave like the nil buffer.
+            try writer.writeCompressedChunk(UnsafeRawBufferPointer(start: $0.baseAddress, count: 0))
+        }
+        try writer.writeCompressedChunk(empty) // Last chunk contains one element.
+        #expect(writer.buffer.totalBytesWritten == afterData)
+        let root = try fileWriter.write(array: try writer.finalise(), name: "data", children: [])
+        try fileWriter.writeTrailer(rootVariable: root)
+        let reader = try await OmFileReader(fn: DataAsClass(data: Data(contentsOf: URL(fileURLWithPath: file)))).asArray(of: T.self)!
+        let index = try await reader.chunkIndex()
+        #expect(index.map(\.isEmpty) == [true, false, true, true])
+        let values = try await reader.read()
+        #expect(values.count == 7)
+        #expect(values[0..<2].allSatisfy { $0.isNaN })
+        #expect(Array(values[2..<4]) == [T(1), T(2)])
+        #expect(values[4..<7].allSatisfy { $0.isNaN })
+    }
+
+    @Test func emptyCompressedChunkRejectsIntegers() throws {
+        let fileWriter = OmFileWriter(fn: DataAsClass(data: Data()), initialCapacity: 8)
+        let writer = try fileWriter.prepareArray(
+            type: Int32.self, dimensions: [1, 2], chunkDimensions: [1, 2],
+            compression: .pfor_delta2d, scale_factor: 1, add_offset: 0
+        )
+        let before = writer.buffer.totalBytesWritten
+        #expect(throws: OmFileFormatSwiftError.self) {
+            try writer.writeCompressedChunk(UnsafeRawBufferPointer(start: nil, count: 0))
+        }
+        #expect(writer.chunkIndex == 0)
+        #expect(writer.buffer.totalBytesWritten == before)
     }
 
     /// A legacy file stores flat dimensions [ny * nx, t], an uncompressed lookup table of chunk end offsets after a 40 byte header, and the chunks after that.
