@@ -24,6 +24,8 @@ public final class MmapFile: Sendable {
     public enum MAdvice {
         case willneed
         case dontneed
+        case random
+        case sequential
 
         fileprivate var mode: Int32 {
             switch self {
@@ -31,6 +33,10 @@ public final class MmapFile: Sendable {
                 return MADV_WILLNEED
             case .dontneed:
                 return MADV_DONTNEED
+            case .random:
+                return MADV_RANDOM
+            case .sequential:
+                return MADV_SEQUENTIAL
             }
         }
     }
@@ -42,7 +48,6 @@ public final class MmapFile: Sendable {
             let error = String(cString: strerror(errno))
             throw OmFileFormatSwiftError.cannotOpenFile(errno: errno, error: error)
         }
-        //madvise(mem, len, MADV_SEQUENTIAL)
         let start = mem.assumingMemoryBound(to: UInt8.self)
         self.data = UnsafeBufferPointer(start: start, count: len)
         self.file = fn
