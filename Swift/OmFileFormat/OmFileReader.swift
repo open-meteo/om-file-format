@@ -19,7 +19,8 @@ public struct OmFileReader<Backend: OmFileReaderBackend> {
         // Try to read version 3 files. If this fails, use legacy
         let fileSize = fn.count
         let trailerSize = om_trailer_size()
-        guard let (offset, size) = try await fn.withData(offset: fileSize - trailerSize, count: trailerSize, fn: { trailerData -> (UInt64, UInt64)? in
+        Self.adviseMetadata(fn: fn, offset: fileSize - trailerSize, count: trailerSize)
+        guard let (offset, size) = try await fn.withDataChecked(offset: fileSize - trailerSize, count: trailerSize, fn: { trailerData -> (UInt64, UInt64)? in
             var offset: UInt64 = 0
             var size: UInt64 = 0
             guard om_trailer_read(trailerData.baseAddress, &offset, &size) else {
@@ -29,6 +30,7 @@ public struct OmFileReader<Backend: OmFileReaderBackend> {
         }) else {
             // Try legacy file header
             let headerSize = om_header_size()
+            Self.adviseMetadata(fn: fn, offset: 0, count: headerSize)
             let data = try await fn.getDataChecked(offset: 0, count: headerSize)
             let headerType = data.withUnsafeBytes {
                 om_header_type($0.baseAddress)
@@ -40,6 +42,7 @@ public struct OmFileReader<Backend: OmFileReaderBackend> {
             return
         }
         /// Read data from root.offset by root.size. Important: data must remain accessible throughout the use of this variable!!
+        Self.adviseMetadata(fn: fn, offset: Int(offset), count: Int(size))
         let dataVariable = try await fn.getDataChecked(offset: Int(offset), count: Int(size))
         try dataVariable.withUnsafeBytes {
             let error = om_variable_validate($0.baseAddress, UInt64($0.count))
@@ -48,11 +51,33 @@ public struct OmFileReader<Backend: OmFileReaderBackend> {
             }
         }
         self.variable = dataVariable
+        adviseChildren()
     }
 
     init(fn: Backend, variable: Backend.DataType) {
         self.fn = fn
         self.variable = variable
+        adviseChildren()
+    }
+
+    private static func adviseMetadata(fn: Backend, offset: Int, count: Int) {
+        guard offset >= 0, count > 0, offset <= fn.count, count <= fn.count - offset else { return }
+        fn.adviseData(offset: offset, count: count, advice: .willneed)
+    }
+
+    /// Start fetching child metadata while the caller is still inspecting this variable.
+    private func adviseChildren() {
+        variable.withUnsafeBytes {
+            let variable = om_variable_init($0.baseAddress)
+            for index in 0..<om_variable_get_children_count(variable) {
+                var offset: UInt64 = 0
+                var size: UInt64 = 0
+                if om_variable_get_children(variable, index, 1, &offset, &size),
+                   let offset = Int(exactly: offset), let size = Int(exactly: size) {
+                    Self.adviseMetadata(fn: fn, offset: offset, count: size)
+                }
+            }
+        }
     }
 
     public func isLegacyFormat() async throws -> Bool {

@@ -13,6 +13,29 @@ public struct OmFileReaderArray<Backend: OmFileReaderBackend, OmType: OmFileArra
 
     let io_size_merge: UInt64
 
+    init(fn: Backend, variable: Backend.DataType, io_size_max: UInt64, io_size_merge: UInt64) {
+        self.fn = fn
+        self.variable = variable
+        self.io_size_max = io_size_max
+        self.io_size_merge = io_size_merge
+        prefetchLookupTable()
+    }
+
+    /// Start loading the LUT at construction without touching compressed data.
+    private func prefetchLookupTable() {
+        guard let mmap = fn as? MmapFile else { return }
+        variable.withUnsafeBytes { bytes in
+            let metadata = om_variable_init(bytes.baseAddress)
+            var offset: UInt64 = 0
+            var size: UInt64 = 0
+            var dataOffset: UInt64 = 0
+            var entries: UInt64 = 0
+            guard om_variable_chunk_index_read(metadata, &offset, &size, &dataOffset, &entries) == ERROR_OK,
+                  offset <= UInt64(mmap.count), size <= UInt64(mmap.count) - offset else { return }
+            mmap.adviseData(offset: Int(offset), count: Int(size), advice: .willneed)
+        }
+    }
+
     public var compression: OmCompressionType {
         return variable.withUnsafeBytes({
             let variable = om_variable_init($0.baseAddress)
