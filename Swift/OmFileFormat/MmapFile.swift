@@ -21,7 +21,7 @@ public final class MmapFile: Sendable {
         }
     }
 
-    public enum MAdvice {
+    public enum MAdvice: Sendable {
         case willneed
         case dontneed
         case random
@@ -53,12 +53,14 @@ public final class MmapFile: Sendable {
         self.file = fn
     }
 
-    /// Tell the OS to prefault the required memory pages. Subsequent calls to read data should be faster
+    /// Give the OS access advice for the pages covering this byte range.
     public func prefetchData(offset: Int, count: Int, advice: MAdvice) {
-        /// Page start aligned to page size
-        let pageStart = (offset / 4096) * 4096
-        /// Length as a multiple of the page size
-        let length = (count + 4096 - 1) / 4096 * 4096
+        precondition(offset >= 0 && count >= 0 && offset <= data.count && count <= data.count - offset)
+        guard count > 0 else { return }
+        let pageSize = Int(getpagesize())
+        let pageStart = (offset / pageSize) * pageSize
+        // madvise rounds the end up to a page boundary. Include the offset within the first page.
+        let length = offset - pageStart + count
 
         let ret = madvise(UnsafeMutableRawPointer(mutating: data.baseAddress!.advanced(by: pageStart)), length, advice.mode)
         guard ret == 0 else {
@@ -80,6 +82,10 @@ extension MmapFile: OmFileReaderBackend {
         return data.count
     }
     
+    public func adviseData(offset: Int, count: Int, advice: MAdvice) {
+        prefetchData(offset: offset, count: count, advice: advice)
+    }
+
     public func prefetchData(offset: Int, count: Int) async throws {
         self.prefetchData(offset: offset, count: count, advice: .willneed)
     }
