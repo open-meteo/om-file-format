@@ -82,6 +82,10 @@ extension MmapFile: OmFileReaderBackend {
         return data.count
     }
     
+    public func adviseData(offset: Int, count: Int, advice: MAdvice) {
+        prefetchData(offset: offset, count: count, advice: advice)
+    }
+
     public func prefetchData(offset: Int, count: Int) async throws {
         self.prefetchData(offset: offset, count: count, advice: .willneed)
     }
