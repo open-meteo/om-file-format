@@ -32,7 +32,7 @@ public struct OmFileReaderArray<Backend: OmFileReaderBackend, OmType: OmFileArra
             var entries: UInt64 = 0
             guard om_variable_chunk_index_read(metadata, &offset, &size, &dataOffset, &entries) == ERROR_OK,
                   offset <= UInt64(mmap.count), size <= UInt64(mmap.count) - offset else { return }
-            mmap.adviseData(offset: Int(offset), count: Int(size), advice: .willneed)
+            mmap.prefetchData(offset: Int(offset), count: Int(size), advice: .willneed)
         }
     }
 

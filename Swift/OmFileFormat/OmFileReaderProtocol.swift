@@ -12,9 +12,6 @@ public protocol OmFileReaderBackend: Sendable {
     /// Prefect data for future access. E.g. madvice on memory mapped files
     func prefetchData(offset: Int, count: Int) async throws
     
-    /// Advise a backend about access to a byte range. Backends without memory mapping may ignore this.
-    func adviseData(offset: Int, count: Int, advice: MmapFile.MAdvice)
-
     /// Read data. Data will be retained of type `DataType`. Reads must be thread safe.
     func getData(offset: Int, count: Int) async throws -> DataType
     
@@ -23,8 +20,6 @@ public protocol OmFileReaderBackend: Sendable {
 }
 
 extension OmFileReaderBackend {
-    public func adviseData(offset: Int, count: Int, advice: MmapFile.MAdvice) {}
-
     func getDataChecked(offset: Int, count: Int) async throws -> DataType {
         guard offset >= 0, count >= 0, offset <= self.count, count <= self.count - offset else {
             throw OmFileFormatSwiftError.omDecoder(error: "Read out of bounds")

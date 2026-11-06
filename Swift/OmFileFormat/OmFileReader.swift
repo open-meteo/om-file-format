@@ -19,7 +19,7 @@ public struct OmFileReader<Backend: OmFileReaderBackend> {
         // Try to read version 3 files. If this fails, use legacy
         let fileSize = fn.count
         let trailerSize = om_trailer_size()
-        Self.adviseMetadata(fn: fn, offset: fileSize - trailerSize, count: trailerSize)
+        try await Self.prefetchMetadata(fn: fn, offset: fileSize - trailerSize, count: trailerSize)
         guard let (offset, size) = try await fn.withDataChecked(offset: fileSize - trailerSize, count: trailerSize, fn: { trailerData -> (UInt64, UInt64)? in
             var offset: UInt64 = 0
             var size: UInt64 = 0
@@ -30,7 +30,7 @@ public struct OmFileReader<Backend: OmFileReaderBackend> {
         }) else {
             // Try legacy file header
             let headerSize = om_header_size()
-            Self.adviseMetadata(fn: fn, offset: 0, count: headerSize)
+            try await Self.prefetchMetadata(fn: fn, offset: 0, count: headerSize)
             let data = try await fn.getDataChecked(offset: 0, count: headerSize)
             let headerType = data.withUnsafeBytes {
                 om_header_type($0.baseAddress)
@@ -42,7 +42,7 @@ public struct OmFileReader<Backend: OmFileReaderBackend> {
             return
         }
         /// Read data from root.offset by root.size. Important: data must remain accessible throughout the use of this variable!!
-        Self.adviseMetadata(fn: fn, offset: Int(offset), count: Int(size))
+        try await Self.prefetchMetadata(fn: fn, offset: Int(offset), count: Int(size))
         let dataVariable = try await fn.getDataChecked(offset: Int(offset), count: Int(size))
         try dataVariable.withUnsafeBytes {
             let error = om_variable_validate($0.baseAddress, UInt64($0.count))
@@ -51,31 +51,33 @@ public struct OmFileReader<Backend: OmFileReaderBackend> {
             }
         }
         self.variable = dataVariable
-        adviseChildren()
+        try await prefetchChildren()
     }
 
-    init(fn: Backend, variable: Backend.DataType) {
+    init(fn: Backend, variable: Backend.DataType) async throws {
         self.fn = fn
         self.variable = variable
-        adviseChildren()
+        try await prefetchChildren()
     }
 
-    private static func adviseMetadata(fn: Backend, offset: Int, count: Int) {
+    private static func prefetchMetadata(fn: Backend, offset: Int, count: Int) async throws {
         guard offset >= 0, count > 0, offset <= fn.count, count <= fn.count - offset else { return }
-        fn.adviseData(offset: offset, count: count, advice: .willneed)
+        try await fn.prefetchData(offset: offset, count: count)
     }
 
     /// Start fetching child metadata while the caller is still inspecting this variable.
-    private func adviseChildren() {
-        variable.withUnsafeBytes {
-            let variable = om_variable_init($0.baseAddress)
-            for index in 0..<om_variable_get_children_count(variable) {
+    private func prefetchChildren() async throws {
+        for index in 0..<numberOfChildren {
+            let range = variable.withUnsafeBytes { bytes -> (Int, Int)? in
+                let variable = om_variable_init(bytes.baseAddress)
                 var offset: UInt64 = 0
                 var size: UInt64 = 0
-                if om_variable_get_children(variable, index, 1, &offset, &size),
-                   let offset = Int(exactly: offset), let size = Int(exactly: size) {
-                    Self.adviseMetadata(fn: fn, offset: offset, count: size)
-                }
+                guard om_variable_get_children(variable, index, 1, &offset, &size),
+                      let offset = Int(exactly: offset), let size = Int(exactly: size) else { return nil }
+                return (offset, size)
+            }
+            if let (offset, size) = range {
+                try await Self.prefetchMetadata(fn: fn, offset: offset, count: size)
             }
         }
     }
@@ -145,7 +147,7 @@ public struct OmFileReader<Backend: OmFileReaderBackend> {
                 throw OmFileFormatSwiftError.omDecoder(error: String(cString: om_error_string(error)))
             }
         }
-        return OmFileReader(fn: fn, variable: dataChild)
+        return try await OmFileReader(fn: fn, variable: dataChild)
     }
     
     public func getChild(name: String) async throws -> Self? {
