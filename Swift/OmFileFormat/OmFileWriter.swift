@@ -174,7 +174,7 @@ public final class OmFileWriterArray<OmType: OmFileArrayDataTypeProtocol, FileHa
 
         let chunkBufferSize = om_encoder_chunk_buffer_size(&encoder)
 
-        /// Each thread needs its own chunk buffer to compress data. This implementation is single threaded
+        /// Scratch space for sequential writes; concurrent workers allocate their own.
         self.chunkBuffer = UnsafeMutableRawBufferPointer.allocate(byteCount: Int(chunkBufferSize), alignment: 1)
         chunkBuffer.initializeMemory(as: UInt8.self, repeating: 0)
 
@@ -242,6 +242,101 @@ public final class OmFileWriterArray<OmType: OmFileArrayDataTypeProtocol, FileHa
             // Store chunk offset in LUT
             lookUpTable[chunkIndex+1] = UInt64(buffer.totalBytesWritten)
             chunkIndex += 1
+        }
+    }
+
+    /// Array convenience overload for concurrent compression.
+    public func writeDataConcurrent(array: [OmType], arrayDimensions: [UInt64]? = nil, arrayOffset: [UInt64]? = nil, arrayCount: [UInt64]? = nil, nConcurrent: Int = 4) async throws {
+        try await writeDataConcurrent(pointer: array, count: array.count, arrayDimensions: arrayDimensions, arrayOffset: arrayOffset, arrayCount: arrayCount, nConcurrent: nConcurrent)
+    }
+
+    /// Compress chunks using at most `nConcurrent` workers and append them in order.
+    /// Completed chunks are buffered until preceding chunks have been written.
+    /// Workers reuse one scratch buffer and one compressed-chunk buffer each.
+    /// The input must remain allocated and unchanged until this call returns.
+    /// Do not use the writer or its output buffer concurrently with this call.
+    public func writeDataConcurrent(pointer: UnsafePointer<OmType>, count: Int, arrayDimensions: [UInt64]? = nil, arrayOffset: [UInt64]? = nil, arrayCount: [UInt64]? = nil, nConcurrent: Int = 4) async throws {
+        precondition(nConcurrent > 0, "nConcurrent must be positive")
+        let arrayDimensions = arrayDimensions ?? dimensions
+        let arrayCount = arrayCount ?? arrayDimensions
+        let arrayOffset = arrayOffset ?? [UInt64](repeating: 0, count: arrayDimensions.count)
+        let arrayDimsFlat = arrayDimensions.reduce(1, *)
+        guard count == arrayDimsFlat else {
+            throw OmFileFormatSwiftError.requireDimensionsToMatch(required: count, actual: Int(arrayDimsFlat))
+        }
+        assert(zip(arrayDimensions, zip(arrayOffset, arrayCount)).allSatisfy { $1.0 + $1.1 <= $0 })
+        // Keep the encoder's dimension arrays alive through all child tasks.
+        defer { withExtendedLifetime(self) {} }
+        let numberOfChunks = Int(om_encoder_count_chunks_in_array(&encoder, arrayCount))
+        guard numberOfChunks <= lookUpTable.count - 1 - chunkIndex else {
+            throw OmFileFormatSwiftError.chunkHasWrongNumberOfElements
+        }
+        guard numberOfChunks > 0 else { return }
+        try Task.checkCancellation()
+        try buffer.reallocate(minimumCapacity: Int(compressedChunkBufferSize) * 4)
+        if chunkIndex == 0 {
+            lookUpTable[0] = UInt64(buffer.totalBytesWritten)
+        }
+        let startChunk = chunkIndex
+        // The configuration is read-only; its dimension arrays stay alive until all tasks finish.
+        nonisolated(unsafe) let encoderConfiguration = encoder
+        let scratchSize = Int(om_encoder_chunk_buffer_size(&encoder))
+        let workers = (0..<min(nConcurrent, numberOfChunks)).map { _ in
+            let scratch = UnsafeMutableRawBufferPointer.allocate(byteCount: scratchSize, alignment: 1)
+            let output = UnsafeMutableRawBufferPointer.allocate(byteCount: Int(compressedChunkBufferSize), alignment: 1)
+            scratch.initializeMemory(as: UInt8.self, repeating: 0)
+            output.initializeMemory(as: UInt8.self, repeating: 0)
+            return (scratch: scratch, output: output)
+        }
+        defer {
+            for worker in workers {
+                worker.scratch.deallocate()
+                worker.output.deallocate()
+            }
+        }
+
+        try await withThrowingTaskGroup(of: (index: Int, worker: Int, size: Int).self) { group in
+            var availableWorkers = Array(workers.indices.reversed())
+            var nextToSchedule = 0
+            var nextToWrite = 0
+            var pending = [Int: Data]()
+
+            while nextToWrite < numberOfChunks {
+                try Task.checkCancellation()
+                while nextToSchedule < numberOfChunks, let worker = availableWorkers.popLast() {
+                    let index = nextToSchedule
+                    nextToSchedule += 1
+                    group.addTask {
+                        var encoder = encoderConfiguration
+                        let size = om_encoder_compress_chunk(
+                            &encoder, pointer, arrayDimensions, arrayOffset, arrayCount,
+                            UInt64(startChunk + index), UInt64(index),
+                            workers[worker].output.baseAddress, workers[worker].scratch.baseAddress
+                        )
+                        return (index, worker, Int(size))
+                    }
+                }
+
+                guard let result = try await group.next() else { break }
+                try Task.checkCancellation()
+                // Copy completed output so this worker can immediately compress another chunk,
+                // even when an earlier chunk is still running.
+                pending[result.index] = Data(bytes: workers[result.worker].output.baseAddress!, count: result.size)
+                availableWorkers.append(result.worker)
+
+                while let bytes = pending.removeValue(forKey: nextToWrite) {
+                    try buffer.reallocate(minimumCapacity: bytes.count)
+                    bytes.withUnsafeBytes {
+                        if let baseAddress = $0.baseAddress, !$0.isEmpty {
+                            buffer.bufferAtWritePosition.copyMemory(from: baseAddress, byteCount: $0.count)
+                        }
+                    }
+                    buffer.incrementWritePosition(by: bytes.count)
+                    lookUpTable[chunkIndex + 1] = UInt64(buffer.totalBytesWritten)
+                    chunkIndex += 1
+                    nextToWrite += 1
+                }
+            }
         }
     }
 
